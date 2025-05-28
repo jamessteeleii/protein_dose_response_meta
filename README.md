@@ -1,4 +1,4 @@
-#   The effects of supervision upon effort during resistance training: A Bayesian analysis of prior data and an experimental study of private strength clinic members
+#   An updated systematic review and dose-response meta-analysis of protein intakes effects upon lean mass, muscle, strength, and function in health adults
 
 ## Abstract
 TO COMPLETE
