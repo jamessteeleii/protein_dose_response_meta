@@ -218,9 +218,15 @@ list(
   ),
   
   # Determining baseline standard deviations to provide reference values for smallest effect size of interest of 0.1
+  # Lean soft tissue/fat free mass from Benito et al. (https://doi.org/10.3390/ijerph17041285)
   tar_target(
     benito_data,
     read_csv(url("https://github.com/jamessteeleii/glp1_rt_cits/raw/refs/heads/master/data/benito_study_data.csv"))
+  ),
+  
+  tar_target(
+    lean_mass_sd,
+    estimate_lean_mass_sd(benito_data)
   ),
   
   #### ADD BUCKNER DATA!!!!!!!!!!!!!!!!!!!!!!
@@ -232,6 +238,16 @@ list(
          "openpowerlifting-2025-07-12",
          "openpowerlifting-2025-07-12-6c3c0797.csv"),
     format = "file"
+  ),
+  
+  tar_target(
+    open_powerlifting_data,
+    read_csv(open_powerlifting_data_file)
+  ),
+  
+  tar_target(
+    strength_sd,
+    estimate_strength_sd(open_powerlifting_data)
   )
   
 )

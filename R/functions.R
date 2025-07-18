@@ -323,6 +323,66 @@ get_steele_priors <- function(data) {
   
 }
 
+# Determining baseline standard deviations to provide reference values for smallest effect size of interest of 0.1
+
+  ### ADD FUNCTIONS TO CALCULATE META-ANALYTIC ESTIMATES OF STANDARD DEVIATIONS
+
+estimate_lean_mass_sd <- function(data) {
+
+  benito_data <-  data |>
+    separate(study_arm, into = c("study", "arm"), sep = "_")|>
+    group_by(study) |>
+    mutate(
+      study = cur_group_id()
+    ) |>
+    group_by(study, arm) |>
+    mutate(
+      arm = cur_group_id()
+    ) |>
+    mutate(
+      duration_centre = duration/12
+    ) |>
+    filter(!is.na(duration))
+  
+  benito_data <- escalc(
+    measure = "SDLN",
+    sdi = pre_sd,
+    ni = pre_n,
+    data = benito_data
+  )
+  
+  benito_meta_sd <- rma.mv(yi, vi,
+                           random = list(~ 1 | study, ~ 1 | arm),
+                           mods = ~ 0 + outcome,
+                           data = benito_data,
+                           method="REML", test="t")
+  
+  benito_sds <- broom::tidy(benito_meta_sd) |>
+    mutate(across(c(estimate, std.error), exp))
+  
+  return(benito_sds)
+}
+
+estimate_strength_sd <- function(data) {
+  
+  open_powerlifting_sd <- data |>
+    filter(Equipment == "Raw" & Tested == "Yes" & Division == "Open") |>
+    mutate(Best3SquatKg = if_else(Best3SquatKg > 0, Best3SquatKg, NA), # We also remove any failed lifts as it impacts the totals
+           Best3BenchKg = if_else(Best3BenchKg > 0, Best3BenchKg, NA),
+           Best3DeadliftKg = if_else(Best3DeadliftKg > 0, Best3DeadliftKg, NA)) |>
+    group_by(Name) |>
+    arrange(Date) |>
+    slice_head(n=1) |>
+    ungroup() |>
+    summarise(
+      squat_sd = sd(Best3SquatKg, na.rm=TRUE),
+      bench_sd = sd(Best3BenchKg, na.rm=TRUE),
+      deadlift_sd = sd(Best3DeadliftKg, na.rm=TRUE)
+    )
+  
+  return(open_powerlifting_sd)
+}
+
 # Function to fit all candidate models
 fit_candidate_models <- function(formula, priors, data) {
   formula <- as.formula(paste0(formula))
