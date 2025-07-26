@@ -325,8 +325,6 @@ get_steele_priors <- function(data) {
 
 # Determining baseline standard deviations to provide reference values for smallest effect size of interest of 0.1
 
-  ### ADD FUNCTIONS TO CALCULATE META-ANALYTIC ESTIMATES OF STANDARD DEVIATIONS
-
 estimate_lean_mass_sd <- function(data) {
 
   benito_data <-  data |>
@@ -342,7 +340,8 @@ estimate_lean_mass_sd <- function(data) {
     mutate(
       duration_centre = duration/12
     ) |>
-    filter(!is.na(duration))
+    filter(!is.na(duration)) |>
+    rowid_to_column("effect")
   
   benito_data <- escalc(
     measure = "SDLN",
@@ -352,15 +351,50 @@ estimate_lean_mass_sd <- function(data) {
   )
   
   benito_meta_sd <- rma.mv(yi, vi,
-                           random = list(~ 1 | study, ~ 1 | arm),
+                           random = list(~ 1 | study, ~ 1 | arm, ~ 1 | effect),
                            mods = ~ 0 + outcome,
                            data = benito_data,
                            method="REML", test="t")
   
-  benito_sds <- broom::tidy(benito_meta_sd) |>
+  rob_benito_meta_sd <- robust(benito_meta_sd, benito_data$study)
+  
+  
+  benito_sds <- broom::tidy(rob_benito_meta_sd) |>
     mutate(across(c(estimate, std.error), exp))
   
   return(benito_sds)
+}
+
+estimate_muscle_thickness_sd <- function(data) {
+  
+  buckner_data <- data |>
+    janitor::clean_names() |>
+    filter(retracted == "NO") |>
+    mutate(centred_pre_mean = pre_mean - 5) 
+  
+  buckner_data <- escalc(
+    measure = "SDLN",
+    sdi = pre_sd,
+    ni = n,
+    data = buckner_data
+  )
+  
+  buckner_meta_sd <- rma.mv(yi, vi,
+                            random = list(~ 1 | study, ~ 1 | group, ~ 1 | effect),
+                            mods = ~ log(pre_mean),
+                           data = buckner_data,
+                           method="REML", test="t")
+  
+  rob_buckner_meta_sd <- robust(buckner_meta_sd, buckner_data$study)
+  
+  
+  buckner_sd <- as_tibble(predict(rob_buckner_meta_sd, 
+          newmods = log(median(buckner_data$pre_mean)))) |>
+    mutate(across(where(is.double), exp))
+  
+  
+  return(buckner_sd)
+  
 }
 
 estimate_strength_sd <- function(data) {
@@ -394,10 +428,282 @@ fit_candidate_models <- function(formula, priors, data) {
     cores = 4,
     seed = 1988,
     warmup = 2000,
-    iter = 8000,
+    iter = 6000, # just for pre-reg so it doesn't take so long to run
+    # iter = 42000, # so as to have 40k iterations for BF calculations
     control = list(adapt_delta = 0.99),
     save_pars = save_pars(all = TRUE) 
   )
   
   return(model)
+}
+
+# Functions to generate weights and obtain model averaged preds/slopes
+get_model_weights <- function(models) {
+  
+  models_nunes <- models
+  
+  # pass each to object as loo doesn't like the list for some reason
+  m_intercept <- models_nunes$`Intercept only model`
+  m_linear <- models_nunes$`Linear model`
+  m_lspline <- models_nunes$`Linear spline (1.6g/kg/day) model`
+  m_tps <- models_nunes$`Thin plate spline model`
+  m_intercept_mods <- models_nunes$`Intercept only model (+ moderators)`
+  m_linear_mods <- models_nunes$`Linear model (+ moderators)`
+  m_lspline_mods <- models_nunes$`Linear spline (1.6g/kg/day) model (+ moderators)`
+  m_tps_mods <- models_nunes$ `Thin plate spline model (+ moderators)`
+  m_linear_ranef <- models_nunes$`Linear model (+ random slopes)`
+  m_lspline_ranef <- models_nunes$`Linear spline (1.6g/kg/day) model (+ random slopes)`
+  m_tps_ranef <- models_nunes$ `Thin plate spline model (+ random smooths)`
+  m_linear_mods_ranef <- models_nunes$`Linear model (+ moderators & random slopes)`
+  m_lspline_mods_ranef <- models_nunes$`Linear spline (1.6g/kg/day) model (+ moderators & random slopes)`
+  m_tps_mods_ranef <- models_nunes$`Thin plate spline model (+ moderators & random smooths)`
+  m_linear_interact <- models_nunes$`Linear model (+ RT interaction)`
+  m_lspline_interact <- models_nunes$`Linear spline (1.6g/kg/day) model (+ RT interaction)`
+  m_tps_interact <- models_nunes$`Thin plate spline model (+ RT interaction smooth)`
+  m_linear_mods_interact <- models_nunes$`Linear model (+ moderators & RT interaction)`
+  m_lspline_mods_interact <- models_nunes$`Linear spline (1.6g/kg/day) model (+ moderators & RT interaction)` 
+  m_tps_mods_interact <- models_nunes$`Thin plate spline model (+ moderators & RT interaction)`
+  m_linear_ranef_interact <- models_nunes$`Linear model (+ random slopes & RT interaction)`
+  m_lspline_ranef_interact <- models_nunes$`Linear spline (1.6g/kg/day) model (+ random slopes & RT interaction)`
+  m_tps_ranef_interact <- models_nunes$`Thin plate spline model (+ random smooths & RT interaction smooth)`
+  m_linear_mods_ranef_interact <- models_nunes$`Linear model (+ moderators & random slopes & RT interaction)`
+  m_lspline_mods_ranef_interact <- models_nunes$`Linear spline (1.6g/kg/day) model (+ moderators & random slopes & RT interaction)`
+  m_tps_mods_ranef_interact <- models_nunes$`Thin plate spline model (+ moderators & random smooths & RT interaction smooth)`
+  
+  
+  
+  weights_stacking <- loo::loo_model_weights(m_intercept, 
+                                             m_linear, 
+                                             m_lspline, 
+                                             m_tps,
+                                             m_intercept_mods, 
+                                             m_linear_mods, 
+                                             m_lspline_mods, 
+                                             m_tps_mods,
+                                             m_linear_ranef, 
+                                             m_lspline_ranef,
+                                             m_tps_ranef,
+                                             m_linear_mods_ranef, 
+                                             m_lspline_mods_ranef, 
+                                             m_tps_mods_ranef,
+                                             m_linear_interact, 
+                                             m_lspline_interact, 
+                                             m_tps_interact,
+                                             m_linear_mods_interact, 
+                                             m_lspline_mods_interact, 
+                                             m_tps_mods_interact,
+                                             m_linear_ranef_interact, 
+                                             m_lspline_ranef_interact,
+                                             m_tps_ranef_interact,
+                                             m_linear_mods_ranef_interact, 
+                                             m_lspline_mods_ranef_interact, 
+                                             m_tps_mods_ranef_interact,
+                                             method = "stacking")
+  
+  return(weights_stacking)
+}
+
+get_model_avg_preds <- function(models, weights) {
+  
+  models_nunes <- models
+  weights_stacking <- weights
+  
+  preds <- map(models_nunes, ~ predictions(.x, 
+                                           re_formula= NA,
+                                           newdata   = datagrid(
+                                             resistance_exercise_code = c(0,1),
+                                             protein_intake = seq(-0.32, 3.28, by = 0.01),
+                                             age_centre = 0,
+                                             duration_centre = 0,
+                                             vi = 0
+                                           )))
+  
+  weighted_preds <- map2(preds, weights_stacking, function(pred_df, w) {
+    pred_df %>%
+      mutate(
+        .pred_weighted = estimate * w,
+        .lower_weighted = conf.low * w,
+        .upper_weighted = conf.high * w
+      )
+  })
+  
+  combined_preds <- reduce(weighted_preds, function(df1, df2) {
+    df1 %>%
+      mutate(
+        .pred_weighted = .pred_weighted + df2$.pred_weighted,
+        .lower_weighted = .lower_weighted + df2$.lower_weighted,
+        .upper_weighted = .upper_weighted + df2$.upper_weighted
+      )
+  }) 
+  
+  final_predictions <- combined_preds %>%
+    mutate(
+      estimate = .pred_weighted,
+      conf.low = .lower_weighted,
+      conf.high = .upper_weighted
+    ) |>
+    mutate(
+      resistance_exercise_label = "Resistance Exercise?",
+      resistance_exercise = case_when(
+        resistance_exercise_code == 0 ~ "YES",
+        resistance_exercise_code == 1 ~ "NO"
+      ),
+      protein_intake = protein_intake + 1.12
+    )
+  
+  return(final_predictions)
+}
+
+get_model_avg_slopes <- function(models, weights) {
+  
+  models_nunes <- models
+  weights_stacking <- weights
+  
+  # Because can't run slopes(model, variables = "protein_intake") on intercept model with no protein_intake
+  safe_slopes <- possibly(slopes, otherwise = NULL) 
+  
+  slopes <- map(models_nunes, ~ safe_slopes(.x, 
+                                            re_formula= NA,
+                                            variables = "protein_intake",
+                                            newdata   = datagrid(
+                                              resistance_exercise_code = c(0,1),
+                                              protein_intake = seq(-0.32, 3.28, by = 0.42),
+                                              age_centre = 0,
+                                              duration_centre = 0,
+                                              vi = 0
+                                            )) |> get_draws())
+  
+  
+  # remove nulls from slopes and weights
+  slopes_clean <- compact(slopes)
+  weights_stacking_clean <- weights_stacking[!map_lgl(slopes, is.null)] 
+  
+  # Convert each to a matrix (rowid-draw order must match)
+  draw_matrices <- map(slopes_clean, ~ matrix(.x$draw, ncol = 1))
+  
+  # Stack into matrix: rows = rowid × draw, cols = models
+  draw_mat <- do.call(cbind, draw_matrices)  # fast column binding
+  
+  # Multiply each column by stacking weight
+  weighted_draw_mat <- sweep(draw_mat, 2, weights_stacking_clean, FUN = "*")
+  
+  # Sum across models
+  stacked_draws <- rowSums(weighted_draw_mat)
+  
+  # Reattach draw + rowid info
+  meta <- slopes_clean[[1]] |> select(rowid, draw, resistance_exercise_code, protein_intake)
+  
+  stacked_df <- bind_cols(meta, estimate = stacked_draws) |>
+    mutate(
+      resistance_exercise_label = "Resistance Exercise?",
+      resistance_exercise = case_when(
+        resistance_exercise_code == 0 ~ "YES",
+        resistance_exercise_code == 1 ~ "NO"
+      ),
+      protein_intake = protein_intake + 1.12
+    )
+  
+  stacked_df
+}
+
+get_rope_pd <- function(slopes) {
+  
+  rope <- slopes |>
+    group_by(protein_intake, resistance_exercise) |>
+    nest() |>
+    mutate(
+      rope_percent = map(data, ~ rope(.x$estimate*0.42, range = c(-0.1, 0.1), ci = 1))
+    ) |>
+    unnest(rope_percent) |>
+    select(protein_intake, resistance_exercise, ROPE_low, ROPE_high, ROPE_Percentage) |>
+    filter(resistance_exercise == "YES" | protein_intake < 1.6) |>
+    mutate(type = "rope")
+  
+  
+  pd <- slopes |>
+    group_by(protein_intake, resistance_exercise) |>
+    nest() |>
+    mutate(
+      rope_percent = map(data, ~ rope(.x$estimate*0.42, range = c(0.1, Inf), ci = 1))
+    ) |>
+    unnest(rope_percent) |>
+    select(protein_intake, resistance_exercise, ROPE_low, ROPE_high, ROPE_Percentage) |>
+    filter(resistance_exercise == "YES" | protein_intake < 1.6) |>
+    mutate(type = "pd")
+  
+  rope_pd <- bind_rows(rope, pd)
+  
+  return(rope_pd)
+
+  
+}
+
+plot_preds_slopes <- function(data, preds, slopes) {
+  
+  preds_plot <- preds |> 
+    filter(resistance_exercise == "YES" | protein_intake < 1.6) |>
+    ggplot(aes(x = protein_intake, y = estimate)) +
+    geom_hline(yintercept = 0, linetype = "dotted", alpha = 0.75) +
+    geom_point(data = data |>
+                 mutate(resistance_exercise_label = "Resistance Exercise?"), 
+               aes(x = protein_intake + 1.12, y = yi, size = size, color = condition), alpha = 0.5) +
+    geom_ribbon(aes(ymin = conf.low, ymax = conf.high),
+                alpha = 0.5, color = "black", size = 0.25) +
+    geom_line(aes(y = estimate), size = 0.75, color = "black") +
+    scale_color_manual(values = c("darkorange", "darkgreen")) +
+    ggh4x::facet_nested(.~ resistance_exercise_label + resistance_exercise,
+                        scales = "free") +
+    labs(
+      x = "Protein Intake (g/kg/day)",
+      y = "Lean Mass/Muscle Change (SMD)",
+      color = "Condition",
+      title = "Predicted lean mass/muscle change",
+      # subtitle = "Note, red band indicates prior interval for resistance exercise at habitual protein intake, and blue band indicates non-training controls"
+    ) +
+    guides(
+      size = "none"
+    ) +
+    theme_classic() +
+    theme(
+      plot.title = element_text(size = 12),
+      axis.title = element_text(size = 10)
+    )
+  
+  
+  slopes_plot <- slopes |>
+    filter(resistance_exercise == "YES" | protein_intake < 1.6) |>
+    ggplot(aes(x = protein_intake, y = estimate*0.42)) +
+    geom_hline(yintercept = 0, linetype = "dotted", alpha = 0.75) +
+    geom_hline(yintercept = c(-0.1,0.1), linetype = "dashed", alpha = 0.75) +
+    stat_slabinterval(.width = .95) +
+    ggh4x::facet_nested(.~ resistance_exercise_label + resistance_exercise,
+                        scales = "free") +
+    labs(
+    x = "Protein Intake (g/kg/day)",
+    y = "Marginal Slope for Lean Mass Change (SMD)",
+    title = "Incremental marginal slope of lean mass/muscle change for 0.42 g/kg/day increase",
+    subtitle = "Note, 0.42 g/kg/day increase reflects the difference in median protein intake between intervention and control conditions\nDashed lines reflect a smallest effect size of interest of 0.1 SMD"
+    ) + 
+    guides(
+      size = "none"
+    ) +
+    theme_classic() +
+    theme(
+      plot.title = element_text(size = 12),
+      plot.subtitle = element_text(size = 8),
+      axis.title = element_text(size = 10)
+    )
+  
+  combined_plots <- (preds_plot / slopes_plot) +
+    plot_annotation(
+      tag_levels = "i",
+      title = "Dose-response effects of protein intake on lean mass change",
+      subtitle = "Bayesian model averaging with LOO-CV stacking weights",
+      caption = "Note, reanalysis of Nunes et al. (DOI: 10.1002/jcsm.12922) for purpose of pre-registration of analysis code pipelines"
+    ) &
+    theme(
+      legend.position = "bottom"
+    )
+  
+  return(combined_plots)
 }

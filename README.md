@@ -1,4 +1,4 @@
-#   An updated systematic review and dose-response meta-analysis of protein intakes effects upon lean mass, muscle, strength, and function in health adults
+#   An updated systematic review and dose-response meta-analysis of protein intakes effects upon lean mass, muscle, strength, and function in healthy adults
 
 ## Abstract
 TO COMPLETE

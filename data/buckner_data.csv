@@ -1,0 +1,78 @@
+Reference / Condition,study,group,effect,n,site,weeks,sets,pre.mean,pre.sd,post.mean,post.sd,delta,r,retracted
+Amirthalingam ( 10 - sets ),1,1,1,10,Anterior thigh ( 50 % ),6,24,5.33,0.78,5.44,0.72,0.11,0.5,NO
+Amirthalingam ( 5 - sets ) ' s,1,2,2,9,Anterior thigh ( 50 % ),6,14,5.31,0.92,5.57,0.97,0.26,0.5,NO
+Aube ( 12 - sets ) ¹ *,2,3,3,13,Anterior thigh ( 50 % ),8,12,5.8,1,6.2,1,0.38,0.5,NO
+Aube ( 12 - sets ) ¹ *,2,3,4,13,Anterior thigh ( 75 % ),8,12,3.4,0.9,3.8,1,0.34,0.5,NO
+Aube ( 18 - sets ) ¹4,2,4,5,12,Anterior thigh ( 50 % ),8,18,5.7,0.9,6,0.7,0.32,0.5,NO
+Aube ( 18 - sets ) ¹4,2,4,6,12,Anterior thigh ( 75 % ),8,18,3.1,0.9,3.4,0.9,0.28,0.5,NO
+Aube ( 24 - sets ) ¹4,2,5,7,10,Anterior thigh ( 50 % ),8,24,5.9,0.7,6,0.7,0.15,0.5,NO
+Aube ( 24 - sets ),2,5,8,10,Anterior thigh ( 75 % ),8,24,3,0.7,3.4,0.4,0.39,0.5,NO
+Barbalho ( G5 ) ¹,3,6,9,10,Quadriceps femoris ( 50 % ),24,5,5.76,0.42,6.42,0.48,0.66,0.5,YES
+Barbalho ( G10 ),3,7,10,10,Quadriceps femoris ( 50 % ),24,10,5.92,0.34,6.72,0.43,0.8,0.5,YES
+Barbalho ( G15 ) ¹8,3,8,11,10,Quadriceps femoris ( 50 % ),24,15,5.91,0.43,6.26,0.47,0.35,0.5,YES
+Barbalho ( G20 ) ¹8,3,9,12,10,Quadriceps femoris ( 50 % ),24,20,5.7,0.52,5.88,0.54,0.18,0.5,YES
+Baz - Valle ( EXP,4,10,13,9,Vastus lateralis ( 50 % ),8,18,1.54,0.31,1.69,0.24,0.15,0.5,NO
+Baz - Valle ( EXP ),4,10,14,9,Rectus femoris ( 50 % ),8,18,1.54,0.42,1.62,0.31,0.08,0.5,NO
+Baz - Valle ( EXP ) 22,4,10,15,9,Vastus intermedius ( 50 % ),8,18,1.76,0.43,1.9,0.4,0.14,0.5,NO
+Baz - Valle ( CON ) 22,4,11,16,10,Vastus lateralis ( 50 % ),8,18,1.57,0.26,1.72,0.35,0.15,0.5,NO
+Baz - Valle ( CON ) ²²,4,11,17,10,Rectus femoris ( 50 % ),8,18,1.49,0.3,1.67,0.28,0.18,0.5,NO
+Baz - Valle ( CON ) ²²,4,11,18,10,Vastus intermedius ( 50 % ),8,18,1.84,0.44,2.03,0.33,0.19,0.5,NO
+Brigatto ( G16 ),5,12,19,9,Vastus lateralis ( 50 % ),8,16,3.62,0.44,3.69,0.4,0.07,0.5,NO
+Brigatto ( G24 ),5,13,20,9,Vastus lateralis ( 50 % ),8,24,3.54,0.5,3.74,0.46,0.2,0.5,NO
+"Brigatto ( G32 ) """,5,14,21,9,Vastus lateralis ( 50 % ),8,32,3.71,0.51,4.06,0.51,0.35,0.5,NO
+Brigatto ( G1 ),6,15,22,10,Vastus lateralis ( 50 % ),8,16,4.61,0.48,5.08,0.45,0.47,0.5,NO
+Brigatto ( G1 ),6,15,23,10,Anterior thigh ( 50 % ),8,16,4.13,0.39,4.55,0.44,0.42,0.5,NO
+Brigatto ( G2 ),6,16,24,10,Vastus lateralis ( 50 % ),8,16,4.63,0.55,5.12,0.49,0.49,0.5,NO
+"Brigatto ( G2 ) """,6,16,25,10,Anterior thigh ( 50 % ),8,16,3.92,0.35,4.4,0.37,0.48,0.5,NO
+Gonzalez ( PA ) ¹¹,7,17,26,7.5,Rectus femoris ( 50 % ),8,8,2.63,0.29,2.72,0.36,0.09,0.5,NO
+"Gonzalez ( PL ) """,7,18,27,7.5,Rectus femoris ( 50 % ),8,8,2.43,0.33,2.57,0.32,0.09,0.5,NO
+Gonzalez ( PA ),7,17,28,7.5,Vastus Lateralis ( 50 % ),8,8,2.1,0.55,2.61,0.83,0.51,0.5,NO
+Gonzalez ( PL ),7,18,29,7.5,Vastus Lateralis ( 50 % ),8,8,1.8,0.17,2.02,0.35,0.22,0.5,NO
+"Jakubowski
+( Whey + HMB )",8,19,30,13,Vastus lateralis ( 50 % ),12,11.5,0.31,0.2,0.32,0.2,0.1,0.5,NO
+"Jakubowski ( Whey + leu ) """,8,20,31,13,Vastus lateralis ( 50 % ),12,11.5,0.3,0.3,0.32,0.4,0.2,0.5,NO
+Joy ( Rice protein ) ²,9,21,32,12,Quadriceps femoris,8,11.83,5,0.4,5.2,0.5,0.2,0.5,NO
+Joy ( Whey protein ),9,22,33,12,Quadriceps femoris,8,11.83,4.8,0.7,5.1,0.5,0.3,0.5,NO
+Lasevicius ( TOTAL ),10,23,34,14,Rectus femoris ( 50 % ),10,36,2.27,0.25,2.45,0.27,0.18,0.5,NO
+Lasevicius ( TOTAL ),10,23,35,14,Vastus lateralis ( 50 % ),10,36,2.12,0.34,2.38,0.39,0.26,0.5,NO
+"Lasevicius ( SPLIT ) """,10,24,36,14,Rectus femoris ( 50 % ),10,36,2.27,0.26,2.55,0.22,0.28,0.5,NO
+Lasevicius ( SPLIT ),10,24,37,14,Vastus lateralis ( 50 % ),10,36,2.13,0.29,2.49,0.31,0.36,0.5,NO
+Mangine ( VOL ),11,25,38,14,Rectus femoris ( 50 % ),8,16,2.7,,2.8,0.3,0.1,0.5,NO
+Mangine ( VOL . ),11,25,39,14,Vastus lateralis ( 50 % ),8,16,1.8,,1.9,0.3,0.1,0.5,NO
+Mangine ( INT ),11,26,40,15,Rectus femoris ( 50 % ),8,12,2.7,,2.6,0.4,-0.1,0.5,NO
+Mangine ( INT ),11,26,41,15,Vastus lateralis ( 50 % ),8,12,1.8,,1.9,0.2,0.1,0.5,NO
+"Melville ( placebo ) """,12,27,42,9,Vastus lateralis ( 33 % ),12,18,2.75,0.37,2.83,0.4,0.08,0.5,NO
+"Melville ( placebo ) """,12,27,43,9,Vastus intermedius ( 33 % ),12,18,1.72,0.34,1.84,0.33,0.12,0.5,NO
+"Melville ( placebo ) """,12,27,44,9,Vastus lateralis ( 50 % ),12,18,2.58,0.36,2.66,0.46,0.08,0.5,NO
+"Melville ( placebo ) """,12,27,45,9,Vastus intermedius ( 50 % ),12,18,1.72,0.34,1.84,0.33,0.12,0.5,NO
+"Melville ( DAA ) """,13,28,46,10,Vastus lateralis ( 33 % ),12,18,2.64,0.41,2.77,0.48,0.13,0.5,NO
+"Melville ( DAA ) """,13,28,47,10,Vastus intermedius ( 33 % ),12,18,1.91,0.4,1.98,0.34,0.07,0.5,NO
+"Melville ( DAA ) """,13,28,48,10,Vastus lateralis ( 50 % ),12,18,2.6,0.47,2.71,0.46,0.11,0.5,NO
+"Melville ( DAA ) """,13,28,49,10,Vastus intermedius ( 50 % ),12,18,2.01,0.46,2.05,0.46,0.04,0.5,NO
+Pearson ( FAST ) ¹2,14,29,50,13,Anterior thigh ( 40 % ),8,36,6.6,0.9,6.9,0.9,0.3,0.5,NO
+Pearson ( FAST ) ¹2,14,29,51,13,Anterior thigh ( 60 % ),8,36,5.2,0.9,5.5,0.9,0.3,0.5,NO
+"Pearson ( SLOW ) """,14,30,52,13,Anterior thigh ( 40 % ),8,36,6.7,0.9,6.9,0.9,0.2,0.5,NO
+Pearson ( SLOW ) ¹2,14,30,53,13,Anterior thigh ( 60 % ),8,36,5.5,0.9,5.6,1,0.1,0.5,NO
+Schoenfeld ( 1 set ),15,31,54,11,Rectus femoris ( 50 % ),8,9,5.97,0.67,6.17,0.55,0.2,0.5,NO
+Schoenfeld ( 1 set ),15,31,55,11,Vastus lateralis ( 50 % ),8,9,5.75,0.6,6.04,0.63,0.29,0.5,NO
+Schoenfeld ( 3 set ),15,32,56,12,Rectus femoris ( 50 % ),8,27,5.79,0.81,6.1,0.87,0.31,0.5,NO
+Schoenfeld ( 3 set ),15,32,57,12,Vastus lateralis ( 50 % ),8,27,5.79,0.8,6.25,0.7,0.46,0.5,NO
+Schoenfeld ( 5 set ),15,33,58,11,Rectus femoris ( 50 % ),8,45,5.44,0.34,6.12,0.45,0.68,0.5,NO
+Schoenfeld ( 5 set ),15,33,59,11,Vastus lateralis ( 50 % ),8,45,5.24,0.62,5.96,0.58,0.72,0.5,NO
+"Schoenfeld ( TRAD ) """,16,34,60,13,Anterior thigh ( 50 % ),8,18,5.8,1.1,6.1,0.9,0.28,0.5,NO
+Schoenfeld ( TRAD ),16,34,61,13,Lateral thigh ( 50 % ),8,18,5.5,0.9,6,0.8,0.45,0.5,NO
+"Schoenfeld ( ISO ) """,16,35,62,14,Anterior thigh ( 50 % ),8,18,6,0.9,6.5,0.9,0.48,0.5,NO
+"Schoenfeld ( ISO ) """,16,35,63,14,Lateral thigh ( 50 % ),8,18,5.8,0.9,6.2,0.9,0.41,0.5,NO
+"Schoenfeld ( SHORT ) """,17,36,64,12,Anterior thigh ( 50 % ),8,27,5.25,0.53,5.61,0.56,0.36,0.5,NO
+"Schoenfeld ( SHORT ) """,17,36,65,12,Vastus lateralis ( 50 % ),8,27,3.59,0.43,3.95,0.46,0.36,0.5,NO
+"Schoenfeld ( LONG ) """,17,37,66,11,Anterior thigh ( 50 % ),8,27,5.35,0.65,6.06,0.58,0.71,0.5,NO
+Schoenfeld ( LONG ),17,37,67,11,Vastus lateralis ( 50 % ),8,27,3.58,0.58,3.99,0.65,0.41,0.5,NO
+Schoenfeld ( LL ),18,38,68,9,Quadriceps femoris ( 50 % ),8,27,5.46,1.09,5.98,0.92,0.52,0.5,NO
+Schoenfeld ( HL ) **,18,39,69,9,Quadriceps femoris ( 50 % ),8,27,5.71,0.42,6.23,0.52,0.52,0.5,NO
+"Schwanbeck ( free
+weight )",19,40,70,18,Quadriceps,8,18.75,5.6,0.7,5.9,0.7,0.3,0.5,NO
+Schwanbeck ( machine ),19,41,71,18,Quadriceps,8,18.75,5.9,0.5,6.2,0.5,0.3,0.5,NO
+Wilson ( placebo ),20,42,72,9,Quadriceps femoris,12,11.83,5.02,0.21,5.26,0.21,0.24,0.5,YES
+"Wilson ( HMB ) """,20,43,73,11,Quadriceps femoris,12,11.83,5.02,0.21,5.74,0.21,0.72,0.5,YES
+Zaroni ( SPLIT ),21,44,74,9,Vastus lateralis ( 50 % ),8,15,4.55,0.33,4.79,0.28,0.24,0.5,NO
+Zaroni ( TOTAL ),21,45,75,9,Vastus lateralis ( 50 % ),8,15,4.76,0.43,5.22,0.32,0.46,0.5,NO
