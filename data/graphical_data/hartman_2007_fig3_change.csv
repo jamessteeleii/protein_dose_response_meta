@@ -1,0 +1,6 @@
+milk, 1709.0909090909092, 0, mean_change
+milk, 2118.181818181818, 0, upper_se_change
+soy, 1072.727272727273, 1, mean_change
+soy, 1463.6363636363637, 1, upper_se_change
+placebo, 536.3636363636365, 2, mean_change
+placebo, 827.2727272727271, 2, upper_se_change

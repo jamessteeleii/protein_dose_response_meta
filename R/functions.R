@@ -707,3 +707,468 @@ plot_preds_slopes <- function(data, preds, slopes) {
   
   return(combined_plots)
 }
+
+# Updated analysis with all re-extracted data ----
+
+## Read and prepare new data ----
+
+read_protein_workbook <- function(path){
+  
+  sheets <- readxl::excel_sheets(path)
+  
+  data <- purrr::map(
+    sheets,
+    ~ readxl::read_excel(path, sheet = .x,
+                         guess_max = 100000) |>
+      janitor::clean_names()
+  )
+  
+  names(data) <- janitor::make_clean_names(sheets)
+  
+  data
+  
+}
+
+prepare_protein_data <- function(protein_data){
+
+  # rename any variables needed
+  studies      <- protein_data$study_characteristics |>
+    rename(authors = "authors_e_g_smith_or_smith_and_jones_or_smith_et_al")
+
+  arms         <- protein_data$arm_characteristics |>
+    rename(condition = "intervention_i_e_protein_supplement_or_comparator_i_e_placebo_or_control",
+           protein_source = "protein_source_placebo_compound_note_copy_paste_directly_from_study_methods",
+           absolute_dose = "absolute_protein_dose_g_day_note_if_placebo_condition_then_check_whether_it_includes_any_protein",
+           prop_male = "proportion_male_0_1_i_e_all_male_group_1_all_female_group_0")
+
+  observations <- protein_data$arm_based_data_by_timepoint |>
+    rename(outcome_group = "outcome_group_whole_body_lean_mass_direct_muscle_size_mass_strength_function",
+           week = "timepoint_week_note_baseline_0") 
+
+  contrasts    <- protein_data$contrasts_between_timepoints |>
+    rename(contrast_weeks = "contrast_e_g_baseline_to_12_weeks_0_12_baseline_to_24_weeks_0_24_12_weeks_to_24_weeks_12_24",
+           outcome_group = "outcome_group_whole_body_lean_mass_direct_muscle_size_mass_strength_function") |>
+    
+    # separate contrast timepoints
+    separate(contrast_weeks, into = c("time1", "time2"), sep = "_") |>
+    mutate(time1 = as.numeric(time1),
+           time2 = as.numeric(time2))
+
+  # calculate missing sds from ses, p and t stats
+  
+  # for arm characteristics
+  # variables that have both _sd/_se counterparts
+  bases <- names(arms) |>
+    str_subset("_(sd|se)$") |>
+    str_remove("_(sd|se)$") |>
+    unique()
+  
+  for (v in bases) {
+    
+    sd_col <- paste0(v, "_sd")
+    se_col <- paste0(v, "_se")
+    
+    # Calculate missing SDs
+    arms[[sd_col]] <-
+      if_else(
+        is.na(arms[[sd_col]]) &
+          !is.na(arms[[se_col]]) &
+          !is.na(arms$sample_size_at_baseline),
+        arms[[se_col]] * sqrt(arms$sample_size_at_baseline),
+        arms[[sd_col]]
+      )
+    
+    # Calculate missing SEs
+    arms[[se_col]] <-
+      if_else(
+        is.na(arms[[se_col]]) &
+          !is.na(arms[[sd_col]]) &
+          !is.na(arms$sample_size_at_baseline),
+        arms[[sd_col]] / sqrt(arms$sample_size_at_baseline),
+        arms[[se_col]]
+      )
+    
+  }
+  
+  # for observations
+  observations <- observations |>
+    mutate(
+      # Recover standard_error from 95% CI
+      standard_error = coalesce(
+        standard_error,
+        (upper_95_percent_confidence_interval - lower_95_percent_confidence_interval) /
+          (2 * qt(0.975, df = sample_size_at_timepoint - 1))
+      ),
+      
+      # Recover standard_deviation from standard_error
+      standard_deviation = coalesce(
+        standard_deviation,
+        standard_error * sqrt(sample_size_at_timepoint)
+      ),
+      
+      # Recover standard_error from standard_deviation (for completeness)
+      standard_error = coalesce(
+        standard_error,
+        standard_deviation / sqrt(sample_size_at_timepoint)
+      )
+    ) |>
+    
+    select(-upper_95_percent_confidence_interval, -lower_95_percent_confidence_interval)
+  
+  # Note we do contrasts after joining with observations for the corresponding sample sizes
+  
+  # First we generate all possible contrasts with baseline from the observations and join with contrasts extracted
+  
+  ## Generate all baseline -> follow-up contrasts
+  contrast_grid <-
+    observations |>
+    filter(!is.na(week)) |>
+    group_by(study_no, arm_no, outcome_group, measurement_method, unit_of_measurement) |>
+    summarise(
+      baseline = list(week[week == 0]),
+      followup = list(sort(unique(week[week > 0]))),
+      .groups = "drop"
+    ) |>
+    unnest(baseline) |>
+    unnest(followup) |>
+    transmute(
+      study_no,
+      arm_no,
+      outcome_group,
+      measurement_method,
+      unit_of_measurement,
+      time1 = baseline,
+      time2 = followup
+    )
+  
+  contrasts_join <-
+    contrast_grid |>
+    left_join(
+      contrasts,
+      by = c(
+        "study_no",
+        "arm_no",
+        "outcome_group",
+        "measurement_method",
+        "unit_of_measurement",
+        "time1",
+        "time2"
+      )
+    )
+  
+  baseline_obs <-
+    observations |>
+    rename(
+      time1 = week,
+      baseline_mean = mean,
+      baseline_sd = standard_deviation,
+      baseline_se = standard_error,
+      baseline_n = sample_size_at_timepoint
+    )
+  
+  
+  contrasts_join <-
+    contrasts_join |>
+    left_join(
+      baseline_obs,
+      by = c(
+        "study_no",
+        "arm_no",
+        "outcome_group",
+        "measurement_method",
+        "unit_of_measurement",
+        "time1"
+      )
+    )
+  
+  
+  followup_obs <-
+    observations |>
+    rename(
+      time2 = week,
+      followup_mean = mean,
+      followup_sd = standard_deviation,
+      followup_se = standard_error,
+      followup_n = sample_size_at_timepoint
+    )
+  
+  contrasts_join <-
+    contrasts_join |>
+    left_join(
+      followup_obs,
+      by = c(
+        "study_no",
+        "arm_no",
+        "outcome_group",
+        "measurement_method",
+        "unit_of_measurement",
+        "time2"
+      )
+    )
+  
+  # for contrasts
+  contrasts_analysis <- contrasts_join |>
+    
+    mutate(
+      outcome_no = consecutive_id(
+        study_no,
+        arm_no,
+        outcome_group,
+        measurement_method,
+        unit_of_measurement
+      )
+    ) |>
+    
+    # Sample size as smallest of baseline and followup
+    mutate(n = pmin(baseline_n, followup_n)) |>
+    
+    # Add missing contrast means
+    mutate(
+      mean = coalesce(
+        mean,
+        followup_mean - baseline_mean
+      )
+    ) |>
+    rename(
+      mean_change = "mean"
+    ) |>
+    
+    mutate(
+      # Recover standard_error from 95% CI
+      standard_error = coalesce(
+        standard_error,
+        (upper_95_percent_confidence_interval - lower_95_percent_confidence_interval) /
+          (2 * qt(0.975, df = n - 1))
+      ),
+
+      # # Recover SE from reported t statistic
+      # standard_error = coalesce(
+      #   standard_error,
+      #   abs(mean / t_statistic)
+      # ),
+      # 
+      # # Recover SE from reported two-sided p value
+      # standard_error = coalesce(
+      #   standard_error,
+      #   abs(mean) /
+      #     qt(
+      #       p_value / 2,
+      #       df = n - 1,
+      #       lower.tail = FALSE
+      #     )
+      # ),
+
+      # Recover standard_deviation from standard_error
+      standard_deviation = coalesce(
+        standard_deviation,
+        standard_error * sqrt(n)
+      ),
+
+      # Recover standard_error from standard_deviation (for completeness)
+      standard_error = coalesce(
+        standard_error,
+        standard_deviation / sqrt(n)
+      )
+    ) |>
+    
+    # Note whether change SD is present
+    mutate(
+      has_change_sd = !is.na(standard_deviation)
+    ) |>
+    
+    # Calculate pre-post correlations
+    mutate(
+      r = case_when(
+        !is.na(baseline_sd) & !is.na(followup_sd) & !is.na(standard_deviation) ~
+        (
+          baseline_sd^2 +
+            followup_sd^2 -
+            standard_deviation^2
+        ) /
+        (
+          2 * baseline_sd * followup_sd
+        )
+    )
+    ) |>
+    mutate(
+      r = pmin(0.999, pmax(-0.999, r)) # Constrain it in case of errors
+    )
+  
+  # Meta-analyse pre-post correlations to impute missing ones
+  # convert using Fishers r to z
+  contrasts_analysis <- escalc(measure = "ZCOR", ri = r, ni = n, data = contrasts_analysis)
+
+  meta_r <- rma.mv(yi, V=vi, data=contrasts_analysis,
+                         random = list(~ 1 | study_no, ~ 1 | arm_no, ~ 1 | outcome_no), method="REML", test="t",
+                         # mods = ~ 0 + outcome_grou,
+                         control=list(optimizer="optim", optmethod="Nelder-Mead"))
+  
+  robu_meta_r <- robust(meta_r, contrasts_analysis$study_no)
+  
+  z2r_RT <- psych::fisherz2r(robu_meta_r$b)
+  z2r_RT_lower <- psych::fisherz2r(robu_meta_r$ci.lb)
+  z2r_RT_upper <- psych::fisherz2r(robu_meta_r$ci.ub)
+  
+  contrasts_analysis <- contrasts_analysis |>
+    mutate(
+      r = case_when(
+        is.na(r) ~ z2r_RT,
+        .default = r
+      )
+    )
+  
+  # Calculate pooled sd for each outcome and then becker's d for each contrast
+
+  baseline_pool <-
+    contrasts_analysis |>
+    distinct(
+      study_no,
+      outcome_no,
+      arm_no,
+      baseline_n,
+      baseline_sd
+    ) |>
+    group_by(study_no, outcome_no) |>
+    summarise(
+      baseline_sd_pooled = sqrt(
+        sum((baseline_n - 1) * baseline_sd^2) /
+          sum(baseline_n - 1)
+      ),
+      .groups = "drop"
+    )
+  
+  contrasts_analysis <-
+    contrasts_analysis |>
+    left_join(
+      baseline_pool,
+      by = c("study_no", "outcome_no")
+    ) |>
+    
+    # add zero to just use reported or imputed change for numerator
+    mutate(
+      zero = 0
+    )
+  
+  contrasts_analysis <- escalc(
+    measure="SMCR", 
+    m1i=mean_change, 
+    m2i=zero, 
+    sd1i=baseline_sd_pooled, 
+    ni=n, 
+    ri=r, 
+    data = contrasts_analysis
+  ) 
+  
+  # Now rejoin with study and arm based data for dose and other characteristics
+  contrasts_analysis <-
+    contrasts_analysis |>
+    left_join(
+      studies,
+      by = "study_no"
+    )
+  
+  contrasts_analysis <-
+    contrasts_analysis |>
+    left_join(
+      arms |>
+        select(
+          study_no,
+          arm_no,
+          condition,
+          trained_or_untrained,
+          training_experience_years,
+          prop_male,
+          mean_age_years,
+          sd_age_years,
+          mean_body_mass_kg,
+          sd_body_mass_kg, 
+          resistance_exercise_yes_no,
+          intervention_dietary_protein_intake_g_kg_day,
+          intervention_dietary_protein_intake_g_kg_day_se
+        ),
+      by = c("study_no", "arm_no")
+    ) |>
+    rename(protein_intake = "intervention_dietary_protein_intake_g_kg_day",
+           protein_intake_se = "intervention_dietary_protein_intake_g_kg_day_se")
+  
+  # centre  predictors
+  contrasts_analysis <- contrasts_analysis |>
+  mutate(
+    protein_intake = protein_intake - mean(protein_intake, na.rm=TRUE),
+    duration_centre = time2 - mean(time2, na.rm=TRUE),
+    age_centre = mean_age_years - mean(mean_age_years, na.rm=TRUE),
+    resistance_exercise_code = case_when(
+      resistance_exercise_yes_no == "yes" ~ 0,
+      resistance_exercise_yes_no == "no" ~ 1,
+    )
+  )
+  
+  return(contrasts_analysis)
+
+}
+
+# Functions to generate weights and obtain model averaged preds/slopes
+get_model_weights_new <- function(models) {
+  
+  models_new <- models
+  
+  # pass each to object as loo doesn't like the list for some reason
+  m_intercept <- models_new$`Intercept only model`
+  m_linear <- models_new$`Linear model`
+  m_lspline <- models_new$`Linear spline (1.6g/kg/day) model`
+  m_tps <- models_new$`Thin plate spline model`
+  m_intercept_mods <- models_new$`Intercept only model (+ moderators)`
+  m_linear_mods <- models_new$`Linear model (+ moderators)`
+  m_lspline_mods <- models_new$`Linear spline (1.6g/kg/day) model (+ moderators)`
+  m_tps_mods <- models_new$ `Thin plate spline model (+ moderators)`
+  m_linear_ranef <- models_new$`Linear model (+ random slopes)`
+  m_lspline_ranef <- models_new$`Linear spline (1.6g/kg/day) model (+ random slopes)`
+  m_tps_ranef <- models_new$ `Thin plate spline model (+ random smooths)`
+  m_linear_mods_ranef <- models_new$`Linear model (+ moderators & random slopes)`
+  m_lspline_mods_ranef <- models_new$`Linear spline (1.6g/kg/day) model (+ moderators & random slopes)`
+  m_tps_mods_ranef <- models_new$`Thin plate spline model (+ moderators & random smooths)`
+  m_linear_interact <- models_new$`Linear model (+ RT interaction)`
+  m_lspline_interact <- models_new$`Linear spline (1.6g/kg/day) model (+ RT interaction)`
+  m_tps_interact <- models_new$`Thin plate spline model (+ RT interaction smooth)`
+  m_linear_mods_interact <- models_new$`Linear model (+ moderators & RT interaction)`
+  m_lspline_mods_interact <- models_new$`Linear spline (1.6g/kg/day) model (+ moderators & RT interaction)` 
+  m_tps_mods_interact <- models_new$`Thin plate spline model (+ moderators & RT interaction)`
+  m_linear_ranef_interact <- models_new$`Linear model (+ random slopes & RT interaction)`
+  m_lspline_ranef_interact <- models_new$`Linear spline (1.6g/kg/day) model (+ random slopes & RT interaction)`
+  m_tps_ranef_interact <- models_new$`Thin plate spline model (+ random smooths & RT interaction smooth)`
+  m_linear_mods_ranef_interact <- models_new$`Linear model (+ moderators & random slopes & RT interaction)`
+  m_lspline_mods_ranef_interact <- models_new$`Linear spline (1.6g/kg/day) model (+ moderators & random slopes & RT interaction)`
+  m_tps_mods_ranef_interact <- models_new$`Thin plate spline model (+ moderators & random smooths & RT interaction smooth)`
+  
+  
+  
+  weights_stacking <- loo::loo_model_weights(m_intercept, 
+                                             m_linear, 
+                                             m_lspline, 
+                                             m_tps,
+                                             m_intercept_mods, 
+                                             m_linear_mods, 
+                                             m_lspline_mods, 
+                                             m_tps_mods,
+                                             m_linear_ranef, 
+                                             m_lspline_ranef,
+                                             m_tps_ranef,
+                                             m_linear_mods_ranef, 
+                                             m_lspline_mods_ranef, 
+                                             m_tps_mods_ranef,
+                                             m_linear_interact, 
+                                             m_lspline_interact, 
+                                             m_tps_interact,
+                                             m_linear_mods_interact, 
+                                             m_lspline_mods_interact, 
+                                             m_tps_mods_interact,
+                                             m_linear_ranef_interact, 
+                                             m_lspline_ranef_interact,
+                                             m_tps_ranef_interact,
+                                             m_linear_mods_ranef_interact, 
+                                             m_lspline_mods_ranef_interact, 
+                                             m_tps_mods_ranef_interact,
+                                             method = "stacking")
+  
+  return(weights_stacking)
+}
