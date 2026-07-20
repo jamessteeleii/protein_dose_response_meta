@@ -30,22 +30,23 @@ grateful_report|stem|92005bf8a7897905|339ec9047ab8d3bf|2c530c1562a7fbd1|17030229
 model_formulas_new|stem|e746272034f9c0ac|36d7af27bb3eda34|2c530c1562a7fbd1|1697108831||t20645.5847387246s|s693b|693|qs|local|vector|||4.734||
 protein_data_file|stem|0e58b3889ec4d3c3|179ec2c42636f4af|2c530c1562a7fbd1|-1379438764|C:/Users/james/Dropbox/Research/Kieser Australia/Protein/Protein meta/protein_dose_response_meta/data/protein_meta_data_all.xlsx|t20645.6031941999s|s475692b|475692|file|local|vector|||4.484||
 protein_data|stem|71d967bc624d2f70|b2773d45b3beb04a|dec9148ddb72030d|1511302131||t20645.6035918286s|s116870b|116870|qs|local|vector|||0.297||
-protein_data_prepared|stem|60adbe22086b9428|63e507ffd850a70f|216e03e82eaf1217|-1649072558||t20645.6037304084s|s140934b|140934|qs|local|vector|||11.719|Cannot estimate the sampling variance when ni <= 3.. 1578 rows with NAs omitted from model fitting.|
 models_new|stem|2e322e3d060709a0|065132019d995272|93162cae19743464|947460434||t20645.6921781404s|s5823871838b|5823871838|qs|local|vector|||7555.922|Rows containing NAs were excluded from the model.. The global prior 'student_t(3,0,10)' of class 'b' will not be used in the model as all related coefficients have individual priors already. If you did not set those priors yourself, then maybe brms has assigned default priors. See ?set_prior and ?default_prior for more details.. There were 21 divergent transitions after warmup. See https://mc-stan.org/misc/warnings.html#divergent-transitions-after-warmup to find out why this is a problem and how to eliminate them.. Examine the pairs() plot to diagnose sampling problems . Rows containing NAs were excluded from the model.. There were 14 divergent transitions after warmup. See https://mc-stan.org/misc/warnings.html#divergent-transitions-after-warmup to find out why this is a problem and how to eliminate them.. Examine the pairs() plot to diagnose sampling problems . Rows containing NAs were excluded from the model.. There were 14 divergent transitions after warmup. See https://mc-stan.org/misc/warnings.html#divergent-transitions-after-warmup to find out why this is a problem and how to eliminate them.. Examine the pairs() plot to diagnose sampling problems . Rows containing NAs were excluded from the model.. There were 31 divergent transitions after warmup. See https://mc-stan.org/misc/warnings.html#divergent-transitions-after-warmup to find out why this is a problem and how to eliminate them.. Examine the pairs() plot to diagnose sampling problems . Rows containing NAs were excluded from the model.. There were 3 divergent transitions after warmup. See https://mc-stan.org/misc/warnings.html#divergent-transitions-after-warmup to find out why this is a problem and how to eliminate them.. Examine the pairs() plot to diagnose sampling problems . Rows containing NAs were excluded from the model.. There were 5 divergent transitions after warmup. See https://mc-stan.org/misc/warnings.html#divergent-transitions-after-warmup to find out why this is a problem and how to eliminate them.. Examine the pairs() plot to diagnose sa|
-estimate_muscle_thickness_sd|function|3489dc66386185ad
+models_new_weights|stem||516a83dd4c7c3918|2fcd0f0a945ae44a|415928900||t20645.692914758s||0|qs|local|vector|||51.203||Each log-likelihood matrix must have the same dimensions.
 get_model_weights_new|function|afb25eb80ada36d7
+estimate_muscle_thickness_sd|function|3489dc66386185ad
 get_model_avg_slopes|function|93fb50a276ca342f
-prepare_protein_data|function|24f29e389e1e9afa
+prepare_protein_data|function|fb0707308a0b7ab2
 read_prepare_nunes_data|function|9d0e0ecedee1c26a
 read_protein_workbook|function|31bf7c3653c8a5bf
 estimate_strength_sd|function|78be6f8ce7d2774f
 get_model_weights|function|e49e25578a258b7a
 estimate_lean_mass_sd|function|7661048515a2babc
-.Random.seed|object|fb0f3b9f2d3ed559
+.Random.seed|object|23077175891090f5
 get_rope_pd|function|60cc99c6a68d278c
+make_stan_data|function|97a534026d931041
 fit_candidate_models|function|d5e2d351053d9340
 get_model_avg_preds|function|3b7cdd72500d13ee
 plot_preds_slopes|function|39ade52e6fd09814
 set_rstan_options|function|d82cad57281e544d
 get_steele_priors|function|d2ec50b229fbeb0c
-models_new_weights|stem||516a83dd4c7c3918|2fcd0f0a945ae44a|415928900||t20645.692914758s||0|qs|local|vector|||51.203||Each log-likelihood matrix must have the same dimensions.
+protein_data_prepared|stem|4dd7ab03ea7935d5|63e507ffd850a70f|de4ec6e4cdc3ca43|-1649072558||t20654.4700823603s|s154282b|154282|qs|local|vector|||11.516|Cannot estimate the sampling variance when ni <= 3.. 1578 rows with NAs omitted from model fitting.|

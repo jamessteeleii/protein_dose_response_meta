@@ -1094,81 +1094,130 @@ prepare_protein_data <- function(protein_data){
   # centre  predictors
   contrasts_analysis <- contrasts_analysis |>
   mutate(
-    protein_intake = protein_intake - mean(protein_intake, na.rm=TRUE),
-    duration_centre = time2 - mean(time2, na.rm=TRUE),
-    age_centre = mean_age_years - mean(mean_age_years, na.rm=TRUE),
+    protein_intake = protein_intake - median(subset(contrasts_analysis$protein_intake, condition == "control" | condition == "placebo"),
+                                             na.rm=TRUE),
+    duration_centre = time2 - 12,
+    age_centre = mean_age_years - 25,
     resistance_exercise_code = case_when(
       resistance_exercise_yes_no == "yes" ~ 0,
       resistance_exercise_yes_no == "no" ~ 1,
     )
-  )
+  ) |>
+    
+    group_by(study_no, arm_no, outcome_group, measurement_method) |>
+    mutate(
+      outcome_number = cur_group_id()
+    )
   
   return(contrasts_analysis)
 
 }
 
-# Functions to generate weights and obtain model averaged preds/slopes
-get_model_weights_new <- function(models) {
+## Fitting models using stan ----
+
+make_stan_data <- function(data) {
+  arm_data <- data |>
+    dplyr::distinct(
+      arm_no,
+      protein_intake,
+      protein_intake_se
+    ) |>
+    dplyr::arrange(arm_no) |>
+    dplyr::mutate(arm_index = dplyr::row_number())
   
-  models_new <- models
+  data <- data |>
+    dplyr::left_join(
+      dplyr::select(arm_data, arm_no, arm_index),
+      by = "arm_no"
+    )
   
-  # pass each to object as loo doesn't like the list for some reason
-  m_intercept <- models_new$`Intercept only model`
-  m_linear <- models_new$`Linear model`
-  m_lspline <- models_new$`Linear spline (1.6g/kg/day) model`
-  m_tps <- models_new$`Thin plate spline model`
-  m_intercept_mods <- models_new$`Intercept only model (+ moderators)`
-  m_linear_mods <- models_new$`Linear model (+ moderators)`
-  m_lspline_mods <- models_new$`Linear spline (1.6g/kg/day) model (+ moderators)`
-  m_tps_mods <- models_new$ `Thin plate spline model (+ moderators)`
-  m_linear_ranef <- models_new$`Linear model (+ random slopes)`
-  m_lspline_ranef <- models_new$`Linear spline (1.6g/kg/day) model (+ random slopes)`
-  m_tps_ranef <- models_new$ `Thin plate spline model (+ random smooths)`
-  m_linear_mods_ranef <- models_new$`Linear model (+ moderators & random slopes)`
-  m_lspline_mods_ranef <- models_new$`Linear spline (1.6g/kg/day) model (+ moderators & random slopes)`
-  m_tps_mods_ranef <- models_new$`Thin plate spline model (+ moderators & random smooths)`
-  m_linear_interact <- models_new$`Linear model (+ RT interaction)`
-  m_lspline_interact <- models_new$`Linear spline (1.6g/kg/day) model (+ RT interaction)`
-  m_tps_interact <- models_new$`Thin plate spline model (+ RT interaction smooth)`
-  m_linear_mods_interact <- models_new$`Linear model (+ moderators & RT interaction)`
-  m_lspline_mods_interact <- models_new$`Linear spline (1.6g/kg/day) model (+ moderators & RT interaction)` 
-  m_tps_mods_interact <- models_new$`Thin plate spline model (+ moderators & RT interaction)`
-  m_linear_ranef_interact <- models_new$`Linear model (+ random slopes & RT interaction)`
-  m_lspline_ranef_interact <- models_new$`Linear spline (1.6g/kg/day) model (+ random slopes & RT interaction)`
-  m_tps_ranef_interact <- models_new$`Thin plate spline model (+ random smooths & RT interaction smooth)`
-  m_linear_mods_ranef_interact <- models_new$`Linear model (+ moderators & random slopes & RT interaction)`
-  m_lspline_mods_ranef_interact <- models_new$`Linear spline (1.6g/kg/day) model (+ moderators & random slopes & RT interaction)`
-  m_tps_mods_ranef_interact <- models_new$`Thin plate spline model (+ moderators & random smooths & RT interaction smooth)`
-  
-  
-  
-  weights_stacking <- loo::loo_model_weights(m_intercept, 
-                                             m_linear, 
-                                             m_lspline, 
-                                             m_tps,
-                                             m_intercept_mods, 
-                                             m_linear_mods, 
-                                             m_lspline_mods, 
-                                             m_tps_mods,
-                                             m_linear_ranef, 
-                                             m_lspline_ranef,
-                                             m_tps_ranef,
-                                             m_linear_mods_ranef, 
-                                             m_lspline_mods_ranef, 
-                                             m_tps_mods_ranef,
-                                             m_linear_interact, 
-                                             m_lspline_interact, 
-                                             m_tps_interact,
-                                             m_linear_mods_interact, 
-                                             m_lspline_mods_interact, 
-                                             m_tps_mods_interact,
-                                             m_linear_ranef_interact, 
-                                             m_lspline_ranef_interact,
-                                             m_tps_ranef_interact,
-                                             m_linear_mods_ranef_interact, 
-                                             m_lspline_mods_ranef_interact, 
-                                             m_tps_mods_ranef_interact,
-                                             method = "stacking")
-  
-  return(weights_stacking)
+  list(
+    N = nrow(data),
+    y = data$yi,
+    se_y = sqrt(data$vi),
+    
+    A = nrow(arm_data),
+    arm = data$arm_index,
+    x_obs = arm_data$protein_intake,
+    x_se = arm_data$protein_intake_se,
+    
+    J_study = dplyr::n_distinct(data$study_no),
+    study = match(data$id, unique(data$study_no)),
+    
+    J_arm = dplyr::n_distinct(data$arm_no),
+    meta_arm = data$arm_index,
+    
+    J_outcome = dplyr::n_distinct(data$outcome_no),
+    outcome = match(data$outcome_no, unique(data$outcome_no)),
+    
+    resistance_exercise_code = data$resistance_exercise_code,
+    age_centre = data$age_centre,
+    duration_centre = data$duration_centre
+  )
 }
+
+      # # Functions to generate weights and obtain model averaged preds/slopes
+      # get_model_weights_new <- function(models) {
+      #   
+      #   models_new <- models
+      #   
+      #   # pass each to object as loo doesn't like the list for some reason
+      #   m_intercept <- models_new$`Intercept only model`
+      #   m_linear <- models_new$`Linear model`
+      #   m_lspline <- models_new$`Linear spline (1.6g/kg/day) model`
+      #   m_tps <- models_new$`Thin plate spline model`
+      #   m_intercept_mods <- models_new$`Intercept only model (+ moderators)`
+      #   m_linear_mods <- models_new$`Linear model (+ moderators)`
+      #   m_lspline_mods <- models_new$`Linear spline (1.6g/kg/day) model (+ moderators)`
+      #   m_tps_mods <- models_new$ `Thin plate spline model (+ moderators)`
+      #   m_linear_ranef <- models_new$`Linear model (+ random slopes)`
+      #   m_lspline_ranef <- models_new$`Linear spline (1.6g/kg/day) model (+ random slopes)`
+      #   m_tps_ranef <- models_new$ `Thin plate spline model (+ random smooths)`
+      #   m_linear_mods_ranef <- models_new$`Linear model (+ moderators & random slopes)`
+      #   m_lspline_mods_ranef <- models_new$`Linear spline (1.6g/kg/day) model (+ moderators & random slopes)`
+      #   m_tps_mods_ranef <- models_new$`Thin plate spline model (+ moderators & random smooths)`
+      #   m_linear_interact <- models_new$`Linear model (+ RT interaction)`
+      #   m_lspline_interact <- models_new$`Linear spline (1.6g/kg/day) model (+ RT interaction)`
+      #   m_tps_interact <- models_new$`Thin plate spline model (+ RT interaction smooth)`
+      #   m_linear_mods_interact <- models_new$`Linear model (+ moderators & RT interaction)`
+      #   m_lspline_mods_interact <- models_new$`Linear spline (1.6g/kg/day) model (+ moderators & RT interaction)` 
+      #   m_tps_mods_interact <- models_new$`Thin plate spline model (+ moderators & RT interaction)`
+      #   m_linear_ranef_interact <- models_new$`Linear model (+ random slopes & RT interaction)`
+      #   m_lspline_ranef_interact <- models_new$`Linear spline (1.6g/kg/day) model (+ random slopes & RT interaction)`
+      #   m_tps_ranef_interact <- models_new$`Thin plate spline model (+ random smooths & RT interaction smooth)`
+      #   m_linear_mods_ranef_interact <- models_new$`Linear model (+ moderators & random slopes & RT interaction)`
+      #   m_lspline_mods_ranef_interact <- models_new$`Linear spline (1.6g/kg/day) model (+ moderators & random slopes & RT interaction)`
+      #   m_tps_mods_ranef_interact <- models_new$`Thin plate spline model (+ moderators & random smooths & RT interaction smooth)`
+      #   
+      #   
+      #   
+      #   weights_stacking <- loo::loo_model_weights(m_intercept, 
+      #                                              m_linear, 
+      #                                              m_lspline, 
+      #                                              m_tps,
+      #                                              m_intercept_mods, 
+      #                                              m_linear_mods, 
+      #                                              m_lspline_mods, 
+      #                                              m_tps_mods,
+      #                                              m_linear_ranef, 
+      #                                              m_lspline_ranef,
+      #                                              m_tps_ranef,
+      #                                              m_linear_mods_ranef, 
+      #                                              m_lspline_mods_ranef, 
+      #                                              m_tps_mods_ranef,
+      #                                              m_linear_interact, 
+      #                                              m_lspline_interact, 
+      #                                              m_tps_interact,
+      #                                              m_linear_mods_interact, 
+      #                                              m_lspline_mods_interact, 
+      #                                              m_tps_mods_interact,
+      #                                              m_linear_ranef_interact, 
+      #                                              m_lspline_ranef_interact,
+      #                                              m_tps_ranef_interact,
+      #                                              m_linear_mods_ranef_interact, 
+      #                                              m_lspline_mods_ranef_interact, 
+      #                                              m_tps_mods_ranef_interact,
+      #                                              method = "stacking")
+      #   
+      #   return(weights_stacking)
+      # }
