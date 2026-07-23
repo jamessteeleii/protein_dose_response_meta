@@ -25,8 +25,9 @@ tar_option_set(packages = c("here",
                format = "qs",
                garbage_collection = TRUE,
                storage = "worker",
-               retrieval = "worker",
-               controller = crew_controller_local(workers = 10)) 
+               retrieval = "worker"
+               # controller = crew_controller_local(workers = 4)
+               ) 
 
 # Run the R scripts in the R/ folder with your custom functions:
 tar_source("R/functions.R")
@@ -321,207 +322,389 @@ list(
     read_protein_workbook(protein_data_file)
   ),
   
+  # Note this is the data set where centering of protein intake is performed
   tar_target(
     protein_data_prepared,
     prepare_protein_data(protein_data)
   ),
   
-  # Fit all candidate models to new data ----
+  # Note this is the complete row wise data set for analysis
+  tar_target(
+    protein_data_complete,
+    protein_data_prepared |>
+      dplyr::filter(
+        dplyr::if_all(
+          c(
+            yi, vi, protein_intake, protein_intake_se,
+            resistance_exercise_code, age_centre, duration_centre
+          ),
+          ~ !is.na(.x)
+        )
+      )
+  ),
+  
+  tar_target(
+    stan_data_whole_body,
+    make_stan_data(protein_data_complete |> filter(outcome_group == "whole body lean mass"))
+  ),
+  
+  tar_target(
+    stan_data_hypertrophy,
+    make_stan_data(protein_data_complete |> filter(outcome_group == "direct muscle size/mass"))
+  ),
+  
+  tar_target(
+    stan_data_strength,
+    make_stan_data(protein_data_complete |> filter(outcome_group == "strength"))
+  ),
+  
+  tar_target(
+    stan_data_function,
+    make_stan_data(protein_data_complete |> filter(outcome_group == "function"))
+  ),
+  
+  ## Get priors from old brms prior target ----
+  tar_target(
+    stan_priors,
+    make_stan_priors(steele_priors)
+  ),
+  
+  ## Fit all candidate models to new data ----
   # Fit all CGM models, generate predictions, slopes, and test slopes
-  # 
+  
+  # Note, as control median intake slightly different (1.1 g/kg/day) in the new data
+  # The knot centred protein intake for lspline has been shifted to 0.5 to reflect the 1.6 g/kg/day
+  tar_target(
+    model_formulas_new,
+    c(
+      "yi|se(sqrt(vi)) ~ 0 + Intercept + resistance_exercise_code +
+        (1 | study_no) +
+        (1 | arm_no) +
+        (1 | outcome_no)",
+      "yi|se(sqrt(vi)) ~ 0 + Intercept + resistance_exercise_code +
+                         protein_intake +
+                         (1 | study_no) +
+                         (1 | arm_no) +
+                         (1 | outcome_no)",
+      "yi|se(sqrt(vi)) ~ 0 + Intercept + resistance_exercise_code +
+                          lspline(protein_intake, 0.5) +
+                         (1 | study_no) +
+                         (1 | arm_no) +
+                         (1 | outcome_no)",
+      "yi|se(sqrt(vi)) ~ 0 + Intercept + resistance_exercise_code +
+                      s(protein_intake, bs='tp', k=4) +
+                      (1 | study_no) +
+                      (1 | arm_no) +
+                      (1 | outcome_no)",
+      "yi|se(sqrt(vi)) ~ 0 + Intercept + resistance_exercise_code +
+                                 duration_centre + age_centre +
+                            (1 | study_no) +
+                            (1 | arm_no) +
+                            (1 | outcome_no)",
+      "yi|se(sqrt(vi)) ~ 0 + Intercept + resistance_exercise_code +
+                         protein_intake +
+                           duration_centre + age_centre +
+                         (1 | study_no) +
+                         (1 | arm_no) +
+                         (1 | outcome_no)",
+      "yi|se(sqrt(vi)) ~ 0 + Intercept + resistance_exercise_code +
+                          lspline(protein_intake, 0.5) +
+                            duration_centre + age_centre +
+                            (1 | study_no) +
+                          (1 | arm_no) +
+                          (1 | outcome_no)",
+      "yi|se(sqrt(vi)) ~ 0 + Intercept + resistance_exercise_code +
+                           s(protein_intake, bs='tp', k=4) +
+                           duration_centre + age_centre +
+                        (1 | study_no) +
+                      (1 | arm_no) +
+                      (1 | outcome_no)",
+      "yi|se(sqrt(vi)) ~ 0 + Intercept + resistance_exercise_code +
+                         protein_intake +
+                         (protein_intake | study_no) +
+                         (1 | arm_no) +
+                         (1 | outcome_no)",
+      "yi|se(sqrt(vi)) ~ 0 + Intercept + resistance_exercise_code +
+                          lspline(protein_intake, 0.5) +
+                          (lspline(protein_intake, 0.5) | study_no) +
+                          (1 | arm_no) +
+                          (1 | outcome_no)",
+      "yi|se(sqrt(vi)) ~ 0 + Intercept + resistance_exercise_code +
+                             s(protein_intake, bs='tp', k=4) +
+                             s(protein_intake, study_no, bs='fs') +
+                      (1 | arm_no) +
+                      (1 | outcome_no)",
+      "yi|se(sqrt(vi)) ~ 0 + Intercept + resistance_exercise_code +
+                                protein_intake +
+                                  duration_centre + age_centre +
+                                  (protein_intake | study_no) +
+                                (1 | arm_no) +
+                                (1 | outcome_no)",
+      "yi|se(sqrt(vi)) ~ 0 + Intercept + resistance_exercise_code +
+                                 lspline(protein_intake, 0.5) +
+                                   duration_centre + age_centre +
+                                   (lspline(protein_intake, 0.5) | study_no) +
+                                 (1 | arm_no) +
+                                 (1 | outcome_no)",
+      "yi|se(sqrt(vi)) ~ 0 + Intercept + resistance_exercise_code +
+                                  s(protein_intake, bs='tp', k=4) +
+                                  s(protein_intake, study_no, bs='fs') +
+                               duration_centre + age_centre +
+                             (1 | arm_no) +
+                             (1 | outcome_no)",
+
+      # all models with the inclusion of resistance training and protein interaction
+      "yi|se(sqrt(vi)) ~ 0 + Intercept + resistance_exercise_code +
+                         protein_intake + protein_intake:resistance_exercise_code +
+                         (1 | study_no) +
+                         (1 | arm_no) +
+                         (1 | outcome_no)",
+      "yi|se(sqrt(vi)) ~ 0 + Intercept + resistance_exercise_code +
+                          lspline(protein_intake, 0.5) + lspline(protein_intake, 0.5):resistance_exercise_code +
+                         (1 | study_no) +
+                         (1 | arm_no) +
+                         (1 | outcome_no)",
+      "yi|se(sqrt(vi)) ~ 0 + Intercept + resistance_exercise_code +
+                      s(protein_intake, by=resistance_exercise_code, m=1, bs='tp', k=4) +
+                      (1 | study_no) +
+                      (1 | arm_no) +
+                      (1 | outcome_no)",
+      "yi|se(sqrt(vi)) ~ 0 + Intercept + resistance_exercise_code +
+                         protein_intake + protein_intake:resistance_exercise_code +
+                           duration_centre + age_centre +
+                         (1 | study_no) +
+                         (1 | arm_no) +
+                         (1 | outcome_no)",
+      "yi|se(sqrt(vi)) ~ 0 + Intercept + resistance_exercise_code +
+                          lspline(protein_intake, 0.5) + lspline(protein_intake, 0.5):resistance_exercise_code +
+                            duration_centre + age_centre +
+                            (1 | study_no) +
+                          (1 | arm_no) +
+                          (1 | outcome_no)",
+      "yi|se(sqrt(vi)) ~ 0 + Intercept + resistance_exercise_code +
+                           s(protein_intake, by=resistance_exercise_code, m=1, bs='tp', k=4) +
+                           duration_centre + age_centre +
+                        (1 | study_no) +
+                      (1 | arm_no) +
+                      (1 | outcome_no)",
+      "yi|se(sqrt(vi)) ~ 0 + Intercept + resistance_exercise_code +
+                         protein_intake + protein_intake:resistance_exercise_code +
+                         (protein_intake | study_no) +
+                         (1 | arm_no) +
+                         (1 | outcome_no)",
+      "yi|se(sqrt(vi)) ~ 0 + Intercept + resistance_exercise_code +
+                          lspline(protein_intake, 0.5) + lspline(protein_intake, 0.5):resistance_exercise_code +
+                          (lspline(protein_intake, 0.5) | study_no) +
+                          (1 | arm_no) +
+                          (1 | outcome_no)",
+      "yi|se(sqrt(vi)) ~ 0 + Intercept + resistance_exercise_code +
+                             s(protein_intake, by=resistance_exercise_code, m=1, bs='tp', k=4) +
+                             s(protein_intake, study_no, bs='fs') +
+                      (1 | arm_no) +
+                      (1 | outcome_no)",
+      "yi|se(sqrt(vi)) ~ 0 + Intercept + resistance_exercise_code +
+                                protein_intake + protein_intake:resistance_exercise_code +
+                                  duration_centre + age_centre +
+                                  (protein_intake | study_no) +
+                                (1 | arm_no) +
+                                (1 | outcome_no)",
+      "yi|se(sqrt(vi)) ~ 0 + Intercept + resistance_exercise_code +
+                                 lspline(protein_intake, 0.5) + lspline(protein_intake, 0.5):resistance_exercise_code +
+                                   duration_centre + age_centre +
+                                   (lspline(protein_intake, 0.5) | study_no) +
+                                 (1 | arm_no) +
+                                 (1 | outcome_no)",
+      "yi|se(sqrt(vi)) ~ 0 + Intercept + resistance_exercise_code +
+                                  s(protein_intake, by=resistance_exercise_code, m=1, bs='tp', k=4) +
+                                  s(protein_intake, study_no, bs='fs') +
+                               duration_centre + age_centre +
+                             (1 | arm_no) +
+                             (1 | outcome_no)"
+    )
+  ),
+
+  ## Whole body lean mass ----
+  tar_target(
+    protein_data_complete_whole_body,
+    {
+      protein_data_complete |> filter(outcome_group == "whole body lean mass") |>
+        # add study weights/sizes
+        mutate(
+          wi = 1/sqrt(vi),
+          size = 0.5 + 3.0 * (wi - min(wi, na.rm=TRUE))/(max(wi, na.rm=TRUE) - min(wi, na.rm=TRUE)))
+    }
+  ),
+
+  tar_target(
+    models_new_whole_body,
+    purrr::map2(
+      model_formulas_new,
+      model_names,
+      ~ fit_candidate_models(
+        formula = .x,
+        priors = steele_priors,
+        data = protein_data_complete_whole_body
+      )
+    ) |> set_names(model_names)
+  ),
+
+  tar_target(
+    models_new_weights_whole_body,
+    get_model_weights(models_new_whole_body)
+  ),
+
   # tar_target(
-  #   model_formulas_new,
-  #   c(
-  #     "yi|se(sqrt(vi)) ~ 0 + Intercept + resistance_exercise_code +
-  #       (1 | study_no) +
-  #       (1 | arm_no) +
-  #       (1 | outcome_no)",
-  #     "yi|se(sqrt(vi)) ~ 0 + Intercept + resistance_exercise_code +
-  #                        protein_intake +
-  #                        (1 | study_no) +
-  #                        (1 | arm_no) +
-  #                        (1 | outcome_no)",
-  #     "yi|se(sqrt(vi)) ~ 0 + Intercept + resistance_exercise_code +
-  #                         lspline(protein_intake, 0.383826) +
-  #                        (1 | study_no) +
-  #                        (1 | arm_no) +
-  #                        (1 | outcome_no)",
-  #     "yi|se(sqrt(vi)) ~ 0 + Intercept + resistance_exercise_code +
-  #                     s(protein_intake, bs='tp', k=4) +
-  #                     (1 | study_no) +
-  #                     (1 | arm_no) +
-  #                     (1 | outcome_no)",
-  #     "yi|se(sqrt(vi)) ~ 0 + Intercept + resistance_exercise_code +
-  #                                duration_centre + age_centre +
-  #                           (1 | study_no) +
-  #                           (1 | arm_no) +
-  #                           (1 | outcome_no)",
-  #     "yi|se(sqrt(vi)) ~ 0 + Intercept + resistance_exercise_code +
-  #                        protein_intake +
-  #                          duration_centre + age_centre +
-  #                        (1 | study_no) +
-  #                        (1 | arm_no) +
-  #                        (1 | outcome_no)",
-  #     "yi|se(sqrt(vi)) ~ 0 + Intercept + resistance_exercise_code +
-  #                         lspline(protein_intake, 0.383826) +
-  #                           duration_centre + age_centre +
-  #                           (1 | study_no) +
-  #                         (1 | arm_no) +
-  #                         (1 | outcome_no)",
-  #     "yi|se(sqrt(vi)) ~ 0 + Intercept + resistance_exercise_code +
-  #                          s(protein_intake, bs='tp', k=4) +
-  #                          duration_centre + age_centre +
-  #                       (1 | study_no) +
-  #                     (1 | arm_no) +
-  #                     (1 | outcome_no)",
-  #     "yi|se(sqrt(vi)) ~ 0 + Intercept + resistance_exercise_code +
-  #                        protein_intake +
-  #                        (protein_intake | study_no) +
-  #                        (1 | arm_no) +
-  #                        (1 | outcome_no)",
-  #     "yi|se(sqrt(vi)) ~ 0 + Intercept + resistance_exercise_code +
-  #                         lspline(protein_intake, 0.383826) +
-  #                         (lspline(protein_intake, 0.383826) | study_no) +
-  #                         (1 | arm_no) +
-  #                         (1 | outcome_no)",
-  #     "yi|se(sqrt(vi)) ~ 0 + Intercept + resistance_exercise_code +
-  #                            s(protein_intake, bs='tp', k=4) +
-  #                            s(protein_intake, study_no, bs='fs') +
-  #                     (1 | arm_no) +
-  #                     (1 | outcome_no)",
-  #     "yi|se(sqrt(vi)) ~ 0 + Intercept + resistance_exercise_code +
-  #                               protein_intake +
-  #                                 duration_centre + age_centre +
-  #                                 (protein_intake | study_no) +
-  #                               (1 | arm_no) +
-  #                               (1 | outcome_no)",
-  #     "yi|se(sqrt(vi)) ~ 0 + Intercept + resistance_exercise_code +
-  #                                lspline(protein_intake, 0.383826) +
-  #                                  duration_centre + age_centre +
-  #                                  (lspline(protein_intake, 0.383826) | study_no) +
-  #                                (1 | arm_no) +
-  #                                (1 | outcome_no)",
-  #     "yi|se(sqrt(vi)) ~ 0 + Intercept + resistance_exercise_code +
-  #                                 s(protein_intake, bs='tp', k=4) +
-  #                                 s(protein_intake, study_no, bs='fs') +
-  #                              duration_centre + age_centre +
-  #                            (1 | arm_no) +
-  #                            (1 | outcome_no)",
-  # 
-  #     # all models with the inclusion of resistance training and protein interaction
-  #     "yi|se(sqrt(vi)) ~ 0 + Intercept + resistance_exercise_code +
-  #                        protein_intake + protein_intake:resistance_exercise_code +
-  #                        (1 | study_no) +
-  #                        (1 | arm_no) +
-  #                        (1 | outcome_no)",
-  #     "yi|se(sqrt(vi)) ~ 0 + Intercept + resistance_exercise_code +
-  #                         lspline(protein_intake, 0.383826) + lspline(protein_intake, 0.383826):resistance_exercise_code +
-  #                        (1 | study_no) +
-  #                        (1 | arm_no) +
-  #                        (1 | outcome_no)",
-  #     "yi|se(sqrt(vi)) ~ 0 + Intercept + resistance_exercise_code +
-  #                     s(protein_intake, by=resistance_exercise_code, m=1, bs='tp', k=4) +
-  #                     (1 | study_no) +
-  #                     (1 | arm_no) +
-  #                     (1 | outcome_no)",
-  #     "yi|se(sqrt(vi)) ~ 0 + Intercept + resistance_exercise_code +
-  #                        protein_intake + protein_intake:resistance_exercise_code +
-  #                          duration_centre + age_centre +
-  #                        (1 | study_no) +
-  #                        (1 | arm_no) +
-  #                        (1 | outcome_no)",
-  #     "yi|se(sqrt(vi)) ~ 0 + Intercept + resistance_exercise_code +
-  #                         lspline(protein_intake, 0.383826) + lspline(protein_intake, 0.383826):resistance_exercise_code +
-  #                           duration_centre + age_centre +
-  #                           (1 | study_no) +
-  #                         (1 | arm_no) +
-  #                         (1 | outcome_no)",
-  #     "yi|se(sqrt(vi)) ~ 0 + Intercept + resistance_exercise_code +
-  #                          s(protein_intake, by=resistance_exercise_code, m=1, bs='tp', k=4) +
-  #                          duration_centre + age_centre +
-  #                       (1 | study_no) +
-  #                     (1 | arm_no) +
-  #                     (1 | outcome_no)",
-  #     "yi|se(sqrt(vi)) ~ 0 + Intercept + resistance_exercise_code +
-  #                        protein_intake + protein_intake:resistance_exercise_code +
-  #                        (protein_intake | study_no) +
-  #                        (1 | arm_no) +
-  #                        (1 | outcome_no)",
-  #     "yi|se(sqrt(vi)) ~ 0 + Intercept + resistance_exercise_code +
-  #                         lspline(protein_intake, 0.383826) + lspline(protein_intake, 0.383826):resistance_exercise_code +
-  #                         (lspline(protein_intake, 0.383826) | study_no) +
-  #                         (1 | arm_no) +
-  #                         (1 | outcome_no)",
-  #     "yi|se(sqrt(vi)) ~ 0 + Intercept + resistance_exercise_code +
-  #                            s(protein_intake, by=resistance_exercise_code, m=1, bs='tp', k=4) +
-  #                            s(protein_intake, study_no, bs='fs') +
-  #                     (1 | arm_no) +
-  #                     (1 | outcome_no)",
-  #     "yi|se(sqrt(vi)) ~ 0 + Intercept + resistance_exercise_code +
-  #                               protein_intake + protein_intake:resistance_exercise_code +
-  #                                 duration_centre + age_centre +
-  #                                 (protein_intake | study_no) +
-  #                               (1 | arm_no) +
-  #                               (1 | outcome_no)",
-  #     "yi|se(sqrt(vi)) ~ 0 + Intercept + resistance_exercise_code +
-  #                                lspline(protein_intake, 0.383826) + lspline(protein_intake, 0.383826):resistance_exercise_code +
-  #                                  duration_centre + age_centre +
-  #                                  (lspline(protein_intake, 0.383826) | study_no) +
-  #                                (1 | arm_no) +
-  #                                (1 | outcome_no)",
-  #     "yi|se(sqrt(vi)) ~ 0 + Intercept + resistance_exercise_code +
-  #                                 s(protein_intake, by=resistance_exercise_code, m=1, bs='tp', k=4) +
-  #                                 s(protein_intake, study_no, bs='fs') +
-  #                              duration_centre + age_centre +
-  #                            (1 | arm_no) +
-  #                            (1 | outcome_no)"
-  #   )
+  #   preds_new_whole_body,
+  #   get_model_avg_preds(models_new_whole_body, models_new_weights_whole_body)
   # ),
   # 
   # tar_target(
-  #   models_new,
+  #   slopes_new_whole_body,
+  #   get_model_avg_slopes(models_new_whole_body, models_new_weights_whole_body)
+  # ),
+  # 
+  # tar_target(
+  #   ropes_pd_new_whole_body,
+  #   get_rope_pd(slopes_new_whole_body)
+  # ),
+  # 
+  # tar_target(
+  #   plot_new_whole_body,
+  #   plot_preds_slopes(protein_data_prepared_whole_body,
+  #                     preds_new_whole_body, slopes_new_whole_body)
+  # ),
+  # 
+  # tar_target(
+  #   plot_new_whole_body_tiff,
+  #   ggsave(
+  #     plot = plot_new_whole_body,
+  #     filename = "plots/plot_new_whole_body.tiff",
+  #     device = "tiff",
+  #     dpi = 300,
+  #     w = 8,
+  #     h = 8
+  #   )
+  # ),
+
+  # ## Hypertrophy ----
+  # tar_target(
+  #   protein_data_complete_hypertrophy,
+  #   {
+  #     protein_data_complete |> filter(outcome_group == "direct muscle size/mass") |>
+  #       # add study weights/sizes
+  #       mutate(
+  #         wi = 1/sqrt(vi),
+  #         size = 0.5 + 3.0 * (wi - min(wi, na.rm=TRUE))/(max(wi, na.rm=TRUE) - min(wi, na.rm=TRUE)))
+  #   }
+  # ),
+  # 
+  # tar_target(
+  #   models_new_hypertrophy,
   #   purrr::map2(
   #     model_formulas_new,
   #     model_names,
   #     ~ fit_candidate_models(
   #       formula = .x,
   #       priors = steele_priors,
-  #       data = protein_data_prepared |> filter(outcome_group == "whole body lean mass")
+  #       data = protein_data_complete_hypertrophy
   #     )
   #   ) |> set_names(model_names)
   # ),
   # 
   # tar_target(
-  #   models_new_weights,
-  #   get_model_weights_new(models_new)
+  #   models_new_weights_hypertrophy,
+  #   get_model_weights(models_new_hypertrophy)
   # ),
   # 
   # tar_target(
-  #   preds_new,
-  #   get_model_avg_preds(models_new, models_new_weights)
+  #   preds_new_hypertrophy,
+  #   get_model_avg_preds(models_new_hypertrophy, models_new_weights_hypertrophy)
   # ),
   # 
   # tar_target(
-  #   slopes_new,
-  #   get_model_avg_slopes(models_new, models_new_weights)
+  #   slopes_new_hypertrophy,
+  #   get_model_avg_slopes(models_new_hypertrophy, models_new_weights_hypertrophy)
   # ),
   # 
   # tar_target(
-  #   ropes_pd_new,
-  #   get_rope_pd(slopes_new)
+  #   ropes_pd_new_hypertrophy,
+  #   get_rope_pd(slopes_new_hypertrophy)
   # ),
   # 
   # tar_target(
-  #   plot_new,
-  #   plot_preds_slopes(protein_data_prepared  |> filter(outcome_group == "whole body lean mass"),
+  #   plot_new_hypertrophy,
+  #   plot_preds_slopes(protein_data_prepared_hypertrophy,
+  #                     preds_new_hypertrophy, slopes_new_hypertrophy)
+  # ),
+  # 
+  # tar_target(
+  #   plot_new_hypertrophy_tiff,
+  #   ggsave(
+  #     plot = plot_new_hypertrophy,
+  #     filename = "plots/plot_new_hypertrophy.tiff",
+  #     device = "tiff",
+  #     dpi = 300,
+  #     w = 8,
+  #     h = 8
+  #   )
+  # ),
+
+  # ## Strength ----
+  # tar_target(
+  #   protein_data_complete_strength,
+  #   {
+  #     protein_data_complete |> filter(outcome_group == "strength") |>
+  #       # add study weights/sizes
+  #       mutate(
+  #         wi = 1/sqrt(vi),
+  #         size = 0.5 + 3.0 * (wi - min(wi, na.rm=TRUE))/(max(wi, na.rm=TRUE) - min(wi, na.rm=TRUE)))
+  #   }
+  # ),
+  # 
+  # tar_target(
+  #   models_new_strength,
+  #   purrr::map2(
+  #     model_formulas_new,
+  #     model_names,
+  #     ~ fit_candidate_models(
+  #       formula = .x,
+  #       priors = steele_priors,
+  #       data = protein_data_complete_strength
+  #     )
+  #   ) |> set_names(model_names)
+  # ),
+  # 
+  # tar_target(
+  #   models_new_weights_strength,
+  #   get_model_weights(models_new_strength)
+  # ),
+  # 
+  # tar_target(
+  #   preds_new_strength,
+  #   get_model_avg_preds(models_new_strength, models_new_weights_strength)
+  # ),
+  # 
+  # tar_target(
+  #   slopes_new_strength,
+  #   get_model_avg_slopes(models_new_strength, models_new_weights_strength)
+  # ),
+  # 
+  # tar_target(
+  #   ropes_pd_new_strength,
+  #   get_rope_pd(slopes_new_strength)
+  # ),
+  # 
+  # tar_target(
+  #   plot_new_strength,
+  #   plot_preds_slopes(protein_data_prepared_strength,
   #                     preds_new, slopes_new)
   # ),
   # 
   # tar_target(
-  #   plot_new_tiff,
+  #   plot_new_strength_tiff,
   #   ggsave(
-  #     plot = plot_new,
-  #     filename = "plots/plot_new.tiff",
+  #     plot = plot_new_strength,
+  #     filename = "plots/plot_new_strength.tiff",
   #     device = "tiff",
   #     dpi = 300,
   #     w = 8,

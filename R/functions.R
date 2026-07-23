@@ -315,7 +315,7 @@ get_steele_priors <- function(data) {
       set_prior(paste("student_t(3,", rob_steele_meta$b[1],",", rob_steele_meta$se[1],")"), class = "b", coef = "Intercept"),
       set_prior(paste("student_t(3,", rob_steele_meta$b[2],",", rob_steele_meta$se[2],")"), class = "b", coef = "resistance_exercise_code"),
       # All other b parameters are kept as uninformative but weakly regularising
-      set_prior("student_t(3,0,10)", class = "b")
+      set_prior("student_t(3,0,1)", class = "b")
       # All other priors for variance parameters are kept as default weakly regularising
     )
   
@@ -1088,14 +1088,26 @@ prepare_protein_data <- function(protein_data){
         ),
       by = c("study_no", "arm_no")
     ) |>
-    rename(protein_intake = "intervention_dietary_protein_intake_g_kg_day",
+    rename(protein_intake_raw = "intervention_dietary_protein_intake_g_kg_day",
            protein_intake_se = "intervention_dietary_protein_intake_g_kg_day_se")
   
   # centre  predictors
+  
+  # first get protein median from controls/placebos
+  protein_median_controls_placebos <- contrasts_analysis |>
+    filter(condition == "control" | condition == "placebo") |>
+    group_by(study_no, arm_no) |>
+    slice_head(n = 1) |>
+    ungroup() |>
+    summarise(
+      protein_median = median(protein_intake_raw, na.rm = TRUE)
+    )
+    
+  
   contrasts_analysis <- contrasts_analysis |>
   mutate(
-    protein_intake = protein_intake - median(subset(contrasts_analysis$protein_intake, condition == "control" | condition == "placebo"),
-                                             na.rm=TRUE),
+    protein_median = protein_median_controls_placebos$protein_median[1],
+    protein_intake = protein_intake_raw - protein_median,
     duration_centre = time2 - 12,
     age_centre = mean_age_years - 25,
     resistance_exercise_code = case_when(
@@ -1104,120 +1116,393 @@ prepare_protein_data <- function(protein_data){
     )
   ) |>
     
+    # add outcome identifier
     group_by(study_no, arm_no, outcome_group, measurement_method) |>
     mutate(
-      outcome_number = cur_group_id()
-    )
+      outcome_no = cur_group_id()
+    ) |>
+    ungroup()
   
   return(contrasts_analysis)
 
 }
 
-## Fitting models using stan ----
-
-make_stan_data <- function(data) {
-  arm_data <- data |>
-    dplyr::distinct(
-      arm_no,
-      protein_intake,
-      protein_intake_se
-    ) |>
-    dplyr::arrange(arm_no) |>
-    dplyr::mutate(arm_index = dplyr::row_number())
+## Fitting old pre-reg brms models ----
+get_model_avg_preds_new <- function(models, weights, data) {
   
-  data <- data |>
-    dplyr::left_join(
-      dplyr::select(arm_data, arm_no, arm_index),
-      by = "arm_no"
+  models_new <- models
+  weights_stacking_new <- weights
+  data_new <- data
+  protein_median <- data$protein_median[1]
+  
+  preds <- map(models_new, ~ predictions(.x, 
+                                           re_formula= NA,
+                                           newdata   = datagrid(
+                                             resistance_exercise_code = c(0,1),
+                                             protein_intake = seq(min(data_new$protein_intake, na.rm = TRUE), max(data_new$protein_intake, na.rm = TRUE), by = 0.01),
+                                             age_centre = 0,
+                                             duration_centre = 0,
+                                             vi = 0
+                                           )))
+  
+  weighted_preds <- map2(preds, weights_stacking_new, function(pred_df, w) {
+    pred_df %>%
+      mutate(
+        .pred_weighted = estimate * w,
+        .lower_weighted = conf.low * w,
+        .upper_weighted = conf.high * w
+      )
+  })
+  
+  combined_preds <- reduce(weighted_preds, function(df1, df2) {
+    df1 %>%
+      mutate(
+        .pred_weighted = .pred_weighted + df2$.pred_weighted,
+        .lower_weighted = .lower_weighted + df2$.lower_weighted,
+        .upper_weighted = .upper_weighted + df2$.upper_weighted
+      )
+  }) 
+  
+  final_predictions <- combined_preds %>%
+    mutate(
+      estimate = .pred_weighted,
+      conf.low = .lower_weighted,
+      conf.high = .upper_weighted
+    ) |>
+    mutate(
+      resistance_exercise_label = "Resistance Exercise?",
+      resistance_exercise = case_when(
+        resistance_exercise_code == 0 ~ "YES",
+        resistance_exercise_code == 1 ~ "NO"
+      ),
+      protein_intake = protein_intake + protein_median
     )
   
-  list(
-    N = nrow(data),
-    y = data$yi,
-    se_y = sqrt(data$vi),
-    
-    A = nrow(arm_data),
-    arm = data$arm_index,
-    x_obs = arm_data$protein_intake,
-    x_se = arm_data$protein_intake_se,
-    
-    J_study = dplyr::n_distinct(data$study_no),
-    study = match(data$id, unique(data$study_no)),
-    
-    J_arm = dplyr::n_distinct(data$arm_no),
-    meta_arm = data$arm_index,
-    
-    J_outcome = dplyr::n_distinct(data$outcome_no),
-    outcome = match(data$outcome_no, unique(data$outcome_no)),
-    
-    resistance_exercise_code = data$resistance_exercise_code,
-    age_centre = data$age_centre,
-    duration_centre = data$duration_centre
+  return(final_predictions)
+}
+
+get_model_avg_slopes_new <- function(models, weights, data) {
+  
+  models_new <- models
+  weights_stacking_new <- weights
+  data_new <- data
+  
+  # Because can't run slopes(model, variables = "protein_intake") on intercept model with no protein_intake
+  safe_slopes <- possibly(slopes, otherwise = NULL) 
+  
+  slopes <- map(models_new, ~ safe_slopes(.x, 
+                                            re_formula= NA,
+                                            variables = "protein_intake",
+                                            newdata   = datagrid(
+                                              resistance_exercise_code = c(0,1),
+                                              protein_intake = seq(min(data_new$protein_intake, na.rm = TRUE), max(data_new$protein_intake, na.rm = TRUE), by = 0.01),
+                                              age_centre = 0,
+                                              duration_centre = 0,
+                                              vi = 0
+                                            )) |> get_draws())
+  
+  
+  # remove nulls from slopes and weights
+  slopes_clean <- compact(slopes)
+  weights_stacking_new_clean <- weights_stacking_new[!map_lgl(slopes, is.null)] 
+  
+  # Convert each to a matrix (rowid-draw order must match)
+  draw_matrices <- map(slopes_clean, ~ matrix(.x$draw, ncol = 1))
+  
+  # Stack into matrix: rows = rowid × draw, cols = models
+  draw_mat <- do.call(cbind, draw_matrices)  # fast column binding
+  
+  # Multiply each column by stacking weight
+  weighted_draw_mat <- sweep(draw_mat, 2, weights_stacking_new_clean, FUN = "*")
+  
+  # Sum across models
+  stacked_draws <- rowSums(weighted_draw_mat)
+  
+  # Reattach draw + rowid info
+  meta <- slopes_clean[[1]] |> select(rowid, draw, resistance_exercise_code, protein_intake)
+  
+  stacked_df <- bind_cols(meta, estimate = stacked_draws) |>
+    mutate(
+      resistance_exercise_label = "Resistance Exercise?",
+      resistance_exercise = case_when(
+        resistance_exercise_code == 0 ~ "YES",
+        resistance_exercise_code == 1 ~ "NO"
+      ),
+      protein_intake = protein_intake + median(subset(data_new$protein_intake_raw, condition == "control" | condition == "placebo"),
+                                               na.rm=TRUE)
+    )
+  
+  stacked_df
+}
+
+get_rope_pd <- function(slopes) {
+  
+  rope <- slopes |>
+    group_by(protein_intake, resistance_exercise) |>
+    nest() |>
+    mutate(
+      rope_percent = map(data, ~ rope(.x$estimate*0.42, range = c(-0.1, 0.1), ci = 1))
+    ) |>
+    unnest(rope_percent) |>
+    select(protein_intake, resistance_exercise, ROPE_low, ROPE_high, ROPE_Percentage) |>
+    filter(resistance_exercise == "YES" | protein_intake < 1.6) |>
+    mutate(type = "rope")
+  
+  
+  pd <- slopes |>
+    group_by(protein_intake, resistance_exercise) |>
+    nest() |>
+    mutate(
+      rope_percent = map(data, ~ rope(.x$estimate*0.42, range = c(0.1, Inf), ci = 1))
+    ) |>
+    unnest(rope_percent) |>
+    select(protein_intake, resistance_exercise, ROPE_low, ROPE_high, ROPE_Percentage) |>
+    filter(resistance_exercise == "YES" | protein_intake < 1.6) |>
+    mutate(type = "pd")
+  
+  rope_pd <- bind_rows(rope, pd)
+  
+  return(rope_pd)
+  
+  
+}
+
+plot_preds_slopes <- function(data, preds, slopes) {
+  
+  preds_plot <- final_predictions |> 
+    filter(resistance_exercise == "YES" | protein_intake < 1.6) |>
+    ggplot(aes(x = protein_intake, y = estimate)) +
+    geom_hline(yintercept = 0, linetype = "dotted", alpha = 0.75) +
+    geom_point(data = data |>
+                 mutate(resistance_exercise_label = "Resistance Exercise?"), 
+               aes(x = protein_intake + 1.12, y = yi, size = size, color = condition), alpha = 0.5) +
+    geom_ribbon(aes(ymin = conf.low, ymax = conf.high),
+                alpha = 0.5, color = "black", size = 0.25) +
+    geom_line(aes(y = estimate), size = 0.75, color = "black") +
+    scale_color_manual(values = c("darkorange", "darkgreen")) +
+    ggh4x::facet_nested(.~ resistance_exercise_label + resistance_exercise,
+                        scales = "free") +
+    labs(
+      x = "Protein Intake (g/kg/day)",
+      y = "Lean Mass/Muscle Change (SMD)",
+      color = "Condition",
+      title = "Predicted lean mass/muscle change",
+      # subtitle = "Note, red band indicates prior interval for resistance exercise at habitual protein intake, and blue band indicates non-training controls"
+    ) +
+    guides(
+      size = "none"
+    ) +
+    theme_classic() +
+    theme(
+      plot.title = element_text(size = 12),
+      axis.title = element_text(size = 10)
+    )
+  
+  
+  slopes_plot <- slopes |>
+    filter(resistance_exercise == "YES" | protein_intake < 1.6) |>
+    ggplot(aes(x = protein_intake, y = estimate*0.42)) +
+    geom_hline(yintercept = 0, linetype = "dotted", alpha = 0.75) +
+    geom_hline(yintercept = c(-0.1,0.1), linetype = "dashed", alpha = 0.75) +
+    stat_slabinterval(.width = .95) +
+    ggh4x::facet_nested(.~ resistance_exercise_label + resistance_exercise,
+                        scales = "free") +
+    labs(
+      x = "Protein Intake (g/kg/day)",
+      y = "Marginal Slope for Lean Mass Change (SMD)",
+      title = "Incremental marginal slope of lean mass/muscle change for 0.42 g/kg/day increase",
+      subtitle = "Note, 0.42 g/kg/day increase reflects the difference in median protein intake between intervention and control conditions\nDashed lines reflect a smallest effect size of interest of 0.1 SMD"
+    ) + 
+    guides(
+      size = "none"
+    ) +
+    theme_classic() +
+    theme(
+      plot.title = element_text(size = 12),
+      plot.subtitle = element_text(size = 8),
+      axis.title = element_text(size = 10)
+    )
+  
+  combined_plots <- (preds_plot / slopes_plot) +
+    plot_annotation(
+      tag_levels = "i",
+      title = "Dose-response effects of protein intake on lean mass change",
+      subtitle = "Bayesian model averaging with LOO-CV stacking weights",
+      caption = "Note, reanalysis of Nunes et al. (DOI: 10.1002/jcsm.12922) for purpose of pre-registration of analysis code pipelines"
+    ) &
+    theme(
+      legend.position = "bottom"
+    )
+  
+  return(combined_plots)
+}
+
+## Fitting error in variables models using stan ----
+
+# Helper functions to take old brms prior and extract to save rerunning earlier parts of pipeline
+extract_student_t_prior <- function(prior_text) {
+  matches <- stringr::str_match(
+    stringr::str_remove_all(prior_text, "\\s+"),
+    "^student_t\\(([-+0-9.eE]+),([-+0-9.eE]+),([-+0-9.eE]+)\\)$"
+  )
+  
+  if (anyNA(matches)) {
+    stop("Expected a student_t(df, location, scale) prior.")
+  }
+  
+  c(
+    df = as.numeric(matches[2]),
+    location = as.numeric(matches[3]),
+    scale = as.numeric(matches[4])
   )
 }
 
-      # # Functions to generate weights and obtain model averaged preds/slopes
-      # get_model_weights_new <- function(models) {
-      #   
-      #   models_new <- models
-      #   
-      #   # pass each to object as loo doesn't like the list for some reason
-      #   m_intercept <- models_new$`Intercept only model`
-      #   m_linear <- models_new$`Linear model`
-      #   m_lspline <- models_new$`Linear spline (1.6g/kg/day) model`
-      #   m_tps <- models_new$`Thin plate spline model`
-      #   m_intercept_mods <- models_new$`Intercept only model (+ moderators)`
-      #   m_linear_mods <- models_new$`Linear model (+ moderators)`
-      #   m_lspline_mods <- models_new$`Linear spline (1.6g/kg/day) model (+ moderators)`
-      #   m_tps_mods <- models_new$ `Thin plate spline model (+ moderators)`
-      #   m_linear_ranef <- models_new$`Linear model (+ random slopes)`
-      #   m_lspline_ranef <- models_new$`Linear spline (1.6g/kg/day) model (+ random slopes)`
-      #   m_tps_ranef <- models_new$ `Thin plate spline model (+ random smooths)`
-      #   m_linear_mods_ranef <- models_new$`Linear model (+ moderators & random slopes)`
-      #   m_lspline_mods_ranef <- models_new$`Linear spline (1.6g/kg/day) model (+ moderators & random slopes)`
-      #   m_tps_mods_ranef <- models_new$`Thin plate spline model (+ moderators & random smooths)`
-      #   m_linear_interact <- models_new$`Linear model (+ RT interaction)`
-      #   m_lspline_interact <- models_new$`Linear spline (1.6g/kg/day) model (+ RT interaction)`
-      #   m_tps_interact <- models_new$`Thin plate spline model (+ RT interaction smooth)`
-      #   m_linear_mods_interact <- models_new$`Linear model (+ moderators & RT interaction)`
-      #   m_lspline_mods_interact <- models_new$`Linear spline (1.6g/kg/day) model (+ moderators & RT interaction)` 
-      #   m_tps_mods_interact <- models_new$`Thin plate spline model (+ moderators & RT interaction)`
-      #   m_linear_ranef_interact <- models_new$`Linear model (+ random slopes & RT interaction)`
-      #   m_lspline_ranef_interact <- models_new$`Linear spline (1.6g/kg/day) model (+ random slopes & RT interaction)`
-      #   m_tps_ranef_interact <- models_new$`Thin plate spline model (+ random smooths & RT interaction smooth)`
-      #   m_linear_mods_ranef_interact <- models_new$`Linear model (+ moderators & random slopes & RT interaction)`
-      #   m_lspline_mods_ranef_interact <- models_new$`Linear spline (1.6g/kg/day) model (+ moderators & random slopes & RT interaction)`
-      #   m_tps_mods_ranef_interact <- models_new$`Thin plate spline model (+ moderators & random smooths & RT interaction smooth)`
-      #   
-      #   
-      #   
-      #   weights_stacking <- loo::loo_model_weights(m_intercept, 
-      #                                              m_linear, 
-      #                                              m_lspline, 
-      #                                              m_tps,
-      #                                              m_intercept_mods, 
-      #                                              m_linear_mods, 
-      #                                              m_lspline_mods, 
-      #                                              m_tps_mods,
-      #                                              m_linear_ranef, 
-      #                                              m_lspline_ranef,
-      #                                              m_tps_ranef,
-      #                                              m_linear_mods_ranef, 
-      #                                              m_lspline_mods_ranef, 
-      #                                              m_tps_mods_ranef,
-      #                                              m_linear_interact, 
-      #                                              m_lspline_interact, 
-      #                                              m_tps_interact,
-      #                                              m_linear_mods_interact, 
-      #                                              m_lspline_mods_interact, 
-      #                                              m_tps_mods_interact,
-      #                                              m_linear_ranef_interact, 
-      #                                              m_lspline_ranef_interact,
-      #                                              m_tps_ranef_interact,
-      #                                              m_linear_mods_ranef_interact, 
-      #                                              m_lspline_mods_ranef_interact, 
-      #                                              m_tps_mods_ranef_interact,
-      #                                              method = "stacking")
-      #   
-      #   return(weights_stacking)
-      # }
+make_stan_priors <- function(steele_priors) {
+  prior_table <- as.data.frame(steele_priors)
+  
+  get_prior <- function(coefficient) {
+    prior_text <- prior_table |>
+      dplyr::filter(
+        class == "b",
+        coef == coefficient
+      ) |>
+      dplyr::pull(prior)
+    
+    if (length(prior_text) != 1L) {
+      stop(
+        "Expected exactly one prior for coefficient: ",
+        coefficient
+      )
+    }
+    
+    extract_student_t_prior(prior_text)
+  }
+  
+  intercept_prior <- get_prior("Intercept")
+  rt_prior <- get_prior("resistance_exercise_code")
+  
+  list(
+    prior_intercept_location = unname(intercept_prior["location"]),
+    prior_intercept_scale = unname(intercept_prior["scale"]),
+    prior_rt_location = unname(rt_prior["location"]),
+    prior_rt_scale = unname(rt_prior["scale"])
+  )
+}
+
+# Prepare data for stan
+
+make_stan_data <- function(
+    data,
+    study_id_col = "study_no"
+) {
+  required_cols <- c(
+    study_id_col,
+    "arm_no",
+    "outcome_no",
+    "yi",
+    "vi",
+    "protein_intake",
+    "protein_intake_se",
+    "resistance_exercise_code",
+    "duration_centre",
+    "age_centre"
+  )
+  
+  missing_cols <- setdiff(required_cols, names(data))
+  
+  if (length(missing_cols) > 0) {
+    stop(
+      "data is missing: ",
+      paste(missing_cols, collapse = ", "),
+      call. = FALSE
+    )
+  }
+  
+  data <- data |>
+    dplyr::mutate(study_id = .data[[study_id_col]])
+  
+  # Each study–arm supplies one observed intake and one intake SE.
+  # Do not silently continue if duplicated rows disagree.
+  arm_checks <- data |>
+    dplyr::group_by(study_id, arm_no) |>
+    dplyr::summarise(
+      n_protein_intake = dplyr::n_distinct(protein_intake),
+      n_protein_intake_se = dplyr::n_distinct(protein_intake_se),
+      .groups = "drop"
+    )
+  
+  bad_arms <- arm_checks |>
+    dplyr::filter(
+      n_protein_intake != 1L |
+        n_protein_intake_se != 1L
+    )
+  
+  if (nrow(bad_arms) > 0) {
+    stop(
+      "Each study–arm must have one protein_intake and one ",
+      "protein_intake_se. Found inconsistent values in ",
+      nrow(bad_arms),
+      " study–arms.",
+      call. = FALSE
+    )
+  }
+  
+  if (anyNA(data$protein_intake_se) || any(data$protein_intake_se <= 0)) {
+    stop(
+      "protein_intake_se must be present and strictly positive.",
+      call. = FALSE
+    )
+  }
+  
+  if (anyNA(data$vi) || any(data$vi <= 0)) {
+    stop("vi must be present and strictly positive.", call. = FALSE)
+  }
+  
+  data_indexed <- data |>
+    dplyr::arrange(study_id, arm_no, outcome_no) |>
+    dplyr::group_by(study_id) |>
+    dplyr::mutate(study_index = dplyr::cur_group_id()) |>
+    dplyr::ungroup() |>
+    dplyr::group_by(study_id, arm_no) |>
+    dplyr::mutate(arm_index = dplyr::cur_group_id()) |>
+    dplyr::ungroup() |>
+    dplyr::group_by(study_id, arm_no, outcome_no) |>
+    dplyr::mutate(outcome_index = dplyr::cur_group_id()) |>
+    dplyr::ungroup()
+  
+  arm_data <- data_indexed |>
+    dplyr::distinct(
+      study_id,
+      arm_no,
+      arm_index,
+      protein_intake,
+      protein_intake_se
+    ) |>
+    dplyr::arrange(arm_index)
+  
+  list(
+    # Outcome-effect-size level
+    N = nrow(data_indexed),
+    y = data_indexed$yi,
+    se_y = sqrt(data_indexed$vi),
+    
+    # Latent protein intake: one value per nested study–arm
+    N_arm = nrow(arm_data),
+    arm = data_indexed$arm_index,
+    x_obs = arm_data$protein_intake,
+    x_se = arm_data$protein_intake_se,
+    
+    # Nested meta-analytic random-intercept structure
+    N_study = dplyr::n_distinct(data_indexed$study_index),
+    study = data_indexed$study_index,
+    
+    N_outcome = dplyr::n_distinct(data_indexed$outcome_index),
+    outcome = data_indexed$outcome_index,
+    
+    # Fixed-effect moderators
+    resistance_exercise_code = data_indexed$resistance_exercise_code,
+    duration_centre = data_indexed$duration_centre,
+    age_centre = data_indexed$age_centre
+  )
+}
+
