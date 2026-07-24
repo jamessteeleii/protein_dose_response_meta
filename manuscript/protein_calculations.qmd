@@ -1,0 +1,680 @@
+---
+title: "Derivation of Protein Intake Exposures and Associated Uncertainty"
+subtitle: "Supplementary methods"
+format:
+  html:
+    toc: true
+    number-sections: true
+    code-fold: true
+  docx:
+    toc: true
+    number-sections: true
+  pdf:
+    toc: true
+    number-sections: true
+execute:
+  echo: true
+  warning: false
+---
+
+# Purpose and general approach
+
+Protein intake was not reported in a common form across all included studies. Depending on the available information regarding dietary intakes and supplementation, total protein intake was either taken directly from the study report or reconstructed from reported dietary intake, energy intake, percentage of energy obtained from protein, supplemental protein dose, and body mass. Where possible, both the arm-level mean and its uncertainty were either extracted or derived with errors propagated where the latter was the case. Note, this document has been prepared in order to detail the approaches taken, though unfortunately calculations were typically done during extraction as opposed to directly in the analysis pipeline as our extraction template spreadsheets were not built in anticipation of this and as such not setup to enable all individual components to be extracted in a manner easily facilitating this. So we have tried to be transparent about what was performed, though notably this is not itself directly reproducible from our code.
+
+The following principles were applied throughout:
+
+1. All components were first converted to compatible units before being combined.
+2. Directly reported total protein intake in grams per kilogram per day (g/kg/day) was preferred over a derived value if available.
+3. Uncertainty was propagated rather than treating derived exposures as known without error.
+4. Participant-level standard deviations (SDs) were distinguished from standard errors (SEs) of arm-level mean protein intake. The latter represent uncertainty in the arm-level exposure used in the meta-regression.
+5. When a required covariance was unavailable, a transparent default and conservative assumption of independence was made.
+
+This supplement describes the derivation rules used. The methods are presented from the most direct to the most indirect reconstruction.
+
+# Notation
+
+The main notation is:
+
+| Symbol | Definition |
+|---|---|
+| $E$ | Daily energy intake, kcal/day |
+| $p$ | Proportion of energy obtained from protein, expressed from 0 to 1 |
+| $D$ | Dietary protein intake, g/day |
+| $S$ | Supplemental protein intake, g/day |
+| $d$ | Relative supplemental protein dose, g/kg/day |
+| $T$ | Total absolute protein intake, g/day |
+| $W$ | Body mass, kg |
+| $R$ | Total relative protein intake, g/kg/day |
+| $B$ | Baseline protein intake |
+| $\Delta$ | Reported change in protein intake |
+| $F$ | Follow-up or end-of-intervention protein intake |
+| $\mu_X$ | Mean of variable $X$ |
+| $\sigma_X$ | SD of variable $X$ |
+| $\rho_{XY}$ | Correlation between variables $X$ and $Y$ |
+
+For a derived quantity $g(\mathbf{X})$, first-order error propagation used the multivariable delta method:
+
+$$
+\operatorname{Var}\{g(\mathbf{X})\}
+\approx
+\nabla g(\boldsymbol{\mu})^\mathsf{T}
+\boldsymbol{\Sigma}
+\nabla g(\boldsymbol{\mu})
+$$
+
+where $\boldsymbol{\Sigma}$ is the variance--covariance matrix of the input variables though as noted, this assumed independence.
+
+# Converting reported uncertainty to an SD or SE
+
+## Standard error to standard deviation
+
+When an SE was reported for a mean:
+
+$$
+SD = SE\sqrt{n}.
+$$
+
+Conversely, when an SD was reported and the uncertainty in the arm-level mean was required:
+
+$$
+SE = \frac{SD}{\sqrt{n}}.
+$$
+
+The sample size $n$ was the number of participants contributing to the relevant mean. For a change score, this was the number of participants contributing paired baseline and follow-up observations.
+
+## Confidence interval to standard deviation
+
+For a two-sided $100(1-\alpha)\%$ confidence interval with lower and upper limits $L$ and $U$:
+
+$$
+SE =
+\frac{U-L}
+{2t_{1-\alpha/2,\,df}},
+$$
+
+where $df=n-1$ when a $t$-based interval was appropriate. The corresponding SD was:
+
+$$
+SD = SE\sqrt{n}.
+$$
+
+For a large sample and a 95% confidence interval, the approximation
+
+$$
+SE \approx \frac{U-L}{3.92}
+$$
+
+was used when the exact critical value was unavailable.
+
+These conversions were applied only when the confidence interval referred to the arithmetic mean or mean change on the scale being analysed. They are not directly applicable to intervals constructed on a transformed scale without first reversing that transformation.
+
+# Directly reported relative protein intake
+
+When total protein intake was reported directly in g/kg/day, the reported mean and SD were used without further derivation. When an SE or confidence interval was reported instead of an SD, the conversions above were applied.
+
+When dietary protein intake was reported in g/kg/day and a fixed relative supplement dose $d$ was added:
+
+$$
+R = R_{\text{diet}} + d.
+$$
+
+Therefore:
+
+$$
+\mu_R = \mu_{R_{\text{diet}}} + d,
+$$
+
+and, when $d$ was fixed and was assumed to have been consumed as prescribed:
+
+$$
+\sigma_R = \sigma_{R_{\text{diet}}}.
+$$
+
+If the supplemental dose itself varied between participants, its variance and its covariance with dietary intake were included:
+
+$$
+\operatorname{Var}(R)
+=
+\sigma_{\text{diet}}^2
++
+\sigma_d^2
++
+2\rho_{\text{diet},d}\sigma_{\text{diet}}\sigma_d.
+$$
+Again, conservatively assuming independence and thus $\rho_{\text{diet},d}=0$.
+
+# Converting energy intake and percentage protein to grams per day
+
+Protein provides approximately 4 kcal/g. When daily energy intake and the proportion of energy obtained from protein were reported:
+
+$$
+D = \frac{Ep}{4}.
+$$
+
+Percentage values were divided by 100 before use; for example, 20% was entered as $p=0.20$.
+
+## Protein proportion treated as fixed
+
+When $p$ was treated as fixed within the arm and only energy intake varied:
+
+$$
+\mu_D = \frac{\mu_Ep}{4},
+$$
+
+$$
+\sigma_D = \frac{p}{4}\sigma_E.
+$$
+
+The corresponding SE of the arm-level mean was:
+
+$$
+SE_D = \frac{p}{4}SE_E.
+$$
+
+## Both energy intake and protein proportion treated as variable
+
+When means and SDs were available for both $E$ and $p$, the first-order approximation was:
+
+$$
+\mu_D \approx \frac{\mu_E\mu_p}{4},
+$$
+
+and:
+
+$$
+\operatorname{Var}(D)
+\approx
+\left(\frac{\mu_p}{4}\right)^2\sigma_E^2
++
+\left(\frac{\mu_E}{4}\right)^2\sigma_p^2
++
+2\left(\frac{\mu_p}{4}\right)
+ \left(\frac{\mu_E}{4}\right)
+ \operatorname{Cov}(E,p).
+$$
+
+Equivalently:
+
+$$
+\operatorname{Cov}(E,p)
+=
+\rho_{E,p}\sigma_E\sigma_p.
+$$
+
+As noted, $\rho_{E,p}=0$ was used as the conservative default assumption.
+
+The exact mean of a product also contains a covariance term:
+
+$$
+\operatorname{E}(Ep)
+=
+\mu_E\mu_p+\operatorname{Cov}(E,p).
+$$
+
+Consequently, multiplying the two reported means assumes that the covariance term is negligible or unavailable.
+
+# Adding an absolute supplemental protein dose
+
+## Fixed dose in grams per day
+
+When a fixed supplement $s$ g/day was added to dietary protein:
+
+$$
+T = D+s,
+$$
+
+$$
+\mu_T = \mu_D+s,
+$$
+
+$$
+\sigma_T = \sigma_D.
+$$
+
+Thus, a truly fixed dose changed the mean but did not add between-participant variance.
+
+## Variable dose in grams per day
+
+When both dietary and supplemental intakes varied:
+
+$$
+T = D+S,
+$$
+
+$$
+\mu_T = \mu_D+\mu_S,
+$$
+
+$$
+\operatorname{Var}(T)
+=
+\sigma_D^2+\sigma_S^2
++
+2\rho_{D,S}\sigma_D\sigma_S.
+$$
+
+Again independence ($\rho_{D,S}=0$) was conservatively asssumed. 
+
+<!-- # Relative supplemental dose combined with absolute dietary intake -->
+
+<!-- Some studies reported absolute dietary protein intake $D$ in g/day, a relative supplement dose $d$ in g/kg/day, and body mass $W$. The participant-specific supplemental intake was: -->
+
+<!-- $$ -->
+<!-- S=dW. -->
+<!-- $$ -->
+
+<!-- When $d$ was fixed: -->
+
+<!-- $$ -->
+<!-- \mu_S=d\mu_W, -->
+<!-- $$ -->
+
+<!-- $$ -->
+<!-- \sigma_S=d\sigma_W. -->
+<!-- $$ -->
+
+<!-- Total absolute intake was: -->
+
+<!-- $$ -->
+<!-- T=D+dW, -->
+<!-- $$ -->
+
+<!-- with: -->
+
+<!-- $$ -->
+<!-- \mu_T=\mu_D+d\mu_W, -->
+<!-- $$ -->
+
+<!-- and: -->
+
+<!-- $$ -->
+<!-- \operatorname{Var}(T) -->
+<!-- = -->
+<!-- \sigma_D^2+d^2\sigma_W^2 -->
+<!-- + -->
+<!-- 2d\operatorname{Cov}(D,W). -->
+<!-- $$ -->
+
+<!-- The relative total intake simplifies exactly at the participant level to: -->
+
+<!-- $$ -->
+<!-- R -->
+<!-- = -->
+<!-- \frac{D+dW}{W} -->
+<!-- = -->
+<!-- \frac{D}{W}+d. -->
+<!-- $$ -->
+
+<!-- The mean was approximated as: -->
+
+<!-- $$ -->
+<!-- \mu_R -->
+<!-- \approx -->
+<!-- \frac{\mu_D}{\mu_W}+d. -->
+<!-- $$ -->
+
+<!-- The first-order variance was: -->
+
+<!-- $$ -->
+<!-- \operatorname{Var}(R) -->
+<!-- \approx -->
+<!-- \frac{\sigma_D^2}{\mu_W^2} -->
+<!-- + -->
+<!-- \frac{\mu_D^2\sigma_W^2}{\mu_W^4} -->
+<!-- - -->
+<!-- \frac{2\mu_D\operatorname{Cov}(D,W)}{\mu_W^3}. -->
+<!-- $$ -->
+
+<!-- Using -->
+
+<!-- $$ -->
+<!-- \operatorname{Cov}(D,W) -->
+<!-- = -->
+<!-- \rho_{D,W}\sigma_D\sigma_W, -->
+<!-- $$ -->
+
+<!-- gives: -->
+
+<!-- $$ -->
+<!-- \operatorname{Var}(R) -->
+<!-- \approx -->
+<!-- \frac{\sigma_D^2}{\mu_W^2} -->
+<!-- + -->
+<!-- \frac{\mu_D^2\sigma_W^2}{\mu_W^4} -->
+<!-- - -->
+<!-- \frac{2\mu_D\rho_{D,W}\sigma_D\sigma_W}{\mu_W^3}. -->
+<!-- $$ -->
+
+<!-- When $\rho_{D,W}=0$: -->
+
+<!-- $$ -->
+<!-- SD_R -->
+<!-- \approx -->
+<!-- \sqrt{ -->
+<!-- \frac{\sigma_D^2}{\mu_W^2} -->
+<!-- + -->
+<!-- \frac{\mu_D^2\sigma_W^2}{\mu_W^4} -->
+<!-- }. -->
+<!-- $$ -->
+
+<!-- A positive dietary-intake--body-mass correlation reduces the variance of the ratio relative to the zero-covariance calculation. Therefore, zero covariance may be conservative when a positive association is plausible, but it is not universally conservative. -->
+
+<!-- An equivalent calculation can be performed by treating $R=T/W$: -->
+
+<!-- $$ -->
+<!-- \operatorname{Var}(R) -->
+<!-- \approx -->
+<!-- \frac{\sigma_T^2}{\mu_W^2} -->
+<!-- + -->
+<!-- \frac{\mu_T^2\sigma_W^2}{\mu_W^4} -->
+<!-- - -->
+<!-- \frac{2\mu_T\operatorname{Cov}(T,W)}{\mu_W^3}, -->
+<!-- $$ -->
+
+<!-- where: -->
+
+<!-- $$ -->
+<!-- \operatorname{Cov}(T,W) -->
+<!-- = -->
+<!-- \operatorname{Cov}(D,W)+d\sigma_W^2. -->
+<!-- $$ -->
+
+<!-- The covariance term must not be set to zero merely because $T$ and $W$ were reported separately: the same body mass is used to construct the supplemental component of $T$. -->
+
+# Converting a general absolute intake to g/kg/day
+
+For any total absolute protein intake $T$ in g/day:
+
+$$
+R=\frac{T}{W}.
+$$
+
+The mean was approximated using the ratio of arm-level means:
+
+$$
+\mu_R\approx\frac{\mu_T}{\mu_W}.
+$$
+
+The corresponding first-order variance was:
+
+$$
+\operatorname{Var}(R)
+\approx
+\frac{\sigma_T^2}{\mu_W^2}
++
+\frac{\mu_T^2\sigma_W^2}{\mu_W^4}
+-
+\frac{2\mu_T\operatorname{Cov}(T,W)}{\mu_W^3}.
+$$
+
+Under an independence assumption:
+
+$$
+SD_R
+\approx
+\sqrt{
+\frac{\sigma_T^2}{\mu_W^2}
++
+\frac{\mu_T^2\sigma_W^2}{\mu_W^4}
+}.
+$$
+
+The ratio of means is a first-order approximation to the mean of participant-level ratios.
+
+# Reconstructing end-of-intervention intake from baseline and change
+
+## Baseline and change reported in the same units
+
+When baseline intake $B$ and the reported change $\Delta$ were expressed in the same units:
+
+$$
+F=B+\Delta,
+$$
+
+$$
+\mu_F=\mu_B+\mu_\Delta.
+$$
+
+The variance was:
+
+$$
+\operatorname{Var}(F)
+=
+\sigma_B^2+\sigma_\Delta^2
++
+2\operatorname{Cov}(B,\Delta),
+$$
+
+or:
+
+$$
+\operatorname{Var}(F)
+=
+\sigma_B^2+\sigma_\Delta^2
++
+2\rho_{B,\Delta}\sigma_B\sigma_\Delta.
+$$
+
+With assumed independence ($\rho_{B,\Delta}=0$).
+
+## Baseline reported in g/kg/day and change reported in g/day
+
+A reported absolute change cannot be added directly to a relative baseline value. Let:
+
+- $X$ be baseline relative protein intake in g/kg/day;
+- $Y$ be the absolute change in g/day; and
+- $W$ be body mass in kg.
+
+Then:
+
+$$
+F_{\text{rel}}
+=
+X+\frac{Y}{W}.
+$$
+
+The mean was approximated as:
+
+$$
+\mu_{F,\text{rel}}
+\approx
+\mu_X+\frac{\mu_Y}{\mu_W}.
+$$
+
+The full first-order variance was:
+
+$$
+\begin{aligned}
+\operatorname{Var}(F_{\text{rel}})
+\approx\;&
+\sigma_X^2
++
+\frac{\sigma_Y^2}{\mu_W^2}
++
+\frac{\mu_Y^2\sigma_W^2}{\mu_W^4} \\
+&+
+\frac{2\operatorname{Cov}(X,Y)}{\mu_W}
+-
+\frac{2\mu_Y\operatorname{Cov}(X,W)}{\mu_W^2}
+-
+\frac{2\mu_Y\operatorname{Cov}(Y,W)}{\mu_W^3}.
+\end{aligned}
+$$
+
+When all covariances were unavailable and set to zero:
+
+$$
+SD_{F,\text{rel}}
+\approx
+\sqrt{
+\sigma_X^2
++
+\left(\frac{\sigma_Y}{\mu_W}\right)^2
++
+\left(\frac{\mu_Y\sigma_W}{\mu_W^2}\right)^2
+}.
+$$
+
+When the uncertainty contributed by body mass was negligible, the simplified approximation was:
+
+$$
+SD_{F,\text{rel}}
+\approx
+\sqrt{
+\sigma_X^2
++
+\left(\frac{\sigma_Y}{\mu_W}\right)^2
+}.
+$$
+
+The body-mass value corresponding most closely to the reported change period was preferred. When only baseline body mass was reported and body mass was expected to be stable, baseline body mass was used and this assumption was recorded.
+
+# Deriving body mass for relative-intake calculations
+
+## Fat mass plus fat-free mass
+
+When fat mass $FM$ and fat-free mass $FFM$ were reported:
+
+$$
+W=FM+FFM.
+$$
+
+Therefore:
+
+$$
+\mu_W=\mu_{FM}+\mu_{FFM},
+$$
+
+and:
+
+$$
+\operatorname{Var}(W)
+=
+\sigma_{FM}^2+\sigma_{FFM}^2
++
+2\rho_{FM,FFM}\sigma_{FM}\sigma_{FFM}.
+$$
+
+Thus:
+
+$$
+SD_W
+=
+\sqrt{
+\sigma_{FM}^2+\sigma_{FFM}^2
++
+2\rho_{FM,FFM}\sigma_{FM}\sigma_{FFM}
+}.
+$$
+
+When the correlation was unknown, $\rho_{FM,FFM}=0$ was used as a neutral default rather than described as inherently conservative. Sensitivity analyses can be used because a positive correlation increases the SD of the sum and a negative correlation decreases it.
+
+The reported definition of the lean compartment was checked. If the study reported fat-free mass, the identity above is appropriate. If it reported DXA lean soft tissue, body mineral content is not included, and $FM+\text{lean soft tissue}$ will underestimate total body mass unless body mineral content is added.
+
+## Fat-free mass and body-fat percentage
+
+When fat-free or lean mass $L$ and body-fat percentage $P$ were reported, with $P$ expressed as a proportion:
+
+$$
+L=W(1-P),
+$$
+
+and therefore:
+
+$$
+W=\frac{L}{1-P}.
+$$
+
+The mean was approximated as:
+
+$$
+\mu_W
+\approx
+\frac{\mu_L}{1-\mu_P}.
+$$
+
+The first-order variance was:
+
+$$
+\begin{aligned}
+\operatorname{Var}(W)
+\approx\;&
+\left(\frac{1}{1-\mu_P}\right)^2\sigma_L^2
++
+\left(\frac{\mu_L}{(1-\mu_P)^2}\right)^2\sigma_P^2 \\
+&+
+2
+\left(\frac{1}{1-\mu_P}\right)
+\left(\frac{\mu_L}{(1-\mu_P)^2}\right)
+\operatorname{Cov}(L,P).
+\end{aligned}
+$$
+
+Using
+
+$$
+\operatorname{Cov}(L,P)
+=
+\rho_{L,P}\sigma_L\sigma_P,
+$$
+
+the independence approximation was:
+
+$$
+SD_W
+\approx
+\sqrt{
+\left(\frac{\sigma_L}{1-\mu_P}\right)^2
++
+\left(\frac{\mu_L\sigma_P}{(1-\mu_P)^2}\right)^2
+}.
+$$
+
+Lean mass and body-fat percentage are often negatively associated. Consequently, independence may slightly overestimate the derived body-mass variance. Where this derivation materially influenced the protein-intake uncertainty, plausible negative correlations such as $-0.3$, $-0.5$, and $-0.7$ were considered in sensitivity analyses.
+
+This identity assumes that $L$ represents fat-free mass. If $L$ represents lean soft tissue only, omission of bone mineral content should be acknowledged.
+
+# Combined reconstruction pathways
+
+The principal reconstruction pathways can be summarised as follows.
+
+| Information reported | Derived total relative intake |
+|---|---|
+| Total protein in g/kg/day | Use the reported value |
+| Dietary protein in g/kg/day plus fixed supplement in g/kg/day | $R=R_{\text{diet}}+d$ |
+| Dietary protein in g/day plus fixed supplement in g/day | $R=(D+s)/W$ |
+| Dietary protein in g/day plus supplement in g/kg/day | $R=D/W+d$ |
+| Energy intake plus percentage energy from protein, with fixed supplement in g/day | $R=(Ep/4+s)/W$ |
+| Energy intake plus percentage energy from protein, with supplement in g/kg/day | $R=Ep/(4W)+d$ |
+| Baseline intake and change in the same units | $F=B+\Delta$ |
+| Baseline in g/kg/day and change in g/day | $F_{\text{rel}}=B_{\text{rel}}+\Delta_{\text{abs}}/W$ |
+| No body mass, but fat mass and fat-free mass | $W=FM+FFM$, followed by the relevant ratio |
+| No body mass, but fat-free mass and fat percentage | $W=L/(1-P)$, followed by the relevant ratio |
+
+# Correlation assumptions and sensitivity analyses
+
+Many derived SDs require correlations that are not usually reported. The following hierarchy was used:
+
+1. A directly reported or empirically recoverable covariance was preferred.
+2. A correlation estimated from compatible data in the same study was used when available.
+3. Otherwise, zero covariance was used as the transparent primary default.
+4. Sensitivity analyses were used when plausible non-zero correlations could materially alter the derived uncertainty.
+
+A zero correlation should not automatically be described as conservative. Its effect depends on the transformation:
+
+- For a sum, a positive correlation increases the variance.
+- For a ratio, a positive numerator--denominator correlation decreases the variance.
+- For body mass derived as $FM+FFM$, the sign of the correlation determines whether the zero-correlation result is larger or smaller.
+- For $W=L/(1-P)$, a negative lean-mass--fat-percentage correlation reduces the variance relative to independence.
+- For baseline plus change, the correlation can be negative because change contains baseline mechanically.
+
+Where a supplement dose was prescribed in g/kg/day, the same body mass appeared in both the absolute supplemental dose and the denominator of total relative intake. This structural dependence was accounted for analytically rather than ignored.
+
+# Participant SDs versus uncertainty in the arm-level exposure mean
+
+Two distinct quantities were retained where possible:
+
+1. **Participant SD:** variation in protein intake between participants within an arm.
+2. **SE of the arm-level mean:** sampling uncertainty in the mean protein intake assigned to the arm.
+
+For a derived participant

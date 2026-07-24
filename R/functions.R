@@ -166,6 +166,7 @@ read_prepare_nunes_data <- function(file1, file2) {
   
 }
 
+# Note these are for hypertrophy (lean mass/muscle mass/size) only as Nunes reanalysis was only with these outcomes
 get_steele_priors <- function(data) {
   
   # uses data from Steele et al. (https://doi.org/10.1080/02640414.2023.2286748) for lean soft tissue/muscle data (i.e., "hypertrophy" outcomes)
@@ -1128,6 +1129,184 @@ prepare_protein_data <- function(protein_data){
 }
 
 ## Fitting old pre-reg brms models ----
+get_steele_strength_priors <- function(data) {
+  
+  # uses data from Steele et al. (https://doi.org/10.1080/02640414.2023.2286748) for strength
+  
+  steele_data <- data |>
+    mutate(
+      # calculate pre-post SDs from SEs
+      RT_pre_sd = if_else(is.na(RT_pre_se), RT_pre_sd, RT_pre_se * sqrt(RT_n)),
+      CON_pre_sd = if_else(is.na(CON_pre_se), CON_pre_sd, CON_pre_se * sqrt(CON_n)),
+      RT_post_sd = if_else(is.na(RT_post_se), RT_post_sd, RT_post_se * sqrt(RT_n)),
+      CON_post_sd = if_else(is.na(CON_post_se), CON_post_sd, CON_post_se * sqrt(CON_n)),
+      
+      # convert p to t (Change scores)
+      RT_delta_t_value = if_else(is.na(RT_delta_t_value), qt(RT_delta_p_value/2, df=RT_n-1, lower.tail=FALSE), RT_delta_t_value),
+      CON_delta_t_value = if_else(is.na(CON_delta_t_value), qt(CON_delta_p_value/2, df=CON_n-1, lower.tail=FALSE), CON_delta_t_value),
+      
+      # convert t to SE (Change scores)
+      RT_delta_se = if_else(is.na(RT_delta_se), if_else(is.na(RT_delta_m), (RT_post_m - RT_pre_m)/RT_delta_t_value, RT_delta_m/RT_delta_t_value), RT_delta_se),
+      CON_delta_se = if_else(is.na(CON_delta_se), if_else(is.na(CON_delta_m), (CON_post_m - CON_pre_m)/CON_delta_t_value, CON_delta_m/CON_delta_t_value), CON_delta_se),
+      
+      # make positive
+      RT_delta_se = if_else(RT_delta_se < 0, RT_delta_se * -1, RT_delta_se),
+      CON_delta_se = if_else(CON_delta_se < 0, CON_delta_se * -1, CON_delta_se),
+      
+      # convert CI to SE (Change scores)
+      RT_delta_se = if_else(is.na(RT_delta_se), (RT_delta_CI_upper - RT_delta_CI_lower)/3.92, RT_delta_se),
+      CON_delta_se = if_else(is.na(CON_delta_se), (CON_delta_CI_upper - CON_delta_CI_lower)/3.92, CON_delta_se),
+      
+      # convert SE to SD (Change scores)
+      RT_delta_sd = if_else(is.na(RT_delta_sd), RT_delta_se * sqrt(RT_n), RT_delta_sd),
+      CON_delta_sd = if_else(is.na(CON_delta_sd), CON_delta_se * sqrt(CON_n), CON_delta_sd),
+      
+      # calculate pre-post correlation coefficient for those with pre, post, and delta SDs
+      RT_ri = (RT_pre_sd^2 + RT_post_sd^2 - RT_delta_sd^2)/(2 * RT_pre_sd * RT_post_sd),
+      CON_ri = (CON_pre_sd^2 + CON_post_sd^2 - CON_delta_sd^2)/(2 * CON_pre_sd * CON_post_sd)
+    ) |>
+    mutate(
+      # Remove values outside the range of -1 to +1 as they are likely due to misreporting or miscalculations in original studies
+      RT_ri = if_else(between(RT_ri,-1,1) == FALSE, NA, RT_ri),
+      CON_ri = if_else(between(CON_ri,-1,1) == FALSE, NA, CON_ri)
+    ) |>
+    mutate(pre_sd_pool = sqrt(((RT_n - 1) * RT_pre_sd ^ 2 +
+                                 (CON_n - 1) * CON_pre_sd ^ 2) /  (RT_n + CON_n - 2)))
+  
+  # Calculate pre-post correlations for SMCR calculations
+  
+  steele_data <- escalc(measure = "ZCOR", ri = RT_ri, ni = RT_n, data = steele_data)
+  
+  meta_RT_ri <- rma.mv(yi, V=vi, data=steele_data,
+                       random = list(~ 1 | study, ~1 | arm, ~1 | es), method="REML", test="t",
+                       control=list(optimizer="optim", optmethod="Nelder-Mead"))
+  
+  rob_meta_RT_ri <- robust(meta_RT_ri, steele_data$study)
+  
+  z2r_RT <- psych::fisherz2r(rob_meta_RT_ri$b[1])
+  
+  steele_data$RT_ri <- if_else(is.na(steele_data$RT_ri), z2r_RT, steele_data$RT_ri)
+  
+  steele_data_CON <- steele_data |>
+    select(study, arm, es, CON_ri, CON_n) |>
+    distinct()
+  
+  steele_data_CON <- escalc(measure = "ZCOR", ri = CON_ri, ni = CON_n, data = steele_data_CON)
+  
+  meta_CON_ri <- rma.mv(yi, V=vi, data=steele_data_CON,
+                        random = list(~ 1 | study, ~1 | arm, ~1 | es), method="REML", test="t",
+                        control=list(optimizer="optim", optmethod="Nelder-Mead"))
+  
+  rob_meta_CON_ri <- robust(meta_CON_ri, steele_data_CON$study)
+  
+  z2r_CON <- psych::fisherz2r(rob_meta_CON_ri$b[1])
+  
+  steele_data$CON_ri <- if_else(is.na(steele_data$CON_ri), z2r_CON, steele_data$CON_ri)
+  
+  
+  # calculate for pre-post and delta separately
+  
+  # Pivot longer so in arm based format
+  
+  steele_data <- steele_data |>
+    select(-yi, -vi, -RT_only) |>
+    pivot_longer(
+      cols = contains(c("RT_", "CON_")),
+      names_to = "what",
+      values_to = "value"
+    ) |>
+    separate("what", into = c("condition", "what"), sep = "_", extra = "merge") |>
+    pivot_wider(names_from = "what",
+                values_from = "value")
+  
+  # calculate for pre-post and delta separately
+  steele_data_pre_post <- steele_data |>
+    filter(!is.na(post_m))
+  
+  steele_data_pre_post <- escalc(
+    measure = "SMCR",
+    m1i = post_m,
+    m2i = pre_m,
+    sd1i = pre_sd_pool,
+    # sd2i = pre_sd,
+    ni = n,
+    ri = ri,
+    data = steele_data_pre_post
+  )
+  
+  steele_data_joined_delta <- steele_data |>
+    filter(is.na(post_m)) |>
+    mutate(ref = 0)
+  
+  data_joined_delta <- escalc(
+    measure = "SMCR",
+    m1i = delta_m,
+    m2i = ref,
+    sd1i = pre_sd_pool,
+    # sd2i = pre_sd,
+    ni = n,
+    ri = ri,
+    data = steele_data_joined_delta
+  )
+  
+  steele_data_joined <- bind_rows(steele_data_pre_post, steele_data_joined_delta) |>
+    filter(outcome == "strength") |>
+    unite("arm", c(outcome,study,arm,condition), sep = "_", remove = FALSE) |>
+    mutate(arm = dense_rank(arm)) |>
+    rowid_to_column("effect") |>
+    mutate(condition_code = case_when(
+      condition == "RT" ~ 0,
+      condition == "CON" ~ 1,
+    ))
+  
+  # frequentist meta-analysis estimates
+  steele_meta <- rma.mv(yi, vi,
+                        random = list(~ 1 | study, ~1 | arm, ~1 | effect),
+                        mods = ~ condition_code,
+                        data = steele_data_joined,
+                        method="REML", test="t",
+                        # control=list(optimizer="optim", optmethod="Nelder-Mead")
+  )
+  
+  rob_steele_meta <- robust(steele_meta, cluster = steele_data_joined$study, clubSandwich = TRUE)
+  
+  # set priors based on estimates (assumes habitual protein intake to get effects of RT and CON at that level)
+  
+  priors <-
+    c(
+      # # We set priors based on the overall estimates for both control and RT conditions in an arm based model using Steele et al. data
+      set_prior(paste("student_t(3,", rob_steele_meta$b[1],",", rob_steele_meta$se[1],")"), class = "b", coef = "Intercept"),
+      set_prior(paste("student_t(3,", rob_steele_meta$b[2],",", rob_steele_meta$se[2],")"), class = "b", coef = "resistance_exercise_code"),
+      # All other b parameters are kept as uninformative but weakly regularising
+      set_prior("student_t(3,0,1)", class = "b")
+      # All other priors for variance parameters are kept as default weakly regularising
+    )
+  
+  priors
+  
+}
+
+get_kirk_function_priors <- function() {
+  
+  # Taken directly from posterior estimates reported in Kirk et al. (https://doi.org/10.3390/jfmk9040239) for functional outcomes
+  # as arm based model already fit
+  # set priors based on estimates (assumes habitual protein intake to get effects of RT and CON at that level)
+  
+  priors <-
+    c(
+      # # We set priors based on the overall estimates for both control and RT conditions in an arm based model using Steele et al. data
+      set_prior("student_t(3, 0.09, 0.097)", class = "b", coef = "Intercept"),
+      set_prior("student_t(3, 0.72, 0.18)", class = "b", coef = "resistance_exercise_code"),
+      # All other b parameters are kept as uninformative but weakly regularising
+      set_prior("student_t(3,0,1)", class = "b")
+      # All other priors for variance parameters are kept as default weakly regularising
+    )
+  
+  priors
+  
+}
+
+
 get_model_avg_preds_new <- function(models, weights, data) {
   
   models_new <- models
@@ -1181,83 +1360,387 @@ get_model_avg_preds_new <- function(models, weights, data) {
   return(final_predictions)
 }
 
+# get_model_avg_slopes_new <- function(models, weights, data) {
+#   
+#   models_new <- models
+#   weights_stacking_new <- weights
+#   data_new <- data
+#   
+#   # Because can't run slopes(model, variables = "protein_intake") on intercept model with no protein_intake
+#   safe_slopes <- possibly(slopes, otherwise = NULL) 
+#   
+#   slopes <- map(models_new, ~ safe_slopes(.x, 
+#                                             re_formula= NA,
+#                                             variables = "protein_intake",
+#                                             newdata   = datagrid(
+#                                               resistance_exercise_code = c(0,1),
+#                                               protein_intake = seq(min(data_new$protein_intake, na.rm = TRUE), max(data_new$protein_intake, na.rm = TRUE), by = 0.2),
+#                                               age_centre = 0,
+#                                               duration_centre = 0,
+#                                               vi = 0
+#                                             )) |> get_draws())
+#   
+#   
+#   # remove nulls from slopes and weights
+#   slopes_clean <- compact(slopes)
+#   weights_stacking_new_clean <- weights_stacking_new[!map_lgl(slopes, is.null)] 
+#   
+#   # Convert each to a matrix (rowid-draw order must match)
+#   draw_matrices <- map(slopes_clean, ~ matrix(.x$draw, ncol = 1))
+#   
+#   # Stack into matrix: rows = rowid × draw, cols = models
+#   draw_mat <- do.call(cbind, draw_matrices)  # fast column binding
+#   
+#   # Multiply each column by stacking weight
+#   weighted_draw_mat <- sweep(draw_mat, 2, weights_stacking_new_clean, FUN = "*")
+#   
+#   # Sum across models
+#   stacked_draws <- rowSums(weighted_draw_mat)
+#   
+#   # Reattach draw + rowid info
+#   meta <- slopes_clean[[1]] |> select(rowid, draw, resistance_exercise_code, protein_intake)
+#   
+#   stacked_df <- bind_cols(meta, estimate = stacked_draws) |>
+#     mutate(
+#       resistance_exercise_label = "Resistance Exercise?",
+#       resistance_exercise = case_when(
+#         resistance_exercise_code == 0 ~ "YES",
+#         resistance_exercise_code == 1 ~ "NO"
+#       ),
+#       protein_intake = protein_intake + protein_median
+#     )
+#   
+#   stacked_df
+# }
+
+
 get_model_avg_slopes_new <- function(models, weights, data) {
   
-  models_new <- models
-  weights_stacking_new <- weights
+  if (length(models) != length(weights)) {
+    stop("The number of models does not equal the number of weights.")
+  }
+  
+  if (is.null(names(models)) || any(names(models) == "")) {
+    stop("All models must have names.")
+  }
+  
+  is_brmsfit <- map_lgl(models, inherits, what = "brmsfit")
+  
+  if (any(!is_brmsfit)) {
+    stop(
+      "These objects are not brmsfit models: ",
+      paste(names(models)[!is_brmsfit], collapse = ", ")
+    )
+  }
+  
   data_new <- data
+  protein_median <- data_new$protein_median[[1]]
   
-  # Because can't run slopes(model, variables = "protein_intake") on intercept model with no protein_intake
-  safe_slopes <- possibly(slopes, otherwise = NULL) 
+  # Intercept-only models have a slope of exactly zero.
+  is_intercept_only <- startsWith(names(models), "Intercept only model")
   
-  slopes <- map(models_new, ~ safe_slopes(.x, 
-                                            re_formula= NA,
-                                            variables = "protein_intake",
-                                            newdata   = datagrid(
-                                              resistance_exercise_code = c(0,1),
-                                              protein_intake = seq(min(data_new$protein_intake, na.rm = TRUE), max(data_new$protein_intake, na.rm = TRUE), by = 0.01),
-                                              age_centre = 0,
-                                              duration_centre = 0,
-                                              vi = 0
-                                            )) |> get_draws())
+  slope_draws <- imap(models, function(model, model_name) {
+    
+    if (startsWith(model_name, "Intercept only model")) {
+      return(NULL)
+    }
+    
+    tryCatch(
+      {
+        marginaleffects::slopes(
+          model,
+          re_formula = NA,
+          variables = "protein_intake",
+          newdata = marginaleffects::datagrid(
+            model = model,
+            resistance_exercise_code = c(0, 1),
+            protein_intake = seq(
+              min(data_new$protein_intake, na.rm = TRUE),
+              max(data_new$protein_intake, na.rm = TRUE),
+              by = 0.42
+            ),
+            age_centre = 0,
+            duration_centre = 0,
+            vi = 0
+          )
+        ) |>
+          marginaleffects::get_draws()
+      },
+      error = function(e) {
+        stop(
+          sprintf(
+            "Slope extraction failed for '%s': %s",
+            model_name,
+            conditionMessage(e)
+          ),
+          call. = FALSE
+        )
+      }
+    )
+  })
   
+  keep <- !is_intercept_only
+  slope_draws_clean <- slope_draws[keep]
   
-  # remove nulls from slopes and weights
-  slopes_clean <- compact(slopes)
-  weights_stacking_new_clean <- weights_stacking_new[!map_lgl(slopes, is.null)] 
+  # Weights not renormalised. The omitted intercept-only models
+  # contribute zero slope while retaining their original stacking weight.
+  weights_clean <- as.numeric(weights[keep])
   
-  # Convert each to a matrix (rowid-draw order must match)
-  draw_matrices <- map(slopes_clean, ~ matrix(.x$draw, ncol = 1))
+  row_counts <- map_int(slope_draws_clean, nrow)
   
-  # Stack into matrix: rows = rowid × draw, cols = models
-  draw_mat <- do.call(cbind, draw_matrices)  # fast column binding
+  if (length(unique(row_counts)) != 1L) {
+    stop(
+      "Slope results have unequal numbers of rows: ",
+      paste(
+        names(row_counts),
+        row_counts,
+        sep = " = ",
+        collapse = "; "
+      )
+    )
+  }
   
-  # Multiply each column by stacking weight
-  weighted_draw_mat <- sweep(draw_mat, 2, weights_stacking_new_clean, FUN = "*")
+  draw_mat <- do.call(
+    cbind,
+    map(slope_draws_clean, ~ .x$draw)
+  )
   
-  # Sum across models
-  stacked_draws <- rowSums(weighted_draw_mat)
+  stacked_draws <- drop(draw_mat %*% weights_clean)
   
-  # Reattach draw + rowid info
-  meta <- slopes_clean[[1]] |> select(rowid, draw, resistance_exercise_code, protein_intake)
+  meta <- slope_draws_clean[[1]] |>
+    select(
+      rowid,
+      draw,
+      resistance_exercise_code,
+      protein_intake
+    )
   
-  stacked_df <- bind_cols(meta, estimate = stacked_draws) |>
+  final_slopes <- bind_cols(meta, estimate = stacked_draws) |>
     mutate(
       resistance_exercise_label = "Resistance Exercise?",
       resistance_exercise = case_when(
         resistance_exercise_code == 0 ~ "YES",
         resistance_exercise_code == 1 ~ "NO"
       ),
-      protein_intake = protein_intake + median(subset(data_new$protein_intake_raw, condition == "control" | condition == "placebo"),
-                                               na.rm=TRUE)
+      protein_intake = protein_intake + protein_median
     )
   
-  stacked_df
+  return(final_slopes)
 }
 
-get_rope_pd <- function(slopes) {
+get_model_avg_contrasts_new <- function(
+    models,
+    weights,
+    data,
+    reference = 0.8,
+    maximum = 4.4,
+    increment = 0.2
+) {
   
-  rope <- slopes |>
+  # Validation
+  if (length(models) != length(weights)) {
+    stop("The number of models does not equal the number of weights.")
+  }
+  
+  if (is.null(names(models)) || any(names(models) == "")) {
+    stop("All models must have names.")
+  }
+  
+  is_brmsfit <- map_lgl(models, inherits, what = "brmsfit")
+  
+  if (any(!is_brmsfit)) {
+    stop(
+      "These objects are not brmsfit models: ",
+      paste(names(models)[!is_brmsfit], collapse = ", ")
+    )
+  }
+  
+  weights <- as.numeric(weights)
+  
+  if (!isTRUE(all.equal(sum(weights), 1, tolerance = 1e-6))) {
+    stop("Model weights do not sum to 1.")
+  }
+  
+  protein_medians <- unique(na.omit(data$protein_median))
+  
+  if (length(protein_medians) != 1L) {
+    stop("data$protein_median must contain exactly one unique non-missing value.")
+  }
+  
+  protein_median <- protein_medians[[1]]
+  
+  # Values on the original and centred scales
+  protein_values_raw <- round(
+    seq(reference, maximum, by = increment),
+    digits = 10
+  )
+  
+  protein_values_centred <- protein_values_raw - protein_median
+  
+  # This accumulator avoids holding predictions from all 26 models in memory
+  averaged_contrasts <- reduce(
+    seq_along(models),
+    .init = NULL,
+    .f = function(accumulator, model_position) {
+      
+      model <- models[[model_position]]
+      model_name <- names(models)[[model_position]]
+      model_weight <- weights[[model_position]]
+      
+      model_contrasts <- tryCatch(
+        {
+          prediction_draws <- marginaleffects::predictions(
+            model,
+            type = "response",
+            re_formula = NA,
+            newdata = marginaleffects::datagrid(
+              model = model,
+              resistance_exercise_code = c(0, 1),
+              protein_intake = protein_values_centred,
+              age_centre = 0,
+              duration_centre = 0,
+              vi = 0
+            )
+          ) |>
+            marginaleffects::get_draws() |>
+            as_tibble() |>
+            mutate(
+              protein_intake_raw =
+                protein_intake + protein_median
+            )
+          
+          # One reference prediction for each posterior draw and
+          # resistance-exercise category
+          reference_draws <- prediction_draws |>
+            filter(near(protein_intake_raw, reference)) |>
+            select(
+              drawid,
+              resistance_exercise_code,
+              reference_prediction = draw
+            )
+          
+          # Calculate target dose minus 0.8 g/kg/day
+          prediction_draws |>
+            filter(protein_intake_raw > reference) |>
+            left_join(
+              reference_draws,
+              by = c(
+                "drawid",
+                "resistance_exercise_code"
+              )
+            ) |>
+            transmute(
+              drawid,
+              resistance_exercise_code,
+              reference_protein_intake = reference,
+              protein_intake = protein_intake_raw,
+              contrast_draw = draw - reference_prediction
+            ) |>
+            arrange(
+              resistance_exercise_code,
+              protein_intake,
+              drawid
+            )
+        },
+        error = function(e) {
+          stop(
+            sprintf(
+              "Contrast extraction failed for '%s': %s",
+              model_name,
+              conditionMessage(e)
+            ),
+            call. = FALSE
+          )
+        }
+      )
+      
+      # Initialise with the first model
+      if (is.null(accumulator)) {
+        return(
+          model_contrasts |>
+            transmute(
+              drawid,
+              resistance_exercise_code,
+              reference_protein_intake,
+              protein_intake,
+              estimate = contrast_draw * model_weight
+            )
+        )
+      }
+      
+      keys_match <- identical(
+        accumulator |>
+          select(
+            drawid,
+            resistance_exercise_code,
+            reference_protein_intake,
+            protein_intake
+          ),
+        model_contrasts |>
+          select(
+            drawid,
+            resistance_exercise_code,
+            reference_protein_intake,
+            protein_intake
+          )
+      )
+      
+      if (!keys_match) {
+        stop(
+          "Posterior draws do not align for model '",
+          model_name,
+          "'. Check that all models have the same number of posterior draws."
+        )
+      }
+      
+      accumulator$estimate <-
+        accumulator$estimate +
+        model_contrasts$contrast_draw * model_weight
+      
+      accumulator
+    }
+  )
+  
+  averaged_contrasts <- averaged_contrasts |>
+    mutate(
+      resistance_exercise_label = "Resistance Exercise?",
+      resistance_exercise = case_when(
+        resistance_exercise_code == 0 ~ "YES",
+        resistance_exercise_code == 1 ~ "NO"
+      ),
+      comparison = sprintf(
+        "%.1f versus %.1f g/kg/day",
+        protein_intake,
+        reference_protein_intake
+      )
+    )
+  
+  return(averaged_contrasts)
+}
+
+get_rope_pd_new <- function(contrasts) {
+  
+  rope <- contrasts |>
     group_by(protein_intake, resistance_exercise) |>
     nest() |>
     mutate(
-      rope_percent = map(data, ~ rope(.x$estimate*0.42, range = c(-0.1, 0.1), ci = 1))
+      rope_percent = map(data, ~ rope(.x$estimate, range = c(-0.1, 0.1), ci = 1))
     ) |>
     unnest(rope_percent) |>
     select(protein_intake, resistance_exercise, ROPE_low, ROPE_high, ROPE_Percentage) |>
-    filter(resistance_exercise == "YES" | protein_intake < 1.6) |>
+    filter(resistance_exercise == "YES" | protein_intake < 1.8) |>
     mutate(type = "rope")
   
   
-  pd <- slopes |>
+  pd <- contrasts |>
     group_by(protein_intake, resistance_exercise) |>
     nest() |>
     mutate(
-      rope_percent = map(data, ~ rope(.x$estimate*0.42, range = c(0.1, Inf), ci = 1))
+      rope_percent = map(data, ~ rope(.x$estimate, range = c(0.1, Inf), ci = 1))
     ) |>
     unnest(rope_percent) |>
     select(protein_intake, resistance_exercise, ROPE_low, ROPE_high, ROPE_Percentage) |>
-    filter(resistance_exercise == "YES" | protein_intake < 1.6) |>
+    filter(resistance_exercise == "YES" | protein_intake < 1.8) |>
     mutate(type = "pd")
   
   rope_pd <- bind_rows(rope, pd)
@@ -1267,27 +1750,29 @@ get_rope_pd <- function(slopes) {
   
 }
 
-plot_preds_slopes <- function(data, preds, slopes) {
+plot_preds_contrasts_new <- function(data, preds, contrasts,
+                                  title) {
   
-  preds_plot <- final_predictions |> 
-    filter(resistance_exercise == "YES" | protein_intake < 1.6) |>
+  preds_plot <- preds |> 
+    filter(resistance_exercise == "YES" | protein_intake < 1.8) |>
     ggplot(aes(x = protein_intake, y = estimate)) +
     geom_hline(yintercept = 0, linetype = "dotted", alpha = 0.75) +
     geom_point(data = data |>
-                 mutate(resistance_exercise_label = "Resistance Exercise?"), 
-               aes(x = protein_intake + 1.12, y = yi, size = size, color = condition), alpha = 0.5) +
+                 mutate(resistance_exercise_label = "Resistance Exercise?") |>
+                 rename(resistance_exercise = "resistance_exercise_yes_no") |>
+                 mutate(resistance_exercise = str_to_upper(resistance_exercise)), 
+               aes(x = protein_intake + protein_median, y = yi, size = size, color = condition), alpha = 0.5) +
     geom_ribbon(aes(ymin = conf.low, ymax = conf.high),
                 alpha = 0.5, color = "black", size = 0.25) +
     geom_line(aes(y = estimate), size = 0.75, color = "black") +
-    scale_color_manual(values = c("darkorange", "darkgreen")) +
+    scale_color_manual(values = c("#0072B2", "darkorange", "darkgreen")) +
     ggh4x::facet_nested(.~ resistance_exercise_label + resistance_exercise,
                         scales = "free") +
     labs(
       x = "Protein Intake (g/kg/day)",
-      y = "Lean Mass/Muscle Change (SMD)",
+      y = "Standardised Mean Change",
       color = "Condition",
-      title = "Predicted lean mass/muscle change",
-      # subtitle = "Note, red band indicates prior interval for resistance exercise at habitual protein intake, and blue band indicates non-training controls"
+      title = paste("Predicted", title),
     ) +
     guides(
       size = "none"
@@ -1299,8 +1784,8 @@ plot_preds_slopes <- function(data, preds, slopes) {
     )
   
   
-  slopes_plot <- slopes |>
-    filter(resistance_exercise == "YES" | protein_intake < 1.6) |>
+  contrasts_plot <- contrasts |>
+    filter(resistance_exercise == "YES" | protein_intake < 1.8) |>
     ggplot(aes(x = protein_intake, y = estimate*0.42)) +
     geom_hline(yintercept = 0, linetype = "dotted", alpha = 0.75) +
     geom_hline(yintercept = c(-0.1,0.1), linetype = "dashed", alpha = 0.75) +
@@ -1309,9 +1794,9 @@ plot_preds_slopes <- function(data, preds, slopes) {
                         scales = "free") +
     labs(
       x = "Protein Intake (g/kg/day)",
-      y = "Marginal Slope for Lean Mass Change (SMD)",
-      title = "Incremental marginal slope of lean mass/muscle change for 0.42 g/kg/day increase",
-      subtitle = "Note, 0.42 g/kg/day increase reflects the difference in median protein intake between intervention and control conditions\nDashed lines reflect a smallest effect size of interest of 0.1 SMD"
+      y = "Difference in Standardised Mean Change",
+      title = paste("Contrasts against 0.8 g/kg/day for", title),
+      subtitle = "Note, dashed horizontal lines reflect a smallest effect size of interest of 0.1"
     ) + 
     guides(
       size = "none"
@@ -1323,12 +1808,14 @@ plot_preds_slopes <- function(data, preds, slopes) {
       axis.title = element_text(size = 10)
     )
   
-  combined_plots <- (preds_plot / slopes_plot) +
+  combined_plots <- (preds_plot / contrasts_plot) +
+    plot_layout(
+      axes = "collect"
+    ) +
     plot_annotation(
       tag_levels = "i",
       title = "Dose-response effects of protein intake on lean mass change",
       subtitle = "Bayesian model averaging with LOO-CV stacking weights",
-      caption = "Note, reanalysis of Nunes et al. (DOI: 10.1002/jcsm.12922) for purpose of pre-registration of analysis code pipelines"
     ) &
     theme(
       legend.position = "bottom"

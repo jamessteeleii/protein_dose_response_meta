@@ -1,0 +1,22 @@
+$if(title)$
+\title{$title$$if(thanks)$\thanks{$thanks$}$endif$}
+$endif$
+
+$if(subtitle)$
+\subtitle{$subtitle$}
+$endif$
+
+$for(by-author)$
+\author$if(it.metadata.affil-id)$[$it.metadata.affil-id$]$endif${$it.name.literal$}
+$endfor$
+
+$if(by-affiliation)$
+$for(by-affiliation)$
+\affil[$it.id$]{$it.name$}
+$endfor$
+$endif$
+
+% Store the keywords (expanded by Pandoc here)
+\def\KeywordList{$for(keywords)$$keywords$$sep$, $endfor$}
+
+\date{$date$}

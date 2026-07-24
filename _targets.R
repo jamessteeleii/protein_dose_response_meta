@@ -67,6 +67,7 @@ list(
   ),
   
   ## Get priors from arm based meta-analysis of Steele et al. data ----
+  # Note these are for hypertrophy (lean mass/muscle mass/size) only as Nunes reanalysis was only with these outcomes
   tar_target(
     steele_priors,
     get_steele_priors(steele_data)
@@ -307,7 +308,7 @@ list(
     )
   ),
   
-  # Updated analysis with all re-extracted data ----
+  # Original brms pre-registered updated analysis with all re-extracted data ----
   
   ## Read and prepare all new data ----
   
@@ -343,31 +344,18 @@ list(
       )
   ),
   
+  ## Get additional priors for strength and function outcomes ----
+  # Note these are for hypertrophy (lean mass/muscle mass/size) only as Nunes reanalysis was only with these outcomes
   tar_target(
-    stan_data_whole_body,
-    make_stan_data(protein_data_complete |> filter(outcome_group == "whole body lean mass"))
+    steele_strength_priors,
+    get_steele_strength_priors(steele_data)
   ),
   
   tar_target(
-    stan_data_hypertrophy,
-    make_stan_data(protein_data_complete |> filter(outcome_group == "direct muscle size/mass"))
+    kirk_function_priors,
+    get_kirk_function_priors()
   ),
   
-  tar_target(
-    stan_data_strength,
-    make_stan_data(protein_data_complete |> filter(outcome_group == "strength"))
-  ),
-  
-  tar_target(
-    stan_data_function,
-    make_stan_data(protein_data_complete |> filter(outcome_group == "function"))
-  ),
-  
-  ## Get priors from old brms prior target ----
-  tar_target(
-    stan_priors,
-    make_stan_priors(steele_priors)
-  ),
   
   ## Fit all candidate models to new data ----
   # Fit all CGM models, generate predictions, slopes, and test slopes
@@ -553,164 +541,276 @@ list(
     get_model_weights(models_new_whole_body)
   ),
 
-  # tar_target(
-  #   preds_new_whole_body,
-  #   get_model_avg_preds(models_new_whole_body, models_new_weights_whole_body)
-  # ),
-  # 
-  # tar_target(
-  #   slopes_new_whole_body,
-  #   get_model_avg_slopes(models_new_whole_body, models_new_weights_whole_body)
-  # ),
-  # 
-  # tar_target(
-  #   ropes_pd_new_whole_body,
-  #   get_rope_pd(slopes_new_whole_body)
-  # ),
-  # 
-  # tar_target(
-  #   plot_new_whole_body,
-  #   plot_preds_slopes(protein_data_prepared_whole_body,
-  #                     preds_new_whole_body, slopes_new_whole_body)
-  # ),
-  # 
-  # tar_target(
-  #   plot_new_whole_body_tiff,
-  #   ggsave(
-  #     plot = plot_new_whole_body,
-  #     filename = "plots/plot_new_whole_body.tiff",
-  #     device = "tiff",
-  #     dpi = 300,
-  #     w = 8,
-  #     h = 8
-  #   )
-  # ),
+  tar_target(
+    preds_new_whole_body,
+    get_model_avg_preds_new(models_new_whole_body, models_new_weights_whole_body, protein_data_complete_whole_body)
+  ),
 
-  # ## Hypertrophy ----
-  # tar_target(
-  #   protein_data_complete_hypertrophy,
-  #   {
-  #     protein_data_complete |> filter(outcome_group == "direct muscle size/mass") |>
-  #       # add study weights/sizes
-  #       mutate(
-  #         wi = 1/sqrt(vi),
-  #         size = 0.5 + 3.0 * (wi - min(wi, na.rm=TRUE))/(max(wi, na.rm=TRUE) - min(wi, na.rm=TRUE)))
-  #   }
-  # ),
-  # 
-  # tar_target(
-  #   models_new_hypertrophy,
-  #   purrr::map2(
-  #     model_formulas_new,
-  #     model_names,
-  #     ~ fit_candidate_models(
-  #       formula = .x,
-  #       priors = steele_priors,
-  #       data = protein_data_complete_hypertrophy
-  #     )
-  #   ) |> set_names(model_names)
-  # ),
-  # 
-  # tar_target(
-  #   models_new_weights_hypertrophy,
-  #   get_model_weights(models_new_hypertrophy)
-  # ),
-  # 
-  # tar_target(
-  #   preds_new_hypertrophy,
-  #   get_model_avg_preds(models_new_hypertrophy, models_new_weights_hypertrophy)
-  # ),
-  # 
-  # tar_target(
-  #   slopes_new_hypertrophy,
-  #   get_model_avg_slopes(models_new_hypertrophy, models_new_weights_hypertrophy)
-  # ),
-  # 
-  # tar_target(
-  #   ropes_pd_new_hypertrophy,
-  #   get_rope_pd(slopes_new_hypertrophy)
-  # ),
-  # 
-  # tar_target(
-  #   plot_new_hypertrophy,
-  #   plot_preds_slopes(protein_data_prepared_hypertrophy,
-  #                     preds_new_hypertrophy, slopes_new_hypertrophy)
-  # ),
-  # 
-  # tar_target(
-  #   plot_new_hypertrophy_tiff,
-  #   ggsave(
-  #     plot = plot_new_hypertrophy,
-  #     filename = "plots/plot_new_hypertrophy.tiff",
-  #     device = "tiff",
-  #     dpi = 300,
-  #     w = 8,
-  #     h = 8
-  #   )
-  # ),
+  tar_target(
+    contrasts_new_whole_body,
+    get_model_avg_contrasts_new(models_new_whole_body, models_new_weights_whole_body, protein_data_complete_whole_body)
+  ),
 
-  # ## Strength ----
-  # tar_target(
-  #   protein_data_complete_strength,
-  #   {
-  #     protein_data_complete |> filter(outcome_group == "strength") |>
-  #       # add study weights/sizes
-  #       mutate(
-  #         wi = 1/sqrt(vi),
-  #         size = 0.5 + 3.0 * (wi - min(wi, na.rm=TRUE))/(max(wi, na.rm=TRUE) - min(wi, na.rm=TRUE)))
-  #   }
-  # ),
-  # 
-  # tar_target(
-  #   models_new_strength,
-  #   purrr::map2(
-  #     model_formulas_new,
-  #     model_names,
-  #     ~ fit_candidate_models(
-  #       formula = .x,
-  #       priors = steele_priors,
-  #       data = protein_data_complete_strength
-  #     )
-  #   ) |> set_names(model_names)
-  # ),
-  # 
-  # tar_target(
-  #   models_new_weights_strength,
-  #   get_model_weights(models_new_strength)
-  # ),
-  # 
-  # tar_target(
-  #   preds_new_strength,
-  #   get_model_avg_preds(models_new_strength, models_new_weights_strength)
-  # ),
-  # 
-  # tar_target(
-  #   slopes_new_strength,
-  #   get_model_avg_slopes(models_new_strength, models_new_weights_strength)
-  # ),
-  # 
-  # tar_target(
-  #   ropes_pd_new_strength,
-  #   get_rope_pd(slopes_new_strength)
-  # ),
-  # 
-  # tar_target(
-  #   plot_new_strength,
-  #   plot_preds_slopes(protein_data_prepared_strength,
-  #                     preds_new, slopes_new)
-  # ),
-  # 
-  # tar_target(
-  #   plot_new_strength_tiff,
-  #   ggsave(
-  #     plot = plot_new_strength,
-  #     filename = "plots/plot_new_strength.tiff",
-  #     device = "tiff",
-  #     dpi = 300,
-  #     w = 8,
-  #     h = 8
-  #   )
-  # ),
+  tar_target(
+    ropes_pd_new_whole_body,
+    get_rope_pd_new(contrasts_new_whole_body)
+  ),
+
+  tar_target(
+    plot_new_whole_body,
+    plot_preds_contrasts_new(protein_data_complete_whole_body,
+                      preds_new_whole_body, contrasts_new_whole_body,
+                      "whole body lean soft tissue change")
+  ),
+
+  tar_target(
+    plot_new_whole_body_tiff,
+    ggsave(
+      plot = plot_new_whole_body,
+      filename = "plots/plot_new_whole_body.tiff",
+      device = "tiff",
+      dpi = 300,
+      w = 8,
+      h = 8
+    )
+  ),
+
+  ## Hypertrophy ----
+  tar_target(
+    protein_data_complete_hypertrophy,
+    {
+      protein_data_complete |> filter(outcome_group == "direct muscle size/mass") |>
+        # add study weights/sizes
+        mutate(
+          wi = 1/sqrt(vi),
+          size = 0.5 + 3.0 * (wi - min(wi, na.rm=TRUE))/(max(wi, na.rm=TRUE) - min(wi, na.rm=TRUE)))
+    }
+  ),
+
+  tar_target(
+    models_new_hypertrophy,
+    purrr::map2(
+      model_formulas_new,
+      model_names,
+      ~ fit_candidate_models(
+        formula = .x,
+        priors = steele_priors,
+        data = protein_data_complete_hypertrophy
+      )
+    ) |> set_names(model_names)
+  ),
+
+  tar_target(
+    models_new_weights_hypertrophy,
+    get_model_weights(models_new_hypertrophy)
+  ),
+
+  tar_target(
+    preds_new_hypertrophy,
+    get_model_avg_preds_new(models_new_hypertrophy, models_new_weights_hypertrophy, protein_data_complete_hypertrophy)
+  ),
+
+  tar_target(
+    contrasts_new_hypertrophy,
+    get_model_avg_contrasts_new(models_new_hypertrophy, models_new_weights_hypertrophy, protein_data_complete_hypertrophy)
+  ),
+
+  tar_target(
+    ropes_pd_new_hypertrophy,
+    get_rope_pd_new(contrasts_new_hypertrophy)
+  ),
+
+  tar_target(
+    plot_new_hypertrophy,
+    plot_preds_contrasts_new(protein_data_complete_hypertrophy,
+                      preds_new_hypertrophy, contrasts_new_hypertrophy,
+                      "direct muscle mass/size change")
+  ),
+
+  tar_target(
+    plot_new_hypertrophy_tiff,
+    ggsave(
+      plot = plot_new_hypertrophy,
+      filename = "plots/plot_new_hypertrophy.tiff",
+      device = "tiff",
+      dpi = 300,
+      w = 8,
+      h = 8
+    )
+  ),
+
+  ## Strength ----
+  tar_target(
+    protein_data_complete_strength,
+    {
+      protein_data_complete |> filter(outcome_group == "strength") |>
+        # add study weights/sizes
+        mutate(
+          wi = 1/sqrt(vi),
+          size = 0.5 + 3.0 * (wi - min(wi, na.rm=TRUE))/(max(wi, na.rm=TRUE) - min(wi, na.rm=TRUE)))
+    }
+  ),
+
+  tar_target(
+    models_new_strength,
+    purrr::map2(
+      model_formulas_new,
+      model_names,
+      ~ fit_candidate_models(
+        formula = .x,
+        priors = steele_strength_priors,
+        data = protein_data_complete_strength
+      )
+    ) |> set_names(model_names)
+  ),
+
+  tar_target(
+    models_new_weights_strength,
+    get_model_weights(models_new_strength)
+  ),
+
+  tar_target(
+    preds_new_strength,
+    get_model_avg_preds_new(models_new_strength, models_new_weights_strength, protein_data_complete_strength)
+  ),
+
+  tar_target(
+    contrasts_new_strength,
+    get_model_avg_contrasts_new(models_new_strength, models_new_weights_strength, protein_data_complete_strength)
+  ),
+
+  tar_target(
+    ropes_pd_new_strength,
+    get_rope_pd_new(contrasts_new_strength)
+  ),
+
+  tar_target(
+    plot_new_strength,
+    plot_preds_contrasts_new(protein_data_complete_strength,
+                          preds_new_strength, contrasts_new_strength,
+                          "strength change")
+  ),
+
+  tar_target(
+    plot_new_strength_tiff,
+    ggsave(
+      plot = plot_new_strength,
+      filename = "plots/plot_new_strength.tiff",
+      device = "tiff",
+      dpi = 300,
+      w = 8,
+      h = 8
+    )
+  ),
+  
+  ## Function ----
+  tar_target(
+    protein_data_complete_function,
+    {
+      protein_data_complete |> filter(outcome_group == "function") |>
+        
+        # add sign for function outcomes and convert effect sizes to correct sign
+        mutate(
+          sign = case_when(
+           unit_of_measurement == "score" ~ "increase",
+           unit_of_measurement == "seconds" ~ "decrease",
+           unit_of_measurement == "m/s" ~ "increase",
+           unit_of_measurement == "watts" ~ "increase",
+           unit_of_measurement == "number" ~ "increase",
+           unit_of_measurement == "metres" ~ "increase",
+           unit_of_measurement == "cm" ~ "increase",
+           unit_of_measurement == "reps" ~ "increase",
+           unit_of_measurement == "duration" ~ "increase",
+           unit_of_measurement == "minutes" ~ "decrease"
+          ),
+          yi = yi * if_else(sign == "increase", 1, -1)
+        ) |>
+        
+        # add study weights/sizes
+        mutate(
+          wi = 1/sqrt(vi),
+          size = 0.5 + 3.0 * (wi - min(wi, na.rm=TRUE))/(max(wi, na.rm=TRUE) - min(wi, na.rm=TRUE)))
+    }
+  ),
+  
+  tar_target(
+    models_new_function,
+    purrr::map2(
+      model_formulas_new,
+      model_names,
+      ~ fit_candidate_models(
+        formula = .x,
+        priors = kirk_function_priors,
+        data = protein_data_complete_function
+      )
+    ) |> set_names(model_names)
+  ),
+  
+  tar_target(
+    models_new_weights_function,
+    get_model_weights(models_new_function)
+  ),
+  
+  tar_target(
+    preds_new_function,
+    get_model_avg_preds_new(models_new_function, models_new_weights_function, protein_data_complete_function)
+  ),
+  
+  tar_target(
+    contrasts_new_function,
+    get_model_avg_contrasts_new(models_new_function, models_new_weights_function, protein_data_complete_function)
+  ),
+  
+  tar_target(
+    ropes_pd_new_function,
+    get_rope_pd_new(contrasts_new_function)
+  ),
+  
+  tar_target(
+    plot_new_function,
+    plot_preds_contrasts_new(protein_data_complete_function,
+                             preds_new_function, contrasts_new_function,
+                             "function change")
+  ),
+  
+  tar_target(
+    plot_new_function_tiff,
+    ggsave(
+      plot = plot_new_function,
+      filename = "plots/plot_new_function.tiff",
+      device = "tiff",
+      dpi = 300,
+      w = 8,
+      h = 8
+    )
+  ),
+  
+  # Amended pre-registration updated reanalysis converting brms models to stan to enable error on predictors ----
+  tar_target(
+    stan_data_whole_body,
+    make_stan_data(protein_data_complete |> filter(outcome_group == "whole body lean mass"))
+  ),
+  
+  tar_target(
+    stan_data_hypertrophy,
+    make_stan_data(protein_data_complete |> filter(outcome_group == "direct muscle size/mass"))
+  ),
+  
+  tar_target(
+    stan_data_strength,
+    make_stan_data(protein_data_complete |> filter(outcome_group == "strength"))
+  ),
+  
+  tar_target(
+    stan_data_function,
+    make_stan_data(protein_data_complete |> filter(outcome_group == "function"))
+  ),
+  
+  ## Get priors from old brms prior target ----
+  tar_target(
+    stan_priors,
+    make_stan_priors(steele_priors)
+  ),
 
   
   
