@@ -336,7 +336,7 @@ list(
       dplyr::filter(
         dplyr::if_all(
           c(
-            yi, vi, protein_intake, protein_intake_se,
+            yi, vi, protein_intake,
             resistance_exercise_code, age_centre, duration_centre
           ),
           ~ !is.na(.x)
@@ -547,19 +547,30 @@ list(
   ),
 
   tar_target(
-    contrasts_new_whole_body,
+    contrasts_new_whole_body_0.8,
     get_model_avg_contrasts_new(models_new_whole_body, models_new_weights_whole_body, protein_data_complete_whole_body)
+  ),
+  
+  tar_target(
+    contrasts_new_whole_body_1.1,
+    get_model_avg_contrasts_new(models_new_whole_body, models_new_weights_whole_body, protein_data_complete_whole_body,
+                                reference = 1.1)
   ),
 
   tar_target(
-    ropes_pd_new_whole_body,
-    get_rope_pd_new(contrasts_new_whole_body)
+    ropes_pd_new_whole_body_0.8,
+    get_rope_pd_new(contrasts_new_whole_body_0.8)
+  ),
+  
+  tar_target(
+    ropes_pd_new_whole_body_1.1,
+    get_rope_pd_new(contrasts_new_whole_body_1.1)
   ),
 
   tar_target(
     plot_new_whole_body,
     plot_preds_contrasts_new(protein_data_complete_whole_body,
-                      preds_new_whole_body, contrasts_new_whole_body,
+                      preds_new_whole_body, contrasts_new_whole_body_0.8, contrasts_new_whole_body_1.1,
                       "whole body lean soft tissue change")
   ),
 
@@ -571,7 +582,7 @@ list(
       device = "tiff",
       dpi = 300,
       w = 8,
-      h = 8
+      h = 12
     )
   ),
 
@@ -611,19 +622,30 @@ list(
   ),
 
   tar_target(
-    contrasts_new_hypertrophy,
+    contrasts_new_hypertrophy_0.8,
     get_model_avg_contrasts_new(models_new_hypertrophy, models_new_weights_hypertrophy, protein_data_complete_hypertrophy)
+  ),
+  
+  tar_target(
+    contrasts_new_hypertrophy_1.1,
+    get_model_avg_contrasts_new(models_new_hypertrophy, models_new_weights_hypertrophy, protein_data_complete_hypertrophy,
+                                reference = 1.1)
   ),
 
   tar_target(
-    ropes_pd_new_hypertrophy,
-    get_rope_pd_new(contrasts_new_hypertrophy)
+    ropes_pd_new_hypertrophy_0.8,
+    get_rope_pd_new(contrasts_new_hypertrophy_0.8)
+  ),
+  
+  tar_target(
+    ropes_pd_new_hypertrophy_1.1,
+    get_rope_pd_new(contrasts_new_hypertrophy_1.1)
   ),
 
   tar_target(
     plot_new_hypertrophy,
     plot_preds_contrasts_new(protein_data_complete_hypertrophy,
-                      preds_new_hypertrophy, contrasts_new_hypertrophy,
+                      preds_new_hypertrophy, contrasts_new_hypertrophy_0.8, contrasts_new_hypertrophy_1.1,
                       "direct muscle mass/size change")
   ),
 
@@ -635,7 +657,7 @@ list(
       device = "tiff",
       dpi = 300,
       w = 8,
-      h = 8
+      h = 12
     )
   ),
 
@@ -675,19 +697,30 @@ list(
   ),
 
   tar_target(
-    contrasts_new_strength,
+    contrasts_new_strength_0.8,
     get_model_avg_contrasts_new(models_new_strength, models_new_weights_strength, protein_data_complete_strength)
+  ),
+  
+  tar_target(
+    contrasts_new_strength_1.1,
+    get_model_avg_contrasts_new(models_new_strength, models_new_weights_strength, protein_data_complete_strength,
+                                reference = 1.1)
   ),
 
   tar_target(
-    ropes_pd_new_strength,
-    get_rope_pd_new(contrasts_new_strength)
+    ropes_pd_new_strength_0.8,
+    get_rope_pd_new(contrasts_new_strength_0.8)
+  ),
+  
+  tar_target(
+    ropes_pd_new_strength_1.1,
+    get_rope_pd_new(contrasts_new_strength_1.1)
   ),
 
   tar_target(
     plot_new_strength,
     plot_preds_contrasts_new(protein_data_complete_strength,
-                          preds_new_strength, contrasts_new_strength,
+                          preds_new_strength, contrasts_new_strength_0.8, contrasts_new_strength_1.1,
                           "strength change")
   ),
 
@@ -699,7 +732,7 @@ list(
       device = "tiff",
       dpi = 300,
       w = 8,
-      h = 8
+      h = 12
     )
   ),
   
@@ -757,19 +790,30 @@ list(
   ),
   
   tar_target(
-    contrasts_new_function,
+    contrasts_new_function_0.8,
     get_model_avg_contrasts_new(models_new_function, models_new_weights_function, protein_data_complete_function)
   ),
   
   tar_target(
-    ropes_pd_new_function,
-    get_rope_pd_new(contrasts_new_function)
+    contrasts_new_function_1.1,
+    get_model_avg_contrasts_new(models_new_function, models_new_weights_function, protein_data_complete_function,
+                                reference = 1.1)
+  ),
+  
+  tar_target(
+    ropes_pd_new_function_0.8,
+    get_rope_pd_new(contrasts_new_function_0.8)
+  ),
+  
+  tar_target(
+    ropes_pd_new_function_1.1,
+    get_rope_pd_new(contrasts_new_function_1.1)
   ),
   
   tar_target(
     plot_new_function,
     plot_preds_contrasts_new(protein_data_complete_function,
-                             preds_new_function, contrasts_new_function,
+                             preds_new_function, contrasts_new_function_0.8, contrasts_new_function_1.1,
                              "function change")
   ),
   
@@ -781,29 +825,45 @@ list(
       device = "tiff",
       dpi = 300,
       w = 8,
-      h = 8
+      h = 12
     )
   ),
   
   # Amended pre-registration updated reanalysis converting brms models to stan to enable error on predictors ----
+  
+  # Note this is the complete row wise data set for analysis including only arms with error on protein intake
+  tar_target(
+    protein_data_complete_me,
+    protein_data_prepared |>
+      dplyr::filter(
+        dplyr::if_all(
+          c(
+            yi, vi, protein_intake, protein_intake_se,
+            resistance_exercise_code, age_centre, duration_centre
+          ),
+          ~ !is.na(.x)
+        )
+      )
+  ),
+  
   tar_target(
     stan_data_whole_body,
-    make_stan_data(protein_data_complete |> filter(outcome_group == "whole body lean mass"))
+    make_stan_data(protein_data_complete_me |> filter(outcome_group == "whole body lean mass"))
   ),
   
   tar_target(
     stan_data_hypertrophy,
-    make_stan_data(protein_data_complete |> filter(outcome_group == "direct muscle size/mass"))
+    make_stan_data(protein_data_complete_me |> filter(outcome_group == "direct muscle size/mass"))
   ),
   
   tar_target(
     stan_data_strength,
-    make_stan_data(protein_data_complete |> filter(outcome_group == "strength"))
+    make_stan_data(protein_data_complete_me |> filter(outcome_group == "strength"))
   ),
   
   tar_target(
     stan_data_function,
-    make_stan_data(protein_data_complete |> filter(outcome_group == "function"))
+    make_stan_data(protein_data_complete_me |> filter(outcome_group == "function"))
   ),
   
   ## Get priors from old brms prior target ----

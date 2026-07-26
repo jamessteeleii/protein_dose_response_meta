@@ -1001,7 +1001,6 @@ prepare_protein_data <- function(protein_data){
 
   meta_r <- rma.mv(yi, V=vi, data=contrasts_analysis,
                          random = list(~ 1 | study_no, ~ 1 | arm_no, ~ 1 | outcome_no), method="REML", test="t",
-                         # mods = ~ 0 + outcome_grou,
                          control=list(optimizer="optim", optmethod="Nelder-Mead"))
   
   robu_meta_r <- robust(meta_r, contrasts_analysis$study_no)
@@ -1026,10 +1025,16 @@ prepare_protein_data <- function(protein_data){
       study_no,
       outcome_no,
       arm_no,
+      outcome_group,
+      measurement_method,
+      unit_of_measurement,
       baseline_n,
       baseline_sd
     ) |>
-    group_by(study_no, outcome_no) |>
+    group_by(study_no, 
+             outcome_group,
+             measurement_method,
+             unit_of_measurement) |>
     summarise(
       baseline_sd_pooled = sqrt(
         sum((baseline_n - 1) * baseline_sd^2) /
@@ -1042,7 +1047,10 @@ prepare_protein_data <- function(protein_data){
     contrasts_analysis |>
     left_join(
       baseline_pool,
-      by = c("study_no", "outcome_no")
+      by = c("study_no", 
+             "outcome_group",
+             "measurement_method",
+             "unit_of_measurement")
     ) |>
     
     # add zero to just use reported or imputed change for numerator
@@ -1295,8 +1303,8 @@ get_kirk_function_priors <- function() {
   priors <-
     c(
       # # We set priors based on the overall estimates for both control and RT conditions in an arm based model using Steele et al. data
-      set_prior("student_t(3, 0.09, 0.097)", class = "b", coef = "Intercept"),
-      set_prior("student_t(3, 0.72, 0.18)", class = "b", coef = "resistance_exercise_code"),
+        set_prior("student_t(3, 0.72, 0.18)", class = "b", coef = "Intercept"),
+      set_prior("student_t(3, -0.63, 0.205)", class = "b", coef = "resistance_exercise_code"),
       # All other b parameters are kept as uninformative but weakly regularising
       set_prior("student_t(3,0,1)", class = "b")
       # All other priors for variance parameters are kept as default weakly regularising
@@ -1533,7 +1541,6 @@ get_model_avg_contrasts_new <- function(
     weights,
     data,
     reference = 0.8,
-    maximum = 4.4,
     increment = 0.2
 ) {
   
@@ -1570,6 +1577,9 @@ get_model_avg_contrasts_new <- function(
   protein_median <- protein_medians[[1]]
   
   # Values on the original and centred scales
+  maximum <- max(subset(data, resistance_exercise_yes_no == "yes")$protein_intake_raw, na.rm = TRUE)
+  
+  
   protein_values_raw <- round(
     seq(reference, maximum, by = increment),
     digits = 10
@@ -1721,25 +1731,25 @@ get_model_avg_contrasts_new <- function(
 get_rope_pd_new <- function(contrasts) {
   
   rope <- contrasts |>
-    group_by(protein_intake, resistance_exercise) |>
+    group_by(protein_intake, resistance_exercise, comparison) |>
     nest() |>
     mutate(
       rope_percent = map(data, ~ rope(.x$estimate, range = c(-0.1, 0.1), ci = 1))
     ) |>
     unnest(rope_percent) |>
-    select(protein_intake, resistance_exercise, ROPE_low, ROPE_high, ROPE_Percentage) |>
+    select(comparison, protein_intake, resistance_exercise, ROPE_low, ROPE_high, ROPE_Percentage) |>
     filter(resistance_exercise == "YES" | protein_intake < 1.8) |>
     mutate(type = "rope")
   
   
   pd <- contrasts |>
-    group_by(protein_intake, resistance_exercise) |>
+    group_by(protein_intake, resistance_exercise, comparison) |>
     nest() |>
     mutate(
       rope_percent = map(data, ~ rope(.x$estimate, range = c(0.1, Inf), ci = 1))
     ) |>
     unnest(rope_percent) |>
-    select(protein_intake, resistance_exercise, ROPE_low, ROPE_high, ROPE_Percentage) |>
+    select(comparison, protein_intake, resistance_exercise, ROPE_low, ROPE_high, ROPE_Percentage) |>
     filter(resistance_exercise == "YES" | protein_intake < 1.8) |>
     mutate(type = "pd")
   
@@ -1750,11 +1760,13 @@ get_rope_pd_new <- function(contrasts) {
   
 }
 
-plot_preds_contrasts_new <- function(data, preds, contrasts,
+plot_preds_contrasts_new <- function(data, preds, contrasts_0.8, contrasts_1.1,
                                   title) {
   
+  max_pro_no_rt <- max(subset(data, resistance_exercise_yes_no == "no")$protein_intake_raw, na.rm = TRUE)
+  
   preds_plot <- preds |> 
-    filter(resistance_exercise == "YES" | protein_intake < 1.8) |>
+    filter(resistance_exercise == "YES" | protein_intake <= max_pro_no_rt) |>
     ggplot(aes(x = protein_intake, y = estimate)) +
     geom_hline(yintercept = 0, linetype = "dotted", alpha = 0.75) +
     geom_point(data = data |>
@@ -1766,13 +1778,25 @@ plot_preds_contrasts_new <- function(data, preds, contrasts,
                 alpha = 0.5, color = "black", size = 0.25) +
     geom_line(aes(y = estimate), size = 0.75, color = "black") +
     scale_color_manual(values = c("#0072B2", "darkorange", "darkgreen")) +
+    # scale_x_continuous(breaks = scales::breaks_width(width = 0.4)) +
+    scale_y_continuous(breaks = scales::breaks_width(width = 0.5, offset = 0)) +
     ggh4x::facet_nested(.~ resistance_exercise_label + resistance_exercise,
                         scales = "free") +
+    ggh4x::facetted_pos_scales(
+      x = list(
+        resistance_exercise == "NO" ~ scale_x_continuous(
+          breaks = scales::breaks_width(0.2)
+        ),
+        resistance_exercise == "YES" ~ scale_x_continuous(
+          breaks = scales::breaks_width(0.4)
+        )
+      )
+    ) +
     labs(
       x = "Protein Intake (g/kg/day)",
       y = "Standardised Mean Change",
       color = "Condition",
-      title = paste("Predicted", title),
+      title = "Predicted effects",
     ) +
     guides(
       size = "none"
@@ -1784,18 +1808,30 @@ plot_preds_contrasts_new <- function(data, preds, contrasts,
     )
   
   
-  contrasts_plot <- contrasts |>
-    filter(resistance_exercise == "YES" | protein_intake < 1.8) |>
-    ggplot(aes(x = protein_intake, y = estimate*0.42)) +
+  contrasts_plot_0.8 <- contrasts_0.8 |>
+    filter(resistance_exercise == "YES" | protein_intake <= max_pro_no_rt) |>
+    ggplot(aes(x = protein_intake, y = estimate)) +
     geom_hline(yintercept = 0, linetype = "dotted", alpha = 0.75) +
     geom_hline(yintercept = c(-0.1,0.1), linetype = "dashed", alpha = 0.75) +
-    stat_slabinterval(.width = .95) +
+    stat_pointinterval(.width = .95) +
+    # scale_x_continuous(breaks = scales::breaks_width(width = 0.4)) +
+    scale_y_continuous(breaks = scales::breaks_width(width = 0.05, offset = 0)) +
     ggh4x::facet_nested(.~ resistance_exercise_label + resistance_exercise,
                         scales = "free") +
+    ggh4x::facetted_pos_scales(
+      x = list(
+        resistance_exercise == "NO" ~ scale_x_continuous(
+          breaks = scales::breaks_width(0.2)
+        ),
+        resistance_exercise == "YES" ~ scale_x_continuous(
+          breaks = scales::breaks_width(0.4)
+        )
+      )
+    ) +
     labs(
       x = "Protein Intake (g/kg/day)",
       y = "Difference in Standardised Mean Change",
-      title = paste("Contrasts against 0.8 g/kg/day for", title),
+      title = "Contrasts against 0.8 g/kg/day (i.e., RDA intake)",
       subtitle = "Note, dashed horizontal lines reflect a smallest effect size of interest of 0.1"
     ) + 
     guides(
@@ -1808,13 +1844,45 @@ plot_preds_contrasts_new <- function(data, preds, contrasts,
       axis.title = element_text(size = 10)
     )
   
-  combined_plots <- (preds_plot / contrasts_plot) +
-    plot_layout(
-      axes = "collect"
+  contrasts_plot_1.1 <- contrasts_1.1 |>
+    filter(resistance_exercise == "YES" | protein_intake <= max_pro_no_rt) |>
+    ggplot(aes(x = protein_intake, y = estimate)) +
+    geom_hline(yintercept = 0, linetype = "dotted", alpha = 0.75) +
+    geom_hline(yintercept = c(-0.1,0.1), linetype = "dashed", alpha = 0.75) +
+    stat_pointinterval(.width = .95) +
+    # scale_x_continuous(breaks = scales::breaks_width(width = 0.4)) +
+    scale_y_continuous(breaks = scales::breaks_width(width = 0.05, offset = 0)) +
+    ggh4x::facet_nested(.~ resistance_exercise_label + resistance_exercise,
+                        scales = "free") +
+    ggh4x::facetted_pos_scales(
+      x = list(
+        resistance_exercise == "NO" ~ scale_x_continuous(
+          breaks = scales::breaks_width(0.2)
+        ),
+        resistance_exercise == "YES" ~ scale_x_continuous(
+          breaks = scales::breaks_width(0.4)
+        )
+      )
     ) +
+    labs(
+      x = "Protein Intake (g/kg/day)",
+      y = "Difference in Standardised Mean Change",
+      title = "Contrasts against 1.1 g/kg/day (i.e., median control/placebo intake)",
+      subtitle = "Note, dashed horizontal lines reflect a smallest effect size of interest of 0.1"
+    ) + 
+    guides(
+      size = "none"
+    ) +
+    theme_classic() +
+    theme(
+      plot.title = element_text(size = 12),
+      plot.subtitle = element_text(size = 8),
+      axis.title = element_text(size = 10)
+    )
+  
+  combined_plots <- (preds_plot / contrasts_plot_0.8 / contrasts_plot_1.1) +
     plot_annotation(
-      tag_levels = "i",
-      title = "Dose-response effects of protein intake on lean mass change",
+      title = paste("Dose-response effects of protein intake on", title),
       subtitle = "Bayesian model averaging with LOO-CV stacking weights",
     ) &
     theme(

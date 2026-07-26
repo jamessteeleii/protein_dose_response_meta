@@ -79,6 +79,7 @@ knitr::opts_chunk$set(echo = TRUE, fig.align="center")
 options(knitr.kable.NA = '')
 
 library(tidyverse)
+library(kableExtra)
 
 ```
 
@@ -173,7 +174,9 @@ As such, a total of 26[^3] models varying in complexity regarding the functional
 ### Criteria for conclusions / inference criteria
 As noted, we utilise Bayesian model averaging across the set of candidate models noted above in order to account for uncertainty in the model selection process. Across these models we used leave-one-out cross-validation (LOO-CV) to estimate the expected log predictive density (ELPD) and calculate weights using the stacking approach [@vehtariPracticalBayesianModel2017; @yaoUsingStackingAverage2018]. We then took posterior draws of the global grand means (i.e., the expectation of effect size, without the inclusion of random effects) for predictions and contrasts across different values of protein intake and calculate the means with 95% quantile intervals. These draws for each model were then be combined using the LOO-CV weights to generate our Bayesian model averaged predictions and contrasts. 
 
-We collectively agreed as an author group upon the smallest effect size of interest on the standardized mean change (−0.1, 0.1) scale and thus set this as our region of practical equivalence (ROPE). This allows us to also examine the probability that the contrasts for protein intakes above the reference value of 0.8 g/kg/day might produce a meaningful positive effect (i.e., greater than the smallest effect size of interest) in comparison to this reference by examining the mass of the posterior distribution exceeding the upper limits of the ROPE, and also the percentage of the posterior distributions mass that was within the ROPE, thus reflecting the probability of practically equivalent effects. For reference and to aid interpretation for the reader, this ROPE equates to a lean mass change of ~0.534 kg, a fat free mass change of ~0.604 kg, a muscle thickness change (for a muscle of pre-test 3.62 cm thickness) of ~0.0548 cm, and a squat, bench press, and deadlift one repetition maximum change of ~5.48 kg, ~4.32 kg, and ~5.7 kg respectively. These values for reference are based on meta-analysis of the baseline lean mass and fat free mass standard deviations from another recent systematic review [@benitoSystematicReviewMetaAnalysis2020], meta-analysis of baseline anterior thigh muscle thickness standard deviations adjusted for mean values (due to different sites of measurement) based on presented in a recent review [@bucknerDoseresponseRelationshipResistance2023a], and the standard deviations for bench press and squat exercises (filtered to the first competition, unequipped, and drug tested) from the open powerlifting dataset (see [https://openpowerlifting.gitlab.io/opl-csv/bulk-csv.html](https://openpowerlifting.gitlab.io/opl-csv/bulk-csv.html)).
+We collectively agreed as an author group upon the smallest effect size of interest on the standardized mean change (−0.1, 0.1) scale and thus set this as our region of practical equivalence (ROPE). This allows us to also examine the probability that the contrasts for protein intakes above the reference value of the previous recommended daily allowance of 0.8 g/kg/day might produce a meaningful positive effect (i.e., greater than the smallest effect size of interest) in comparison to this reference by examining the mass of the posterior distribution exceeding the upper limits of the ROPE, and also the percentage of the posterior distributions mass that was within the ROPE, thus reflecting the probability of practically equivalent effects. We also calculated contrasts similarly for values above the median intake in control/placebo conditions of 1.1 g/kg/day reflecting the typical intake of participants in the included studies. 
+
+For reference and to aid interpretation for the reader, this ROPE equates to a lean mass change of ~0.534 kg, a fat free mass change of ~0.604 kg, a muscle thickness change (for a muscle of pre-test 3.62 cm thickness) of ~0.0548 cm, and a squat, bench press, and deadlift one repetition maximum change of ~5.48 kg, ~4.32 kg, and ~5.7 kg respectively. These values for reference are based on meta-analysis of the baseline lean mass and fat free mass standard deviations from another recent systematic review [@benitoSystematicReviewMetaAnalysis2020], meta-analysis of baseline anterior thigh muscle thickness standard deviations adjusted for mean values (due to different sites of measurement) based on presented in a recent review [@bucknerDoseresponseRelationshipResistance2023a], and the standard deviations for bench press and squat exercises (filtered to the first competition, unequipped, and drug tested) from the open powerlifting dataset (see [https://openpowerlifting.gitlab.io/opl-csv/bulk-csv.html](https://openpowerlifting.gitlab.io/opl-csv/bulk-csv.html)).
 
 # Results
 
@@ -183,3 +186,167 @@ We collectively agreed as an author group upon the smallest effect size of inter
 # Conclusion
 
 Intakes up to ~3 g/kg/day do not meaningfully improve outcomes compared to 0.8 g/kg/day. Above this uncertainty in estimates renders difficulty in determining whether effects are meaningful or not with x-y% probability of  positive meaningful effects and x-y% probability of practically equivalent effects.
+
+
+```{r}
+
+targets::tar_load(c(ropes_pd_new_whole_body_0.8,ropes_pd_new_whole_body_1.1,
+                    ropes_pd_new_hypertrophy_0.8,ropes_pd_new_hypertrophy_1.1,
+                    ropes_pd_new_strength_0.8,ropes_pd_new_strength_1.1,
+                    ropes_pd_new_function_0.8,ropes_pd_new_function_1.1))
+
+```
+
+
+```{r}
+#| message: false
+#| warning: false
+#| echo: false
+#| label: tbl-contrasts-rda
+#| tbl-cap: Percentage of posterior distribution within the region of pratical equivalence (ROPE) and probability of meaningful positive effects for contrasts of protein intakes against 0.8 g/kg/day (i.e., RDA intake). 
+
+ropes_pd_new_whole_body_0.8 <- ropes_pd_new_whole_body_0.8 |>
+  mutate(ROPE_Percentage = scales::label_percent(accuracy = 0.1)(ROPE_Percentage)) |>
+  pivot_wider(id_cols = c(comparison, resistance_exercise),
+              names_from = "type",
+              values_from = "ROPE_Percentage") |>
+  ungroup() |>
+  select(comparison, resistance_exercise, rope, pd) 
+
+ropes_pd_new_hypertrophy_0.8 <- ropes_pd_new_hypertrophy_0.8 |>
+  mutate(ROPE_Percentage = scales::label_percent(accuracy = 0.1)(ROPE_Percentage)) |>
+  pivot_wider(id_cols = c(comparison, resistance_exercise),
+              names_from = "type",
+              values_from = "ROPE_Percentage") |>
+  ungroup() |>
+  select(comparison, resistance_exercise, rope, pd) 
+
+ropes_pd_new_strength_0.8 <- ropes_pd_new_strength_0.8 |>
+  mutate(ROPE_Percentage = scales::label_percent(accuracy = 0.1)(ROPE_Percentage)) |>
+  pivot_wider(id_cols = c(comparison, resistance_exercise),
+              names_from = "type",
+              values_from = "ROPE_Percentage") |>
+  ungroup() |>
+  select(comparison, resistance_exercise, rope, pd) 
+
+ropes_pd_new_function_0.8 <- ropes_pd_new_function_0.8 |>
+  mutate(ROPE_Percentage = scales::label_percent(accuracy = 0.1)(ROPE_Percentage)) |>
+  pivot_wider(id_cols = c(comparison, resistance_exercise),
+              names_from = "type",
+              values_from = "ROPE_Percentage") |>
+  ungroup() |>
+  select(comparison, resistance_exercise, rope, pd) 
+
+
+combined_contrasts_0.8 <- left_join(ropes_pd_new_whole_body_0.8, ropes_pd_new_hypertrophy_0.8,
+                  by = c("comparison", "resistance_exercise")) |>
+  left_join(ropes_pd_new_strength_0.8,
+            by = c("comparison", "resistance_exercise")) |>
+  left_join(ropes_pd_new_function_0.8,
+            by = c("comparison", "resistance_exercise"))
+
+combined_contrasts_0.8 |>
+  select(-resistance_exercise) |>
+  kbl(
+    col.names = c(
+      "Contrast", 
+      "Percentage within ROPE",
+      "Probability of meaningful positive effect",
+      "Percentage within ROPE",
+      "Probability of meaningful positive effect",
+      "Percentage within ROPE",
+      "Probability of meaningful positive effect",
+      "Percentage within ROPE",
+      "Probability of meaningful positive effect"
+    ), 
+    align = c("l", "c", "c", "c", "c", "c", "c", "c", "c")
+  ) |>
+  pack_rows("Resistance Training = YES", 1, 18) |>
+  pack_rows("Resistance Training = NO", 19, 22) |>
+  kable_styling() |>
+  kable_classic(full_width = F) |>
+  add_header_above(c(" " = 1, 
+                     "Whole body lean soft tissue" = 2,
+                     "Direct muscle mass/size" = 2,
+                     "Strength" = 2,
+                     "Function" = 2)) |>
+  footnote(general = "Note, the ROPE is the range determined by the smallest effect size of interest i.e., [-0.1, 0.1] and as such a meaningful positive effect is one which exceeds the upper limit i.e., >0.1)")
+
+```
+
+```{r}
+#| message: false
+#| warning: false
+#| echo: false
+#| label: tbl-contrasts-median
+#| tbl-cap: Percentage of posterior distribution within the region of pratical equivalence (ROPE) and probability of meaningful positive effects for contrasts of protein intakes against 1.1 g/kg/day (i.e., median control/placebo intake). 
+
+ropes_pd_new_whole_body_1.1 <- ropes_pd_new_whole_body_1.1 |>
+  mutate(ROPE_Percentage = scales::label_percent(accuracy = 0.1)(ROPE_Percentage)) |>
+  pivot_wider(id_cols = c(comparison, resistance_exercise),
+              names_from = "type",
+              values_from = "ROPE_Percentage") |>
+  ungroup() |>
+  select(comparison, resistance_exercise, rope, pd) 
+
+ropes_pd_new_hypertrophy_1.1 <- ropes_pd_new_hypertrophy_1.1 |>
+  mutate(ROPE_Percentage = scales::label_percent(accuracy = 0.1)(ROPE_Percentage)) |>
+  pivot_wider(id_cols = c(comparison, resistance_exercise),
+              names_from = "type",
+              values_from = "ROPE_Percentage") |>
+  ungroup() |>
+  select(comparison, resistance_exercise, rope, pd) 
+
+ropes_pd_new_strength_1.1 <- ropes_pd_new_strength_1.1 |>
+  mutate(ROPE_Percentage = scales::label_percent(accuracy = 0.1)(ROPE_Percentage)) |>
+  pivot_wider(id_cols = c(comparison, resistance_exercise),
+              names_from = "type",
+              values_from = "ROPE_Percentage") |>
+  ungroup() |>
+  select(comparison, resistance_exercise, rope, pd) 
+
+ropes_pd_new_function_1.1 <- ropes_pd_new_function_1.1 |>
+  mutate(ROPE_Percentage = scales::label_percent(accuracy = 0.1)(ROPE_Percentage)) |>
+  pivot_wider(id_cols = c(comparison, resistance_exercise),
+              names_from = "type",
+              values_from = "ROPE_Percentage") |>
+  ungroup() |>
+  select(comparison, resistance_exercise, rope, pd) 
+
+
+combined_contrasts_1.1 <- left_join(ropes_pd_new_whole_body_1.1, ropes_pd_new_hypertrophy_1.1,
+                  by = c("comparison", "resistance_exercise")) |>
+  left_join(ropes_pd_new_strength_1.1,
+            by = c("comparison", "resistance_exercise")) |>
+  left_join(ropes_pd_new_function_1.1,
+            by = c("comparison", "resistance_exercise"))
+
+combined_contrasts_1.1 |>
+  select(-resistance_exercise) |>
+  kbl(
+    col.names = c(
+      "Contrast", 
+      "Percentage within ROPE",
+      "Probability of meaningful positive effect",
+      "Percentage within ROPE",
+      "Probability of meaningful positive effect",
+      "Percentage within ROPE",
+      "Probability of meaningful positive effect",
+      "Percentage within ROPE",
+      "Probability of meaningful positive effect"
+    ), 
+    align = c("l", "c", "c", "c", "c", "c", "c", "c", "c")
+  ) |>
+  pack_rows("Resistance Training = YES", 1, 16) |>
+  pack_rows("Resistance Training = NO", 17, 19) |>
+  kable_styling() |>
+  kable_classic(full_width = F) |>
+  add_header_above(c(" " = 1, 
+                     "Whole body lean soft tissue" = 2,
+                     "Direct muscle mass/size" = 2,
+                     "Strength" = 2,
+                     "Function" = 2)) |>
+  footnote(general = "Note, the ROPE is the range determined by the smallest effect size of interest i.e., [-0.1, 0.1] and as such a meaningful positive effect is one which exceeds the upper limit i.e., >0.1)")
+
+```
+
