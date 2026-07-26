@@ -65,6 +65,46 @@
 \fi
 \makeatother
 
+\usepackage{color}
+\usepackage{fancyvrb}
+\newcommand{\VerbBar}{|}
+\newcommand{\VERB}{\Verb[commandchars=\\\{\}]}
+\DefineVerbatimEnvironment{Highlighting}{Verbatim}{commandchars=\\\{\}}
+% Add ',fontsize=\small' for more characters per line
+\usepackage{framed}
+\definecolor{shadecolor}{RGB}{241,243,245}
+\newenvironment{Shaded}{\begin{snugshade}}{\end{snugshade}}
+\newcommand{\AlertTok}[1]{\textcolor[rgb]{0.68,0.00,0.00}{#1}}
+\newcommand{\AnnotationTok}[1]{\textcolor[rgb]{0.37,0.37,0.37}{#1}}
+\newcommand{\AttributeTok}[1]{\textcolor[rgb]{0.40,0.45,0.13}{#1}}
+\newcommand{\BaseNTok}[1]{\textcolor[rgb]{0.68,0.00,0.00}{#1}}
+\newcommand{\BuiltInTok}[1]{\textcolor[rgb]{0.00,0.23,0.31}{#1}}
+\newcommand{\CharTok}[1]{\textcolor[rgb]{0.13,0.47,0.30}{#1}}
+\newcommand{\CommentTok}[1]{\textcolor[rgb]{0.37,0.37,0.37}{#1}}
+\newcommand{\CommentVarTok}[1]{\textcolor[rgb]{0.37,0.37,0.37}{\textit{#1}}}
+\newcommand{\ConstantTok}[1]{\textcolor[rgb]{0.56,0.35,0.01}{#1}}
+\newcommand{\ControlFlowTok}[1]{\textcolor[rgb]{0.00,0.23,0.31}{\textbf{#1}}}
+\newcommand{\DataTypeTok}[1]{\textcolor[rgb]{0.68,0.00,0.00}{#1}}
+\newcommand{\DecValTok}[1]{\textcolor[rgb]{0.68,0.00,0.00}{#1}}
+\newcommand{\DocumentationTok}[1]{\textcolor[rgb]{0.37,0.37,0.37}{\textit{#1}}}
+\newcommand{\ErrorTok}[1]{\textcolor[rgb]{0.68,0.00,0.00}{#1}}
+\newcommand{\ExtensionTok}[1]{\textcolor[rgb]{0.00,0.23,0.31}{#1}}
+\newcommand{\FloatTok}[1]{\textcolor[rgb]{0.68,0.00,0.00}{#1}}
+\newcommand{\FunctionTok}[1]{\textcolor[rgb]{0.28,0.35,0.67}{#1}}
+\newcommand{\ImportTok}[1]{\textcolor[rgb]{0.00,0.46,0.62}{#1}}
+\newcommand{\InformationTok}[1]{\textcolor[rgb]{0.37,0.37,0.37}{#1}}
+\newcommand{\KeywordTok}[1]{\textcolor[rgb]{0.00,0.23,0.31}{\textbf{#1}}}
+\newcommand{\NormalTok}[1]{\textcolor[rgb]{0.00,0.23,0.31}{#1}}
+\newcommand{\OperatorTok}[1]{\textcolor[rgb]{0.37,0.37,0.37}{#1}}
+\newcommand{\OtherTok}[1]{\textcolor[rgb]{0.00,0.23,0.31}{#1}}
+\newcommand{\PreprocessorTok}[1]{\textcolor[rgb]{0.68,0.00,0.00}{#1}}
+\newcommand{\RegionMarkerTok}[1]{\textcolor[rgb]{0.00,0.23,0.31}{#1}}
+\newcommand{\SpecialCharTok}[1]{\textcolor[rgb]{0.37,0.37,0.37}{#1}}
+\newcommand{\SpecialStringTok}[1]{\textcolor[rgb]{0.13,0.47,0.30}{#1}}
+\newcommand{\StringTok}[1]{\textcolor[rgb]{0.13,0.47,0.30}{#1}}
+\newcommand{\VariableTok}[1]{\textcolor[rgb]{0.07,0.07,0.07}{#1}}
+\newcommand{\VerbatimStringTok}[1]{\textcolor[rgb]{0.13,0.47,0.30}{#1}}
+\newcommand{\WarningTok}[1]{\textcolor[rgb]{0.37,0.37,0.37}{\textit{#1}}}
 
 \usepackage{longtable,booktabs,array}
 \newcounter{none} % for unnumbered tables
@@ -140,6 +180,21 @@
  
 
 
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{array}
+\usepackage{multirow}
+\usepackage{wrapfig}
+\usepackage{float}
+\usepackage{colortbl}
+\usepackage{pdflscape}
+\usepackage{tabularx}
+\usepackage{xltabular}
+\usepackage{threeparttable}
+\usepackage{threeparttablex}
+\usepackage[normalem]{ulem}
+\usepackage{makecell}
+\usepackage{xcolor}
 \setlength{\footskip}{65pt}
 \usepackage[font=scriptsize]{caption}
 \usepackage[noblocks]{authblk}
@@ -245,7 +300,7 @@ Ontario}
 mass, muscle, strength, physical function, dose-response, resistance
 training, bayesian}
 
-\date{July 24, 2026}
+\date{July 26, 2026}
 \begin{document}
 \maketitle
 \begin{abstract}
@@ -722,12 +777,17 @@ We collectively agreed as an author group upon the smallest effect size
 of interest on the standardized mean change (−0.1, 0.1) scale and thus
 set this as our region of practical equivalence (ROPE). This allows us
 to also examine the probability that the contrasts for protein intakes
-above the reference value of 0.8 g/kg/day might produce a meaningful
-positive effect (i.e., greater than the smallest effect size of
-interest) in comparison to this reference by examining the mass of the
-posterior distribution exceeding the upper limits of the ROPE, and also
-the percentage of the posterior distributions mass that was within the
-ROPE, thus reflecting the probability of practically equivalent effects.
+above the reference value of the previous recommended daily allowance of
+0.8 g/kg/day might produce a meaningful positive effect (i.e., greater
+than the smallest effect size of interest) in comparison to this
+reference by examining the mass of the posterior distribution exceeding
+the upper limits of the ROPE, and also the percentage of the posterior
+distributions mass that was within the ROPE, thus reflecting the
+probability of practically equivalent effects. We also calculated
+contrasts similarly for values above the median intake in
+control/placebo conditions of 1.1 g/kg/day reflecting the typical intake
+of participants in the included studies.
+
 For reference and to aid interpretation for the reader, this ROPE
 equates to a lean mass change of \textasciitilde0.534 kg, a fat free
 mass change of \textasciitilde0.604 kg, a muscle thickness change (for a
@@ -746,6 +806,228 @@ dataset (see
 \url{https://openpowerlifting.gitlab.io/opl-csv/bulk-csv.html}).
 
 \section{Results}\label{results}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\NormalTok{targets}\SpecialCharTok{::}\FunctionTok{tar\_load}\NormalTok{(}\FunctionTok{c}\NormalTok{(ropes\_pd\_new\_whole\_body\_0}\FloatTok{.8}\NormalTok{,ropes\_pd\_new\_whole\_body\_1}\FloatTok{.1}\NormalTok{, plot\_new\_whole\_body,}
+\NormalTok{                    ropes\_pd\_new\_hypertrophy\_0}\FloatTok{.8}\NormalTok{,ropes\_pd\_new\_hypertrophy\_1}\FloatTok{.1}\NormalTok{, plot\_new\_hypertrophy,}
+\NormalTok{                    ropes\_pd\_new\_strength\_0}\FloatTok{.8}\NormalTok{,ropes\_pd\_new\_strength\_1}\FloatTok{.1}\NormalTok{, plot\_new\_strength,}
+\NormalTok{                    ropes\_pd\_new\_function\_0}\FloatTok{.8}\NormalTok{,ropes\_pd\_new\_function\_1}\FloatTok{.1}\NormalTok{,plot\_new\_function))}
+\end{Highlighting}
+\end{Shaded}
+
+ADD RESULTS OF SYSTEMATIC SEARCH E.G., PRISMA FLOW DIAGRAM
+
+\subsection{Whole body lean soft
+tissue}\label{whole-body-lean-soft-tissue}
+
+\begin{figure}
+
+\centering{
+
+\pandocbounded{\includegraphics[keepaspectratio]{manuscript_files/figure-pdf/fig-whole-body-1.pdf}}
+
+}
+
+\caption{\label{fig-whole-body}Meta-analytic scatter plot of posterior
+predictions for standardised mean change for whole body lean soft tissue
+across protein intakes (top),contrasts of protein intakes against 0.8
+g/kg/day (i.e., RDA intake) contrasts of protein intakes against 1.1
+g/kg/day (i.e., median control/placebo intake) (bottom).}
+
+\end{figure}%
+
+\subsection{Direct muscle mass/size}\label{direct-muscle-masssize}
+
+\begin{figure}
+
+\centering{
+
+\pandocbounded{\includegraphics[keepaspectratio]{manuscript_files/figure-pdf/fig-hypertrophy-1.pdf}}
+
+}
+
+\caption{\label{fig-hypertrophy}Meta-analytic scatter plot of posterior
+predictions for standardised mean change for direct muscle mass/size
+across protein intakes (top),contrasts of protein intakes against 0.8
+g/kg/day (i.e., RDA intake) contrasts of protein intakes against 1.1
+g/kg/day (i.e., median control/placebo intake) (bottom).}
+
+\end{figure}%
+
+\subsection{Strength}\label{strength}
+
+\begin{figure}
+
+\centering{
+
+\pandocbounded{\includegraphics[keepaspectratio]{manuscript_files/figure-pdf/fig-strength-1.pdf}}
+
+}
+
+\caption{\label{fig-strength}Meta-analytic scatter plot of posterior
+predictions for standardised mean change for strength across protein
+intakes (top),contrasts of protein intakes against 0.8 g/kg/day (i.e.,
+RDA intake) contrasts of protein intakes against 1.1 g/kg/day (i.e.,
+median control/placebo intake) (bottom).}
+
+\end{figure}%
+
+\subsection{Function}\label{function}
+
+\begin{figure}
+
+\centering{
+
+\pandocbounded{\includegraphics[keepaspectratio]{manuscript_files/figure-pdf/fig-function-1.pdf}}
+
+}
+
+\caption{\label{fig-function}Meta-analytic scatter plot of posterior
+predictions for standardised mean change for function across protein
+intakes (top),contrasts of protein intakes against 0.8 g/kg/day (i.e.,
+RDA intake) contrasts of protein intakes against 1.1 g/kg/day (i.e.,
+median control/placebo intake) (bottom).}
+
+\end{figure}%
+
+\begin{table}
+
+\caption{\label{tbl-contrasts-rda}Percentage of posterior distribution
+within the region of pratical equivalence (ROPE) and probability of
+meaningful positive effects for contrasts of protein intakes against 0.8
+g/kg/day (i.e., RDA intake).}
+
+\centering{
+
+\centering\centering
+\begin{tabular}[t]{l|c|c|c|c|c|c|c|c}
+\hline
+\multicolumn{1}{c|}{ } & \multicolumn{2}{c|}{Whole body lean soft tissue} & \multicolumn{2}{c|}{Direct muscle mass/size} & \multicolumn{2}{c|}{Strength} & \multicolumn{2}{c}{Function} \\
+\cline{2-3} \cline{4-5} \cline{6-7} \cline{8-9}
+Contrast & Percentage within ROPE & Probability of meaningful positive effect & Percentage within ROPE & Probability of meaningful positive effect & Percentage within ROPE & Probability of meaningful positive effect & Percentage within ROPE & Probability of meaningful positive effect\\
+\hline
+\multicolumn{9}{l}{\textbf{Resistance Training = YES}}\\
+\hline
+\hspace{1em}1.0 versus 0.8 g/kg/day & 100.0\% & 0.0\% & 100.0\% & 0.0\% & 100.0\% & 0.0\% & 100.0\% & \vphantom{1} 0.0\%\\
+\hline
+\hspace{1em}1.2 versus 0.8 g/kg/day & 100.0\% & 0.0\% & 100.0\% & 0.0\% & 100.0\% & 0.0\% & 94.2\% & 5.8\%\\
+\hline
+\hspace{1em}1.4 versus 0.8 g/kg/day & 100.0\% & 0.0\% & 98.7\% & 1.3\% & 89.6\% & 10.4\% & 47.3\% & 52.7\%\\
+\hline
+\hspace{1em}1.6 versus 0.8 g/kg/day & 100.0\% & 0.0\% & 64.6\% & 35.4\% & 26.0\% & 74.0\% & 21.6\% & 78.4\%\\
+\hline
+\hspace{1em}1.8 versus 0.8 g/kg/day & 99.3\% & 0.7\% & 23.1\% & 76.9\% & 6.4\% & 93.6\% & 47.6\% & 52.4\%\\
+\hline
+\hspace{1em}2.0 versus 0.8 g/kg/day & 40.7\% & 59.2\% & 6.1\% & 93.9\% & 1.5\% & 98.5\% & 71.4\% & 28.6\%\\
+\hline
+\hspace{1em}2.2 versus 0.8 g/kg/day & 1.4\% & 98.6\% & 1.4\% & 98.6\% & 0.5\% & 99.5\% & 84.8\% & 15.2\%\\
+\hline
+\hspace{1em}2.4 versus 0.8 g/kg/day & 0.0\% & 100.0\% & 0.4\% & 99.6\% & 0.2\% & 99.8\% & 90.4\% & 8.7\%\\
+\hline
+\hspace{1em}2.6 versus 0.8 g/kg/day & 0.0\% & 100.0\% & 0.1\% & 99.9\% & 0.2\% & 99.8\% & 89.6\% & 5.6\%\\
+\hline
+\hspace{1em}2.8 versus 0.8 g/kg/day & 0.0\% & 100.0\% &  &  & 0.1\% & 99.9\% & 82.4\% & 4.0\%\\
+\hline
+\hspace{1em}3.0 versus 0.8 g/kg/day & 0.0\% & 100.0\% &  &  & 0.0\% & 100.0\% & 71.0\% & 3.1\%\\
+\hline
+\hspace{1em}3.2 versus 0.8 g/kg/day & 0.0\% & 100.0\% &  &  & 0.0\% & 100.0\% & 58.8\% & 2.7\%\\
+\hline
+\hspace{1em}3.4 versus 0.8 g/kg/day & 0.0\% & 100.0\% &  &  & 0.0\% & 100.0\% & 48.5\% & 2.3\%\\
+\hline
+\hspace{1em}3.6 versus 0.8 g/kg/day & 0.0\% & 100.0\% &  &  &  &  &  & \\
+\hline
+\hspace{1em}3.8 versus 0.8 g/kg/day & 0.0\% & 100.0\% &  &  &  &  &  & \\
+\hline
+\hspace{1em}4.0 versus 0.8 g/kg/day & 0.0\% & 100.0\% &  &  &  &  &  & \\
+\hline
+\hspace{1em}4.2 versus 0.8 g/kg/day & 0.0\% & 100.0\% &  &  &  &  &  & \\
+\hline
+\hspace{1em}4.4 versus 0.8 g/kg/day & 0.0\% & 100.0\% &  &  &  &  &  & \\
+\hline
+\multicolumn{9}{l}{\textbf{Resistance Training = NO}}\\
+\hline
+\hspace{1em}1.0 versus 0.8 g/kg/day & 100.0\% & 0.0\% & 100.0\% & 0.0\% & 100.0\% & 0.0\% & 100.0\% & 0.0\%\\
+\hline
+\hspace{1em}1.2 versus 0.8 g/kg/day & 100.0\% & 0.0\% & 48.3\% & 51.7\% & 98.4\% & 1.6\% & 99.1\% & 0.9\%\\
+\hline
+\hspace{1em}1.4 versus 0.8 g/kg/day & 99.4\% & 0.6\% & 1.1\% & 98.9\% & 32.8\% & 67.2\% & 81.0\% & 19.0\%\\
+\hline
+\hspace{1em}1.6 versus 0.8 g/kg/day & 70.3\% & 29.7\% & 0.0\% & 100.0\% & 4.1\% & 95.9\% & 62.4\% & 37.6\%\\
+\hline
+\multicolumn{9}{l}{\rule{0pt}{1em}\textit{Note: }}\\
+\multicolumn{9}{l}{\rule{0pt}{1em}Note, the ROPE is the range determined by the smallest effect size of interest i.e., [-0.1, 0.1] and as such a meaningful positive effect is one which exceeds the upper limit i.e., >0.1)}\\
+\end{tabular}
+
+}
+
+\end{table}%
+
+\begin{table}
+
+\caption{\label{tbl-contrasts-median}Percentage of posterior
+distribution within the region of pratical equivalence (ROPE) and
+probability of meaningful positive effects for contrasts of protein
+intakes against 1.1 g/kg/day (i.e., median control/placebo intake).}
+
+\centering{
+
+\centering\centering
+\begin{tabular}[t]{l|c|c|c|c|c|c|c|c}
+\hline
+\multicolumn{1}{c|}{ } & \multicolumn{2}{c|}{Whole body lean soft tissue} & \multicolumn{2}{c|}{Direct muscle mass/size} & \multicolumn{2}{c|}{Strength} & \multicolumn{2}{c}{Function} \\
+\cline{2-3} \cline{4-5} \cline{6-7} \cline{8-9}
+Contrast & Percentage within ROPE & Probability of meaningful positive effect & Percentage within ROPE & Probability of meaningful positive effect & Percentage within ROPE & Probability of meaningful positive effect & Percentage within ROPE & Probability of meaningful positive effect\\
+\hline
+\multicolumn{9}{l}{\textbf{Resistance Training = YES}}\\
+\hline
+\hspace{1em}1.3 versus 1.1 g/kg/day & 100.0\% & 0.0\% & 100.0\% & 0.0\% & 100.0\% & 0.0\% & 100.0\% & \vphantom{1} 0.0\%\\
+\hline
+\hspace{1em}1.5 versus 1.1 g/kg/day & 100.0\% & 0.0\% & 100.0\% & 0.0\% & 100.0\% & 0.0\% & 99.5\% & 0.5\%\\
+\hline
+\hspace{1em}1.7 versus 1.1 g/kg/day & 100.0\% & 0.0\% & 99.8\% & 0.2\% & 99.9\% & 0.1\% & 97.2\% & 2.8\%\\
+\hline
+\hspace{1em}1.9 versus 1.1 g/kg/day & 100.0\% & 0.0\% & 78.8\% & 21.2\% & 91.5\% & 8.5\% & 98.8\% & 1.2\%\\
+\hline
+\hspace{1em}2.1 versus 1.1 g/kg/day & 88.2\% & 11.8\% & 31.0\% & 69.0\% & 61.5\% & 38.5\% & 99.2\% & 0.7\%\\
+\hline
+\hspace{1em}2.3 versus 1.1 g/kg/day & 13.3\% & 86.7\% & 7.6\% & 92.4\% & 33.0\% & 67.0\% & 96.9\% & 0.6\%\\
+\hline
+\hspace{1em}2.5 versus 1.1 g/kg/day & 0.5\% & 99.5\% & 1.5\% & 98.5\% & 16.9\% & 83.1\% & 86.5\% & 0.5\%\\
+\hline
+\hspace{1em}2.7 versus 1.1 g/kg/day & 0.0\% & 100.0\% & 0.4\% & 99.6\% & 8.9\% & 91.1\% & 70.0\% & 0.4\%\\
+\hline
+\hspace{1em}2.9 versus 1.1 g/kg/day & 0.0\% & 100.0\% &  &  & 5.0\% & 95.0\% & 54.0\% & 0.4\%\\
+\hline
+\hspace{1em}3.1 versus 1.1 g/kg/day & 0.0\% & 100.0\% &  &  & 3.3\% & 96.7\% & 41.2\% & 0.4\%\\
+\hline
+\hspace{1em}3.3 versus 1.1 g/kg/day & 0.0\% & 100.0\% &  &  & 2.4\% & 97.6\% & 31.4\% & 0.4\%\\
+\hline
+\hspace{1em}3.5 versus 1.1 g/kg/day & 0.0\% & 100.0\% &  &  &  &  &  & \\
+\hline
+\hspace{1em}3.7 versus 1.1 g/kg/day & 0.0\% & 100.0\% &  &  &  &  &  & \\
+\hline
+\hspace{1em}3.9 versus 1.1 g/kg/day & 0.0\% & 100.0\% &  &  &  &  &  & \\
+\hline
+\hspace{1em}4.1 versus 1.1 g/kg/day & 0.0\% & 100.0\% &  &  &  &  &  & \\
+\hline
+\hspace{1em}4.3 versus 1.1 g/kg/day & 0.0\% & 100.0\% &  &  &  &  &  & \\
+\hline
+\multicolumn{9}{l}{\textbf{Resistance Training = NO}}\\
+\hline
+\hspace{1em}1.3 versus 1.1 g/kg/day & 100.0\% & 0.0\% & 100.0\% & 0.0\% & 100.0\% & 0.0\% & 100.0\% & 0.0\%\\
+\hline
+\hspace{1em}1.5 versus 1.1 g/kg/day & 100.0\% & 0.0\% & 59.9\% & 40.1\% & 99.7\% & 0.3\% & 100.0\% & 0.0\%\\
+\hline
+\hspace{1em}1.7 versus 1.1 g/kg/day & 100.0\% & 0.0\% & 2.3\% & 97.7\% & 65.0\% & 35.0\% & 99.5\% & 0.5\%\\
+\hline
+\multicolumn{9}{l}{\rule{0pt}{1em}\textit{Note: }}\\
+\multicolumn{9}{l}{\rule{0pt}{1em}Note, the ROPE is the range determined by the smallest effect size of interest i.e., [-0.1, 0.1] and as such a meaningful positive effect is one which exceeds the upper limit i.e., >0.1)}\\
+\end{tabular}
+
+}
+
+\end{table}%
 
 \section{Discussion}\label{discussion}
 

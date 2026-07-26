@@ -96,7 +96,7 @@ Thus, we sought to revisit the studies that were included in the review of Nunes
 This systematic review was originally pre-registered in July 2025 on the Open Science Framework following the structure for registration with the International Prospective Register of Systematic Reviews (PROSPERO). The pre-registration and any updates to it is available at: [https://osf.io/w2qpx/overview](https://osf.io/w2qpx/overview). We followed the Preferred Reporting Items for Systematic Reviews and Meta-Analyses (PRISMA) guidelines [@pagePRISMA2020Statement2021]. 
 
 ## Updates to pre-registration
-Some minor ammendments were made to our analysis plan after pre-registeration when we realised that protein intake as a predictor for the arm level within studies is also estimated with error (i.e., sampling error) where it is a combination of dietary intake (experimentally manipulated or not) and any experimentally manipulated supplementation to increase protein intake. As such, we updated our approach and extracted sufficient data from all included studies to enable us to either use the reported standard errors for protein intake in g/kg/day, or to propagate error in the calculation of protein intake, and to then model this directly using latent error models for the predictor. In addition a typo in the priors was noted where the scale for weakly regularising priors on coefficients other than the effects of RT was set to 10 when it should have been 1 given the former allows for completely implausible standardised mean changes Lastly, instead of the slopes at different protein intakes for the magnitude of the median difference between intervention and control arms, we have updated to consider the paired contrasts across the dose-response function for different protein intakes in contrast with the recommended daily allowance of 0.8 g/kg/day as the reference condition.
+Some minor amendments were made to our analysis plan after pre-registration when we realised that protein intake as a predictor for the arm level within studies is also estimated with error (i.e., sampling error) where it is a combination of dietary intake (experimentally manipulated or not) and any experimentally manipulated supplementation to increase protein intake. As such, we updated our approach and extracted sufficient data from all included studies to enable us to either use the reported standard errors for protein intake in g/kg/day, or to propagate error in the calculation of protein intake, and to then model this directly using latent error models for the predictor. Note, we still present the originally pre-registered models as our primary analysis, but include the error in variables models in the supplementary materials. In addition a typo in the priors was noted where the scale for weakly regularising priors on coefficients other than the effects of RT was set to 10 when it should have been 1 given the former allows for completely implausible standardised mean changes. Lastly, instead of the slopes at different protein intakes for the magnitude of the median difference between intervention and control arms, we have updated to consider the paired contrasts across the dose-response function for different protein intakes in contrast with the recommended daily allowance of 0.8 g/kg/day as the reference condition.
 
 ## Search Strategy
 The search strategy used by Nunes et al. [-@nunesSystematicReviewMetaanalysis2022] as replicated exactly with searches and screening being conducted by two investigators (EAN, ML) with any disagreements planned to be resolved by a third investigator (JS) though no disagreements occured. The original search strategy can be seen in the online supplementary materials for Nunes et al. [-@nunesSystematicReviewMetaanalysis2022] [here](https://onlinelibrary.wiley.com/action/downloadSupplement?doi=10.1002%2Fjcsm.12922&file=jcsm12922-sup-0005-Search_strategies_.pdf). Searches had previously been conducted up to September 2020 by Nunes et al. [-@nunesSystematicReviewMetaanalysis2022] and so we performed searches from this date up to July 2025. In addition, any papers not identified in the original or updated searches but which were known to the author team and met inclusion criteria were also identified and included. Rayyan [@ouzzaniRayyanaWebMobile2016] was used to manage the screening process after searches were conducted.  
@@ -180,21 +180,67 @@ For reference and to aid interpretation for the reader, this ROPE equates to a l
 
 # Results
 
-
-# Discussion
-
-# Conclusion
-
-Intakes up to ~3 g/kg/day do not meaningfully improve outcomes compared to 0.8 g/kg/day. Above this uncertainty in estimates renders difficulty in determining whether effects are meaningful or not with x-y% probability of  positive meaningful effects and x-y% probability of practically equivalent effects.
-
-
 ```{r}
 
-targets::tar_load(c(ropes_pd_new_whole_body_0.8,ropes_pd_new_whole_body_1.1,
-                    ropes_pd_new_hypertrophy_0.8,ropes_pd_new_hypertrophy_1.1,
-                    ropes_pd_new_strength_0.8,ropes_pd_new_strength_1.1,
-                    ropes_pd_new_function_0.8,ropes_pd_new_function_1.1))
+targets::tar_load(c(ropes_pd_new_whole_body_0.8,ropes_pd_new_whole_body_1.1, plot_new_whole_body,
+                    ropes_pd_new_hypertrophy_0.8,ropes_pd_new_hypertrophy_1.1, plot_new_hypertrophy,
+                    ropes_pd_new_strength_0.8,ropes_pd_new_strength_1.1, plot_new_strength,
+                    ropes_pd_new_function_0.8,ropes_pd_new_function_1.1,plot_new_function))
 
+```
+
+ADD RESULTS OF SYSTEMATIC SEARCH E.G., PRISMA FLOW DIAGRAM
+
+## Whole body lean soft tissue
+```{r}
+#| message: false
+#| warning: false
+#| echo: false
+#| label: fig-whole-body
+#| fig-width: 8
+#| fig-height: 12
+#| fig-cap: Meta-analytic scatter plot of posterior predictions for standardised mean change for whole body lean soft tissue across protein intakes (top),contrasts of protein intakes against 0.8 g/kg/day (i.e., RDA intake) contrasts of protein intakes against 1.1 g/kg/day (i.e., median control/placebo intake) (bottom).
+
+plot_new_whole_body
+```
+
+## Direct muscle mass/size
+```{r}
+#| message: false
+#| warning: false
+#| echo: false
+#| label: fig-hypertrophy
+#| fig-width: 8
+#| fig-height: 12
+#| fig-cap: Meta-analytic scatter plot of posterior predictions for standardised mean change for direct muscle mass/size across protein intakes (top),contrasts of protein intakes against 0.8 g/kg/day (i.e., RDA intake) contrasts of protein intakes against 1.1 g/kg/day (i.e., median control/placebo intake) (bottom).
+
+plot_new_hypertrophy
+```
+
+## Strength
+```{r}
+#| message: false
+#| warning: false
+#| echo: false
+#| label: fig-strength
+#| fig-width: 8
+#| fig-height: 12
+#| fig-cap: Meta-analytic scatter plot of posterior predictions for standardised mean change for strength across protein intakes (top),contrasts of protein intakes against 0.8 g/kg/day (i.e., RDA intake) contrasts of protein intakes against 1.1 g/kg/day (i.e., median control/placebo intake) (bottom).
+
+plot_new_strength
+```
+
+## Function
+```{r}
+#| message: false
+#| warning: false
+#| echo: false
+#| label: fig-function
+#| fig-width: 8
+#| fig-height: 12
+#| fig-cap: Meta-analytic scatter plot of posterior predictions for standardised mean change for function across protein intakes (top),contrasts of protein intakes against 0.8 g/kg/day (i.e., RDA intake) contrasts of protein intakes against 1.1 g/kg/day (i.e., median control/placebo intake) (bottom).
+
+plot_new_function
 ```
 
 
@@ -349,4 +395,14 @@ combined_contrasts_1.1 |>
   footnote(general = "Note, the ROPE is the range determined by the smallest effect size of interest i.e., [-0.1, 0.1] and as such a meaningful positive effect is one which exceeds the upper limit i.e., >0.1)")
 
 ```
+
+
+
+# Discussion
+
+# Conclusion
+
+Intakes up to ~3 g/kg/day do not meaningfully improve outcomes compared to 0.8 g/kg/day. Above this uncertainty in estimates renders difficulty in determining whether effects are meaningful or not with x-y% probability of  positive meaningful effects and x-y% probability of practically equivalent effects.
+
+
 
