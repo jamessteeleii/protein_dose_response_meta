@@ -308,14 +308,19 @@ list(
   
   tar_target(
     plot_nunes_tiff,
-    ggsave(
-      plot = plot_nunes,
-      filename = "plots/plot_nunes.tiff",
-      device = "tiff",
-      dpi = 300,
-      w = 8,
-      h = 8
-    )
+    {
+      output_file <- here("plots", "plot_nunes.tiff")
+      ggsave(
+        plot = plot_nunes,
+        filename = output_file,
+        device = "tiff",
+        dpi = 300,
+        w = 8,
+        h = 8
+      )
+      output_file
+    },
+    format = "file"
   ),
   
   # Original brms pre-registered updated analysis with all re-extracted data ----
@@ -586,14 +591,19 @@ list(
 
   tar_target(
     plot_new_whole_body_tiff,
-    ggsave(
-      plot = plot_new_whole_body,
-      filename = "plots/plot_new_whole_body.tiff",
-      device = "tiff",
-      dpi = 300,
-      w = 8,
-      h = 12
-    )
+    {
+      output_file <- here("plots", "plot_new_whole_body.tiff")
+      ggsave(
+        plot = plot_new_whole_body,
+        filename = output_file,
+        device = "tiff",
+        dpi = 300,
+        w = 8,
+        h = 12
+      )
+      output_file
+    },
+    format = "file"
   ),
 
   ## Hypertrophy ----
@@ -661,14 +671,19 @@ list(
 
   tar_target(
     plot_new_hypertrophy_tiff,
-    ggsave(
-      plot = plot_new_hypertrophy,
-      filename = "plots/plot_new_hypertrophy.tiff",
-      device = "tiff",
-      dpi = 300,
-      w = 8,
-      h = 12
-    )
+    {
+      output_file <- here("plots", "plot_new_hypertrophy.tiff")
+      ggsave(
+        plot = plot_new_hypertrophy,
+        filename = output_file,
+        device = "tiff",
+        dpi = 300,
+        w = 8,
+        h = 12
+      )
+      output_file
+    },
+    format = "file"
   ),
 
   ## Strength ----
@@ -736,14 +751,19 @@ list(
 
   tar_target(
     plot_new_strength_tiff,
-    ggsave(
-      plot = plot_new_strength,
-      filename = "plots/plot_new_strength.tiff",
-      device = "tiff",
-      dpi = 300,
-      w = 8,
-      h = 12
-    )
+    {
+      output_file <- here("plots", "plot_new_strength.tiff")
+      ggsave(
+        plot = plot_new_strength,
+        filename = output_file,
+        device = "tiff",
+        dpi = 300,
+        w = 8,
+        h = 12
+      )
+      output_file
+    },
+    format = "file"
   ),
   
   ## Function ----
@@ -829,14 +849,19 @@ list(
   
   tar_target(
     plot_new_function_tiff,
-    ggsave(
-      plot = plot_new_function,
-      filename = "plots/plot_new_function.tiff",
-      device = "tiff",
-      dpi = 300,
-      w = 8,
-      h = 12
-    )
+    {
+      output_file <- here("plots", "plot_new_function.tiff")
+      ggsave(
+        plot = plot_new_function,
+        filename = output_file,
+        device = "tiff",
+        dpi = 300,
+        w = 8,
+        h = 12
+      )
+      output_file
+    },
+    format = "file"
   ),
   
   # Amended pre-registration updated reanalysis converting brms models to stan to enable error on predictors ----
@@ -944,6 +969,14 @@ list(
   ),
   
   # Grateful report ----
-  tar_target(grateful_report, cite_packages(out.dir = "grateful/", cite.tidyverse = TRUE, out.format = "pdf"))
+  tar_target(
+    grateful_report,
+    cite_packages(
+      out.dir = "grateful/",
+      cite.tidyverse = TRUE,
+      out.format = "pdf"
+    ),
+    format = "file"
+  )
   
 )
