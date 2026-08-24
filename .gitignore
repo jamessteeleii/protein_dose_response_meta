@@ -51,6 +51,8 @@ docs/
 # Quarto working directories and locally rendered supplement
 manuscript/.quarto/
 manuscript/_freeze/
+manuscript/manuscript.tex
+manuscript/manuscript_files/
 manuscript/protein_calculations.html
 
 # translation temp files
@@ -62,6 +64,7 @@ rsconnect/
 # Generated reports and compiled model artifacts
 grateful/*.log
 plots/*.zip
+plots/*.tiff
 stan/*.exe
 stan/*.hpp
 stan/*.o
