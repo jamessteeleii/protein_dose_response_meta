@@ -1,47 +1,103 @@
-#   An updated systematic review and dose-response meta-analysis of protein intakes effects upon lean mass, muscle, strength, and function in healthy adults
+# Protein dose-response meta-analysis
 
-## Abstract
-TO COMPLETE
+This repository contains the data, analysis code, figures, and manuscript
+sources for *An updated systematic review and dose-response meta-analysis of
+protein intakes' effects upon lean soft tissue mass, muscle, strength, and
+function in healthy adults*.
 
-## Reproducibility
-This repository contains the necessary files and code to reproduce the analyses, figures, and the manuscript. 
+The project was preregistered on the
+[Open Science Framework](https://osf.io/w2qpx/overview). The originally
+preregistered models remain the primary analyses. Measurement-error Stan
+models are being developed as supplementary analyses and are clearly
+separated in the code and manuscript.
 
-## Usage
-To reproduce the analyses, you will need to have R (https://cran.r-project.org/) and RStudio (https://www.rstudio.com/products/rstudio/download/#download) installed on your computer.
+## Repository structure
 
-To help with reproducibility, this project uses the `renv` R package (see https://rstudio.github.io/renv/articles/renv.html). With `renv`, the state of this R project can be easily loaded as `renv` keeps track of the required R packages (including version), and (if known) the external source from which packages were retrieved (e.g., CRAN, Github). With `renv`, packages are installed to a project specific library rather than your user or system library. The `renv` package must be installed on your machine before being able to benefit from its features. The package can be installed using the following command:
+- `_targets.R` defines the analysis pipeline.
+- `R/functions.R` contains the functions used by the pipeline.
+- `data/protein_meta_data_all.xlsx` is the audited extraction workbook.
+- `data/graphical_data/` contains digitised source figures and extracted data.
+- `data/external/` contains small pinned external inputs and their provenance.
+- `stan/` contains supplementary Stan models and supporting scripts.
+- `manuscript/` contains the Quarto manuscript and supplementary methods.
+- `renv.lock` records the R package environment.
 
-``` r
+Generated pipeline state, model executables, and reproducible plot/report
+outputs are intentionally not versioned. The current manuscript PDF is kept
+as a convenient rendered artifact.
+
+## Requirements
+
+- R 4.4.3, matching `renv.lock`.
+- A C/C++ toolchain compatible with R 4.4.3. On Windows, use Rtools44.
+- Quarto 1.7 or later, as required by the bundled manuscript extensions.
+- A TeX distribution with XeLaTeX to render the manuscript PDF; TinyTeX is a
+  suitable option.
+- Internet access for package restoration and external data downloads.
+- CmdStan 2.39.0 to run the supplementary CmdStanR scripts.
+
+RStudio is optional, but opening `protein_dose_response_meta.Rproj` is a
+convenient way to start in the correct project directory. Recent RStudio
+versions include a compatible Quarto installation.
+
+## Restore the R environment
+
+Clone or download the repository, start R 4.4.3 in the project root, and run:
+
+```r
 install.packages("renv")
+renv::restore()
 ```
 
-Once you have `renv` installed, you can get a copy of this repository on your machine by clicking the green Code button then choose Download zip. Save to your machine and extract. After extraction, double click the `protein_dose_response_meta.Rproj` file in the root directory. This will automatically open RStudio. This will ensure all paths work on your system as the working directory will be set to the location of the `.Rproj` file. Upon opening, RStudio will recognize the `renv` files and you will be informed that the project library is out of sync with the lockfile. At shown in the console pane of RStudio, running `renv::restore()` will install the packages recorded in the lockfile. This could take some time depending on your machine and internet connection.
+The restore may compile packages and can take some time. The supplementary
+Stan scripts additionally require a local CmdStan installation. To reproduce
+the development environment used here:
 
-## Targets analysis pipeline
+```r
+cmdstanr::install_cmdstan(version = "2.39.0")
+cmdstanr::check_cmdstan_toolchain()
+```
 
-This project also uses a function based analysis pipeline using
-[`targets`](https://books.ropensci.org/targets/). Instead of script based pipelines the `targets` package makes use of functions applied to targets specified within the pipeline. The targets can be viewed in the `_targets.R` file, and any user defined functions are available in `R/functions.r`.
+## Run the analysis pipeline
 
-Useful console functions:
+The project uses [`targets`](https://books.ropensci.org/targets/) to track
+dependencies and avoid unnecessary recomputation.
 
-- `tar_edit()` opens the make file
-- `tar_make()` to run targets
-- `tar_visnetwork()` to view pipeline
+```r
+targets::tar_manifest()
+targets::tar_make()
+```
 
-## Software and packages used
+A clean full run is computationally expensive: Bayesian model targets can
+take many hours and the local `_targets/` store can grow to tens of gigabytes.
+Inspect the manifest and use the `names` argument to run a specific target and
+its required dependencies when a full rebuild is unnecessary.
 
-The [`grateful`](https://pakillo.github.io/grateful/index.html) package was used to create citations to all software and packages used in the analysis. The `grateful` report can be viewed by downloading the `grateful-report.pdf` file.
+The OpenPowerlifting input is downloaded from the project's official nightly
+bulk CSV release. The ZIP is processed in a temporary directory and deleted;
+only a small summary with the source filename, SHA-256 hash, row counts, and
+reference standard deviations is stored by `targets`. These descriptive
+reference values may therefore change slightly with the snapshot date. See
+[`data/external/README.md`](data/external/README.md) for full provenance.
+
+## Render the documents
+
+The main manuscript reads completed objects from the `_targets/` store, so
+build its required targets first. From the repository root:
+
+```sh
+quarto render manuscript/manuscript.qmd
+quarto render manuscript/protein_calculations.qmd
+```
+
+The second command renders all formats configured in the supplementary
+document. Add `--to html`, `--to docx`, or `--to pdf` to render one format.
+
+Software citations are generated by the `grateful_report` target.
 
 ## License
 
-Shield: [![CC BY-NC-SA 4.0][cc-by-nc-sa-shield]][cc-by-nc-sa]
-
 This work is licensed under a
-[Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International License][cc-by-nc-sa].
-
-[![CC BY-NC-SA 4.0][cc-by-nc-sa-image]][cc-by-nc-sa]
-
-[cc-by-nc-sa]: http://creativecommons.org/licenses/by-nc-sa/4.0/
-  [cc-by-nc-sa-image]: https://licensebuttons.net/l/by-nc-sa/4.0/88x31.png
-[cc-by-nc-sa-shield]: https://img.shields.io/badge/License-CC%20BY--NC--SA%204.0-lightgrey.svg
+[Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International
+License](https://creativecommons.org/licenses/by-nc-sa/4.0/).
 

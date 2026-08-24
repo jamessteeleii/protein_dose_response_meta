@@ -6,6 +6,7 @@ library(crew)
 
 # Set target options:
 tar_option_set(packages = c("here",
+                            "qs",
                             "tidyverse",
                             "metafor",
                             "mgcv",
