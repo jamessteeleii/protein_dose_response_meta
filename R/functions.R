@@ -841,21 +841,81 @@ prepare_protein_data <- function(protein_data){
       time1 = baseline,
       time2 = followup
     )
+
+  contrast_keys <- c(
+    "study_no",
+    "arm_no",
+    "outcome_group",
+    "measurement_method",
+    "unit_of_measurement",
+    "time1",
+    "time2"
+  )
+
+  duplicate_contrasts <-
+    contrasts |>
+    count(across(all_of(contrast_keys))) |>
+    filter(n > 1)
+
+  duplicate_grid_rows <-
+    contrast_grid |>
+    count(across(all_of(contrast_keys))) |>
+    filter(n > 1)
+
+  if (nrow(duplicate_contrasts) > 0) {
+    stop(
+      "Duplicate reported contrast keys found in ",
+      nrow(duplicate_contrasts),
+      " rows.",
+      call. = FALSE
+    )
+  }
+
+  if (nrow(duplicate_grid_rows) > 0) {
+    stop(
+      "Duplicate observation-derived contrast keys found in ",
+      nrow(duplicate_grid_rows),
+      " rows.",
+      call. = FALSE
+    )
+  }
   
   contrasts_join <-
     contrast_grid |>
-    left_join(
-      contrasts,
-      by = c(
-        "study_no",
-        "arm_no",
-        "outcome_group",
-        "measurement_method",
-        "unit_of_measurement",
-        "time1",
-        "time2"
+    mutate(arm_timepoint_rows_present = TRUE) |>
+    full_join(
+      contrasts |>
+        mutate(reported_contrast_present = TRUE),
+      by = contrast_keys
+    ) |>
+    mutate(
+      arm_timepoint_rows_present = coalesce(
+        arm_timepoint_rows_present,
+        FALSE
+      ),
+      reported_contrast_present = coalesce(
+        reported_contrast_present,
+        FALSE
+      ),
+      contrast_source = case_when(
+        arm_timepoint_rows_present & reported_contrast_present ~
+          "reported contrast and arm timepoint rows",
+        reported_contrast_present ~ "reported contrast only",
+        arm_timepoint_rows_present ~ "arm timepoint rows only"
       )
     )
+
+  lost_reported_contrasts <-
+    contrasts |>
+    anti_join(contrasts_join, by = contrast_keys)
+
+  if (nrow(lost_reported_contrasts) > 0) {
+    stop(
+      nrow(lost_reported_contrasts),
+      " reported contrasts were lost during data preparation.",
+      call. = FALSE
+    )
+  }
   
   baseline_obs <-
     observations |>
@@ -909,19 +969,36 @@ prepare_protein_data <- function(protein_data){
   
   # for contrasts
   contrasts_analysis <- contrasts_join |>
-    
+
+    # Explicitly nest arm identifiers within studies while retaining the
+    # extracted arm number for joins and audit trails.
+    group_by(study_no, arm_no) |>
+    mutate(arm_no_nested = cur_group_id()) |>
+    ungroup() |>
+
+    # Generate one stable outcome identifier and retain this definition
+    # throughout preparation.
+    group_by(
+      study_no,
+      arm_no,
+      outcome_group,
+      measurement_method,
+      unit_of_measurement
+    ) |>
+    mutate(outcome_no = cur_group_id()) |>
+    ungroup() |>
+
+    # Use the smaller outcome-specific sample size when both timepoints are
+    # available. If one is absent, retain the available timepoint sample size.
     mutate(
-      outcome_no = consecutive_id(
-        study_no,
-        arm_no,
-        outcome_group,
-        measurement_method,
-        unit_of_measurement
+      n = case_when(
+        !is.na(baseline_n) & !is.na(followup_n) ~
+          pmin(baseline_n, followup_n),
+        !is.na(followup_n) ~ followup_n,
+        !is.na(baseline_n) ~ baseline_n,
+        TRUE ~ NA_real_
       )
     ) |>
-    
-    # Sample size as smallest of baseline and followup
-    mutate(n = pmin(baseline_n, followup_n)) |>
     
     # Add missing contrast means
     mutate(
@@ -1000,7 +1077,7 @@ prepare_protein_data <- function(protein_data){
   contrasts_analysis <- escalc(measure = "ZCOR", ri = r, ni = n, data = contrasts_analysis)
 
   meta_r <- rma.mv(yi, V=vi, data=contrasts_analysis,
-                         random = list(~ 1 | study_no, ~ 1 | arm_no, ~ 1 | outcome_no), method="REML", test="t",
+                         random = list(~ 1 | study_no, ~ 1 | arm_no_nested, ~ 1 | outcome_no), method="REML", test="t",
                          control=list(optimizer="optim", optmethod="Nelder-Mead"))
   
   robu_meta_r <- robust(meta_r, contrasts_analysis$study_no)
@@ -1021,6 +1098,12 @@ prepare_protein_data <- function(protein_data){
 
   baseline_pool <-
     contrasts_analysis |>
+    filter(
+      !is.na(baseline_n),
+      baseline_n > 1,
+      !is.na(baseline_sd),
+      baseline_sd > 0
+    ) |>
     distinct(
       study_no,
       outcome_no,
@@ -1111,6 +1194,22 @@ prepare_protein_data <- function(protein_data){
     summarise(
       protein_median = median(protein_intake_raw, na.rm = TRUE)
     )
+
+  exclusion_labels <- c(
+    exclusion_missing_mean_change = "missing mean change",
+    exclusion_missing_baseline_sd =
+      "missing baseline standardisation SD",
+    exclusion_missing_sample_size = "missing outcome sample size",
+    exclusion_missing_pre_post_correlation =
+      "missing pre-post correlation",
+    exclusion_effect_size_not_estimable =
+      "effect size not estimable",
+    exclusion_missing_protein_intake = "missing protein intake",
+    exclusion_missing_resistance_exercise_code =
+      "missing resistance exercise code",
+    exclusion_missing_mean_age = "missing mean age",
+    exclusion_missing_duration = "missing duration"
+  )
     
   
   contrasts_analysis <- contrasts_analysis |>
@@ -1124,13 +1223,61 @@ prepare_protein_data <- function(protein_data){
       resistance_exercise_yes_no == "no" ~ 1,
     )
   ) |>
-    
-    # add outcome identifier
-    group_by(study_no, arm_no, outcome_group, measurement_method) |>
+
+    # Make the nested arm identifier the analysis identifier while preserving
+    # the workbook arm number explicitly for traceability.
+    rename(
+      arm_no_extracted = arm_no,
+      arm_no = arm_no_nested
+    ) |>
+
+    # Record every reason retained rows are not eligible for the primary
+    # complete-case analysis. The individual flags support totals by reason;
+    # the combined field supports row-level auditing.
     mutate(
-      outcome_no = cur_group_id()
+      exclusion_missing_mean_change = is.na(mean_change),
+      exclusion_missing_baseline_sd = is.na(baseline_sd_pooled),
+      exclusion_missing_sample_size = is.na(n),
+      exclusion_missing_pre_post_correlation = is.na(r),
+      exclusion_effect_size_not_estimable =
+        is.na(yi) | is.na(vi) | coalesce(vi <= 0, FALSE),
+      exclusion_missing_protein_intake = is.na(protein_intake),
+      exclusion_missing_resistance_exercise_code =
+        is.na(resistance_exercise_code),
+      exclusion_missing_mean_age = is.na(age_centre),
+      exclusion_missing_duration = is.na(duration_centre)
+    ) |>
+    rowwise() |>
+    mutate(
+      analysis_exclusion_count = sum(
+        c_across(all_of(names(exclusion_labels)))
+      ),
+      analysis_exclusion_reasons = {
+        exclusion_flags <- c_across(all_of(names(exclusion_labels)))
+        reasons <- unname(exclusion_labels[exclusion_flags])
+
+        if (length(reasons) == 0) {
+          NA_character_
+        } else {
+          paste(reasons, collapse = "; ")
+        }
+      },
+      analysis_eligible_primary = analysis_exclusion_count == 0
     ) |>
     ungroup()
+
+  nested_arm_count <- n_distinct(contrasts_analysis$arm_no)
+  extracted_study_arm_count <-
+    contrasts_analysis |>
+    distinct(study_no, arm_no_extracted) |>
+    nrow()
+
+  if (nested_arm_count != extracted_study_arm_count) {
+    stop(
+      "Nested arm identifiers do not map one-to-one to extracted study-arms.",
+      call. = FALSE
+    )
+  }
   
   return(contrasts_analysis)
 
