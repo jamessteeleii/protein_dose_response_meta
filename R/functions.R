@@ -398,9 +398,9 @@ estimate_muscle_thickness_sd <- function(data) {
   
 }
 
-estimate_strength_sd <- function(data) {
-  
-  open_powerlifting_sd <- data |>
+prepare_open_powerlifting_strength_data <- function(data) {
+
+  data |>
     filter(Equipment == "Raw" & Tested == "Yes" & Division == "Open") |>
     mutate(Best3SquatKg = if_else(Best3SquatKg > 0, Best3SquatKg, NA), # We also remove any failed lifts as it impacts the totals
            Best3BenchKg = if_else(Best3BenchKg > 0, Best3BenchKg, NA),
@@ -408,7 +408,14 @@ estimate_strength_sd <- function(data) {
     group_by(Name) |>
     arrange(Date) |>
     slice_head(n=1) |>
-    ungroup() |>
+    ungroup()
+
+}
+
+estimate_strength_sd <- function(data) {
+
+  open_powerlifting_sd <-
+    prepare_open_powerlifting_strength_data(data) |>
     summarise(
       squat_sd = sd(Best3SquatKg, na.rm=TRUE),
       bench_sd = sd(Best3BenchKg, na.rm=TRUE),
@@ -416,6 +423,93 @@ estimate_strength_sd <- function(data) {
     )
   
   return(open_powerlifting_sd)
+}
+
+download_open_powerlifting_strength_sd <- function(url) {
+
+  archive <- tempfile(fileext = ".zip")
+  extract_dir <- tempfile(pattern = "openpowerlifting-")
+  dir.create(extract_dir)
+
+  on.exit(
+    unlink(c(archive, extract_dir), recursive = TRUE, force = TRUE),
+    add = TRUE
+  )
+
+  utils::download.file(
+    url = url,
+    destfile = archive,
+    mode = "wb",
+    quiet = FALSE
+  )
+
+  archive_listing <- utils::unzip(archive, list = TRUE)
+  csv_member <- archive_listing$Name[
+    grepl(
+      "^openpowerlifting-.*\\.csv$",
+      basename(archive_listing$Name),
+      ignore.case = TRUE
+    )
+  ]
+
+  if (length(csv_member) != 1) {
+    stop(
+      "Expected exactly one OpenPowerlifting CSV in the downloaded archive; found ",
+      length(csv_member),
+      ".",
+      call. = FALSE
+    )
+  }
+
+  utils::unzip(
+    zipfile = archive,
+    files = csv_member,
+    exdir = extract_dir,
+    junkpaths = TRUE
+  )
+
+  extracted_csv <- file.path(extract_dir, basename(csv_member))
+  required_columns <- c(
+    "Name",
+    "Equipment",
+    "Tested",
+    "Division",
+    "Date",
+    "Best3SquatKg",
+    "Best3BenchKg",
+    "Best3DeadliftKg"
+  )
+
+  source_data <- readr::read_csv(
+    extracted_csv,
+    col_select = tidyselect::all_of(required_columns),
+    show_col_types = FALSE,
+    progress = FALSE
+  )
+
+  selected_data <- prepare_open_powerlifting_strength_data(source_data)
+
+  selected_data |>
+    summarise(
+      source_url = url,
+      source_file = basename(csv_member),
+      source_sha256 = toupper(
+        digest::digest(
+          file = archive,
+          algo = "sha256",
+          serialize = FALSE
+        )
+      ),
+      source_rows = nrow(source_data),
+      selected_lifters = n(),
+      squat_n = sum(!is.na(Best3SquatKg)),
+      bench_n = sum(!is.na(Best3BenchKg)),
+      deadlift_n = sum(!is.na(Best3DeadliftKg)),
+      squat_sd = sd(Best3SquatKg, na.rm = TRUE),
+      bench_sd = sd(Best3BenchKg, na.rm = TRUE),
+      deadlift_sd = sd(Best3DeadliftKg, na.rm = TRUE)
+    )
+
 }
 
 # Function to fit all candidate models

@@ -62,8 +62,18 @@ list(
   ),
   
   tar_target(
+    steele_data_file,
+    here(
+      "data",
+      "external",
+      "steele_rt_extracted_data_289a48f.csv"
+    ),
+    format = "file"
+  ),
+
+  tar_target(
     steele_data,
-    read_csv(url("https://github.com/jamessteeleii/Meta-Analysis-of-Variation-in-Resistance-Training/raw/refs/heads/main/data/Polito%20et%20al.%20RT%20Extracted%20Data.csv"))
+    read_csv(steele_data_file)
   ),
   
   ## Get priors from arm based meta-analysis of Steele et al. data ----
@@ -877,8 +887,18 @@ list(
   # Determining baseline standard deviations to provide reference values for smallest effect size of interest of 0.1 ----
   # Lean soft tissue/fat free mass from Benito et al. (https://doi.org/10.3390/ijerph17041285)
   tar_target(
+    benito_data_file,
+    here(
+      "data",
+      "external",
+      "benito_study_data_18f3fc7.csv"
+    ),
+    format = "file"
+  ),
+
+  tar_target(
     benito_data,
-    read_csv(url("https://github.com/jamessteeleii/glp1_rt_cits/raw/refs/heads/master/data/benito_study_data.csv"))
+    read_csv(benito_data_file)
   ),
   
   tar_target(
@@ -904,22 +924,23 @@ list(
   ),
   
   tar_target(
-    open_powerlifting_data_file,
-    here("data", 
-         "openpowerlifting-latest",
-         "openpowerlifting-2025-07-12",
-         "openpowerlifting-2025-07-12-6c3c0797.csv"),
-    format = "file"
+    open_powerlifting_url,
+    paste0(
+      "https://openpowerlifting.gitlab.io/opl-csv/files/",
+      "openpowerlifting-latest.zip"
+    ),
+    format = "url"
   ),
-  
+
   tar_target(
-    open_powerlifting_data,
-    read_csv(open_powerlifting_data_file)
+    open_powerlifting_snapshot,
+    download_open_powerlifting_strength_sd(open_powerlifting_url)
   ),
-  
+
   tar_target(
     strength_sd,
-    estimate_strength_sd(open_powerlifting_data)
+    open_powerlifting_snapshot |>
+      select(squat_sd, bench_sd, deadlift_sd)
   ),
   
   # Grateful report ----
