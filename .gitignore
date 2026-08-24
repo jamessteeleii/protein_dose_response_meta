@@ -1,5 +1,7 @@
+# Large local inputs and pipeline state
 openpowerlifting-latest/
 _targets/
+renv/library/
 
 # History files
 .Rhistory
@@ -33,6 +35,7 @@ vignettes/*.pdf
 
 # knitr and R markdown default cache directories
 *_cache/
+*_files/
 /cache/
 
 # Temporary files created by R markdown
@@ -45,9 +48,20 @@ vignettes/*.pdf
 # pkgdown site
 docs/
 
+# Quarto working directories and locally rendered supplement
+manuscript/.quarto/
+manuscript/_freeze/
+manuscript/protein_calculations.html
+
 # translation temp files
 po/*~
 
 # RStudio Connect folder
 rsconnect/
-.Rproj.user
+
+# Generated reports and compiled model artifacts
+grateful/*.log
+plots/*.zip
+stan/*.exe
+stan/*.hpp
+stan/*.o
