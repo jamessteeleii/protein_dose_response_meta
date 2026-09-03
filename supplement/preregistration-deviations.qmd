@@ -1,0 +1,681 @@
+---
+title: "Deviations from the preregistered analysis plan"
+subtitle: "An updated systematic review and dose–response meta-analysis of protein intake and lean soft tissue mass, muscle, strength, and function"
+author:
+  - name: James Steele
+  - name: Everson Araujo Nunes
+  - name: Myles Moore
+  - name: Matthew Lees
+  - name: Lauren Roxburgh
+  - name: Andrea Viloria Medina
+  - name: Stuart Phillips
+date: last-modified
+date-format: long
+format:
+  html:
+    theme: cosmo
+    toc: true
+    toc-depth: 3
+    toc-location: left
+    smooth-scroll: true
+    embed-resources: true
+    html-math-method: mathml
+    link-external-newwindow: true
+    code-fold: true
+    code-summary: "Show reproducibility code"
+    fig-cap-location: bottom
+    tbl-cap-location: top
+bibliography: ../manuscript/references.bib
+csl: ../manuscript/apa.csl
+execute:
+  echo: false
+  warning: false
+  message: false
+---
+
+```{r}
+#| label: setup
+#| include: false
+options(width = 110)
+
+report_inputs <- targets::tar_read(preregistration_deviations_inputs)
+diagnostic_files <- report_inputs$diagnostics
+loo_files <- report_inputs$loo
+
+resolve_project_output <- function(path) {
+  candidates <- c(path, file.path("..", path))
+  existing <- candidates[file.exists(candidates)]
+  if (length(existing) < 1L) {
+    return(path)
+  }
+  normalizePath(existing[[1L]], winslash = "/", mustWork = TRUE)
+}
+
+find_output <- function(paths, filename) {
+  match <- paths[basename(paths) == filename]
+  if (length(match) != 1L) {
+    stop("Expected exactly one pipeline output named: ", filename)
+  }
+  resolve_project_output(match[[1L]])
+}
+
+stacking_path <- resolve_project_output(
+  report_inputs$stacking
+)
+
+audit_path <- find_output(diagnostic_files, "diagnostic_summary.csv")
+classification_path <- find_output(
+  diagnostic_files,
+  "definitive_classification.csv"
+)
+ppc_path <- find_output(diagnostic_files, "ppc_outcome_summary.csv")
+loo_outcome_path <- find_output(loo_files, "outcome_summary.csv")
+loo_model_path <- find_output(loo_files, "model_summary.csv")
+loo_comparison_path <- find_output(loo_files, "method_comparison.csv")
+loo_observation_path <- find_output(
+  loo_files,
+  "observation_diagnostics.csv"
+)
+loo_exact_path <- find_output(loo_files, "exact_refit_summary.csv")
+
+required_files <- c(
+  audit_path,
+  classification_path,
+  ppc_path,
+  loo_outcome_path,
+  loo_model_path,
+  loo_comparison_path,
+  loo_observation_path,
+  loo_exact_path,
+  stacking_path
+)
+if (any(!file.exists(required_files))) {
+  stop(
+    "The final primary-model diagnostic and LOO audits must be built before this supplement. Missing: ",
+    paste(required_files[!file.exists(required_files)], collapse = ", ")
+  )
+}
+
+audit <- read.csv(audit_path, check.names = FALSE, stringsAsFactors = FALSE)
+classification <- read.csv(
+  classification_path,
+  check.names = FALSE,
+  stringsAsFactors = FALSE
+)
+ppc <- read.csv(ppc_path, check.names = FALSE, stringsAsFactors = FALSE)
+loo_outcome <- read.csv(
+  loo_outcome_path,
+  check.names = FALSE,
+  stringsAsFactors = FALSE
+)
+loo_models <- read.csv(
+  loo_model_path,
+  check.names = FALSE,
+  stringsAsFactors = FALSE
+)
+loo_comparison <- read.csv(
+  loo_comparison_path,
+  check.names = FALSE,
+  stringsAsFactors = FALSE
+)
+loo_observations <- read.csv(
+  loo_observation_path,
+  check.names = FALSE,
+  stringsAsFactors = FALSE
+)
+loo_exact <- read.csv(
+  loo_exact_path,
+  check.names = FALSE,
+  stringsAsFactors = FALSE
+)
+stacking <- read.csv(
+  stacking_path,
+  check.names = FALSE,
+  stringsAsFactors = FALSE
+)
+
+outcome_labels <- c(
+  whole_body = "Whole-body lean soft tissue mass",
+  hypertrophy = "Direct muscle size/mass",
+  strength = "Strength",
+  "function" = "Physical function"
+)
+
+source_labels <- c(
+  original = "Original/pilot specification",
+  remedied = "Stage 1 remedy",
+  second_remedied = "Stage 2 remedy",
+  third_remedied = "Stage 3 remedy"
+)
+
+yes <- function(x) !is.na(x) & x
+models_n <- nrow(audit)
+sampling_pass_n <- sum(audit$diagnostic_pass, na.rm = TRUE)
+excluded_n <- sum(classification$exclusion_decision != "RETAIN", na.rm = TRUE)
+
+conditional_loo <- loo_comparison[
+  loo_comparison$method == "initial_conditional_psis",
+  ,
+  drop = FALSE
+]
+integrated_loo <- loo_comparison[
+  loo_comparison$method == "integrated_observation_level_psis",
+  ,
+  drop = FALSE
+]
+conditional_warning_models <- sum(
+  conditional_loo$n_pareto_k_gt_threshold > 0,
+  na.rm = TRUE
+)
+conditional_warnings <- sum(
+  conditional_loo$n_pareto_k_gt_threshold,
+  na.rm = TRUE
+)
+conditional_k_gt_one <- sum(conditional_loo$n_pareto_k_gt_1, na.rm = TRUE)
+integrated_pre_exact_warnings <- nrow(loo_exact)
+final_loo_warnings <- sum(
+  loo_outcome$total_pareto_k_warnings,
+  na.rm = TRUE
+)
+exact_refits_n <- sum(loo_outcome$exact_loo_refits, na.rm = TRUE)
+stacking_ready_n <- sum(loo_outcome$stacking_ready, na.rm = TRUE)
+stacking_weight_sums <- aggregate(
+  stacking_weight ~ outcome,
+  data = stacking,
+  FUN = sum
+)
+if (
+  nrow(stacking) != 104L ||
+    !setequal(stacking$outcome, names(outcome_labels)) ||
+    any(abs(stacking_weight_sums$stacking_weight - 1) > 1e-8)
+) {
+  stop("The final stacking-weight register is incomplete or invalid.")
+}
+positive_weight_n <- sum(stacking$stacking_weight > 0)
+
+exact_keys <- paste(
+  loo_exact$outcome,
+  loo_exact$model_index,
+  loo_exact$observation,
+  sep = "::"
+)
+observation_keys <- paste(
+  loo_observations$outcome,
+  loo_observations$model_index,
+  loo_observations$observation,
+  sep = "::"
+)
+exact_manifest_rows <- loo_observations[
+  match(exact_keys, observation_keys),
+  c("study_no", "arm_no", "outcome_no"),
+  drop = FALSE
+]
+loo_exact <- cbind(loo_exact, exact_manifest_rows)
+
+fmt_indices <- function(flag) {
+  rows <- audit[flag, c("outcome", "model_index")]
+  split_rows <- split(rows$model_index, rows$outcome)
+  paste(
+    vapply(
+      names(split_rows),
+      function(x) paste0(outcome_labels[[x]], ": ", paste(split_rows[[x]], collapse = ", ")),
+      character(1)
+    ),
+    collapse = "; "
+  )
+}
+
+modification_text <- function(row) {
+  changes <- character()
+  if (yes(row[["standardised_moderators"]])) {
+    changes <- c(changes, "age/duration z-standardised")
+  }
+  if (yes(row[["half_unit_protein"]])) {
+    changes <- c(changes, "protein represented in 0.5-g/kg/day units")
+  }
+  if (yes(row[["uncorrelated_study_effects"]])) {
+    changes <- c(changes, "study coefficient correlations removed")
+  }
+  if (yes(row[["regularised_variance_priors"]])) {
+    changes <- c(changes, "variance priors regularised")
+  }
+  if (yes(row[["targeted_smooth_prior"]])) {
+    changes <- c(
+      changes,
+      paste0("smooth SD prior Normal(0, ", row[["smooth_prior_scale"]], ")")
+    )
+  }
+  if (yes(row[["natural_spline"]])) {
+    changes <- c(changes, "thin-plate smooth replaced by natural spline (df = 3)")
+  }
+  if (!length(changes)) "No structural or scaling change" else paste(changes, collapse = "; ")
+}
+
+audit$modification <- vapply(
+  seq_len(nrow(audit)),
+  function(i) modification_text(audit[i, , drop = FALSE]),
+  character(1)
+)
+audit$Outcome <- unname(outcome_labels[audit$outcome])
+audit$Stage <- unname(source_labels[audit$source])
+audit$Controls <- sprintf(
+  "adapt_delta = %s; depth = %s",
+  format(audit$adapt_delta, trim = TRUE),
+  audit$max_treedepth
+)
+
+table_html <- function(x, caption = NULL, digits = 3) {
+  knitr::kable(
+    x,
+    format = "html",
+    caption = caption,
+    digits = digits,
+    escape = TRUE,
+    table.attr = 'class="table table-striped table-hover table-sm deviation-table"'
+  )
+}
+```
+
+```{=html}
+<style>
+:root { --accent: #365f77; --soft: #eef4f7; --ink: #20303a; }
+body { color: var(--ink); }
+h1, h2, h3 { color: #274b60; }
+.quarto-title-block .quarto-title-banner { background: linear-gradient(120deg, #274b60, #4d7d91); }
+.scope-box { border-left: .35rem solid var(--accent); background: var(--soft); padding: 1rem 1.2rem; margin: 1.25rem 0; }
+.metric-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr)); gap: .8rem; margin: 1.2rem 0; }
+.metric { background: var(--soft); border-radius: .45rem; padding: .85rem 1rem; }
+.metric strong { display: block; color: #274b60; font-size: 1.55rem; line-height: 1.2; }
+.deviation-table { font-size: .9rem; }
+.deviation-table td, .deviation-table th { vertical-align: top; }
+details { border: 1px solid #d8e2e7; border-radius: .4rem; padding: .65rem .85rem; margin: .75rem 0; }
+details summary { color: #274b60; cursor: pointer; font-weight: 600; }
+.small-note { font-size: .9rem; color: #52636c; }
+@media print { .sidebar, #TOC { display: none !important; } details { break-inside: avoid; } }
+</style>
+```
+
+::: {.scope-box}
+**Scope of this document.** This supplement records departures from the *originally preregistered `brms` primary analysis*. It deliberately does **not** cover the later Stan measurement-error models, Mundlak models, or other exploratory sensitivity analyses. Those models require a separate rationale and diagnostic record and should not be interpreted as amendments to the primary analysis described here.
+:::
+
+## Purpose and reference points
+
+This document provides an auditable account of what changed after registration, why each change was necessary, and whether the change preserved or altered the intention of the preregistered analysis. The reference points are:
+
+1. the [OSF registration](https://osf.io/w2qpx/overview), registered on 26 July 2025;
+2. the contemporaneous [`51c81ee` repository snapshot](https://github.com/jamessteeleii/protein_dose_response_meta/commit/51c81ee), which contained the worked analysis on the Nunes et al. data [@nunesSystematicReviewMetaanalysis2022]; and
+3. the final primary-analysis pipeline and its model-by-model diagnostic audit.
+
+The OSF prose is treated as the governing statement of intent. The contemporaneous code is used to resolve implementation detail and to identify cases in which the example code did not implement that intent. We use “correction” for a change needed to make the data or formula represent the registered estimand, and “deviation” for a change to an analysis choice itself. Both are disclosed below.
+
+The original text stated that there would be 28 candidate models. This was an arithmetic error: the enumerated design and the accompanying code contain **26** models—14 without a protein-by-resistance-training interaction and 12 with one. No candidate was removed to arrive at 26.
+
+## Summary
+
+```{=html}
+<div class="metric-grid">
+  <div class="metric"><strong>`r models_n`</strong>candidate model–outcome fits audited</div>
+  <div class="metric"><strong>`r sampling_pass_n`</strong>passed the final sampling/convergence rules</div>
+  <div class="metric"><strong>`r exact_refits_n`</strong>exact leave-one-out refits</div>
+  <div class="metric"><strong>`r final_loo_warnings`</strong>unresolved final Pareto-<em>k</em> warnings</div>
+</div>
+```
+
+The four outcome groups each retained all 26 candidates. Most changes corrected data construction or formula semantics, changed the numerical representation of the same predictor, increased sampler controls, or regularised weakly identified hierarchical parameters. The one functional-form substitution was **strength model 4**, for which the preregistered thin-plate spline was replaced by a natural cubic spline with three degrees of freedom after the lower-impact remedies were insufficient.
+
+All `r models_n` final fits had zero divergent transitions, zero transitions at the configured maximum tree depth, acceptable energy behaviour, $\widehat R$ values, effective sample sizes, and Monte Carlo precision. The deliberately sensitive posterior-predictive screen flagged at least one tail observation in every candidate, especially for strength and physical function, while empirical 90% predictive coverage remained broadly acceptable. The corresponding visual checks did not suggest material distribution-wide misfit. Because the flags recurred across competing dose-response forms rather than isolating particular models, they were retained as transparent descriptive warnings and did not trigger model deletion, data deletion, or post hoc selection.
+
+The subsequent leave-one-observation-out audit initially found unreliable Pareto-smoothed importance-sampling diagnostics in all `r conditional_warning_models` candidate fits. This was primarily a mismatch between observation-level prediction and a likelihood conditioned on latent study, arm, and outcome effects, rather than evidence that every dose-response model was intrinsically unstable. Analytically integrating those effects reduced `r format(conditional_warnings, big.mark = ",")` conditional high-$k$ cases to three integrated high-$k$ cases. Exact refits replaced those three approximations, including one refit repeated with a stricter Hamiltonian Monte Carlo control after a single divergence. The final audit has `r final_loo_warnings` unresolved Pareto $k>0.7$ warnings, and all `r stacking_ready_n` outcome ensembles are ready for stacking.
+
+Stacking weights were then calculated only from those corrected final LOO objects. Model-averaged predictions and contrasts use `r positive_weight_n` positively weighted candidate–outcome combinations and are represented as a posterior mixture of complete dose-response curves, preserving the dependence among predictions at different protein intakes.
+
+| Classification | What changed | Interpretation |
+|---|---|---|
+| Data/implementation correction | joins, identifiers, sample-size selection, baseline pooling, factor coding, and the centred spline knot | Preserved the registered effect-size estimand, hierarchical structure, and raw 1.6-g/kg/day knot. |
+| Numerical reparameterisation | age/duration standardisation and half-unit protein scaling | Preserved the fitted likelihood family and dose-response function; the moderator reference point changed to each outcome sample mean and is disclosed below. |
+| Diagnostic remedy | stronger sampler controls, removal of selected random-effect correlations, and targeted priors | Preserved fixed-effects functional form and substantive variables while stabilising weakly identified geometry. |
+| Functional-form deviation | natural cubic spline for strength model 4 | Changed the spline basis only after less substantive remedies failed; flexibility remained limited to three basis degrees of freedom. |
+| LOO implementation refinement | integrated observation-level predictive densities, followed by three exact case-deletion refits | Preserved the registered observation-level predictive comparison while preventing each held-out observation from contributing to the latent effects used to predict itself. |
+| Model-averaging correction | stacking weights from the corrected LOO objects and posterior-mixture sampling of complete model-specific curves | Represents uncertainty over candidate models without averaging unrelated posterior draws point by point. |
+| Inferential/reporting deviation | fewer posterior draws, no Bayes factors, and paired dose contrasts rather than derivative summaries | Shifted emphasis from precise point-null testing to estimation, predictive comparison, and directly interpretable intake contrasts. |
+
+## Registered elements retained
+
+The following core commitments were retained:
+
+- arm-based, small-sample-corrected standardised mean changes, using a pooled baseline standard deviation across randomised arms in the same study and outcome definition [@beckerSynthesizingStandardizedMeanchange1988; @morrisEstimatingEffectSizes2008];
+- imputation of unavailable pre–post correlations from observed correlations modelled on the Fisher-$z$ scale;
+- multilevel dependence for outcomes within arms within studies;
+- protein intake as the dose variable, centred at the median habitual intake in control arms;
+- resistance training, mean age, and intervention duration in the candidate structures specified at registration;
+- the raw piecewise-linear knot at 1.6 g/kg/day;
+- 26 candidate combinations of intercept-only, linear, piecewise-linear, and flexible smooth forms with the registered moderator, interaction, and study-varying structures;
+- four Markov chains and 2,000 warm-up iterations per chain; and
+- predictive comparison with approximate leave-one-out cross-validation and stacking weights as the planned model-comparison framework [@vehtariPracticalBayesianModel2017; @yaoUsingStackingAverage2018].
+
+The sampling/convergence audit described first below preceded the leave-one-out comparison: its purpose was to establish that every candidate supplied to model comparison was computationally defensible. PSIS-LOO status was therefore recorded as “not assessed” in that earlier audit rather than being silently treated as passed. The separate final LOO audit and its remedies are documented later in this supplement.
+
+## Protocol and operational deviations
+
+| Registered plan | What occurred | Reason and effect on the registered intention |
+|---|---|---|
+| Newly identified studies would be randomly allocated for duplicate extraction, with discrepancies checked by a third investigator. | Two members of the original extraction team could not complete their allocation. LR and AVM extracted their allocated studies; JS then re-extracted or checked every included study, including the studies from the earlier review. | The allocation procedure changed, but the substantive safeguard—at least two investigators checking every included study—was retained. |
+| Corresponding authors would be approached for individual participant data (IPD). | A universal IPD request was not pursued because of the time and resources required. Authors were contacted for key missing aggregate data. | The primary analysis remained an aggregate, arm-level meta-analysis. No selectively available IPD were mixed into it. |
+| Database searching was the stated identification route for the update. | Eligible reports already known to the team but not returned by the updated searches were also screened and included. | This broadened identification beyond the search yield but applied the same eligibility criteria; the supplementary route should be visible in the study-flow record. |
+| R 4.4.1 and RStudio 2023.06.1 were named. | Final preparation and modelling used R 4.4.3 and RStudio 2026.07.0. | This was a software-environment update, not an analytic decision. Package versions are locked by the project environment. |
+
+## Data preparation corrections
+
+The preregistration repository contained a worked reanalysis of the earlier Nunes et al. dataset, not a completed import and validation pipeline for the newly extracted workbook. The following issues became visible when that code was generalised. They were repaired before the primary models were interpreted.
+
+| Problem in the preregistered/example implementation | Correction in the final pipeline | Why this preserves the preregistered intention |
+|---|---|---|
+| Extracted contrast rows could be lost when they did not match an observation-derived baseline-to-follow-up row. | Extracted contrasts and the observation-derived grid were combined with a full join, followed by duplicate-key validation. | Preserves all eligible, extractable contrasts rather than making inclusion depend on table layout. |
+| Arm labels were only locally unique and could collide across studies; outcome IDs also needed stable nesting. | Explicit study-nested arm identifiers and stable study–arm–outcome identifiers were created before modelling. | Implements the registered outcomes-within-arms-within-studies hierarchy. |
+| Baseline standard deviations could be pooled within an overly local outcome identifier rather than across the randomised arms sharing a study, outcome group, method, and unit. | Pooled baseline SDs were reconstructed across eligible randomised arms at the intended study/outcome-definition level; invalid baseline $n$ or SD values were excluded from the pool. | Implements the registered Morris-style common baseline standardisation and avoids arm-specific denominators where a randomised common denominator was intended. |
+| A complete-case filter required a standard error for protein intake. That quantity is not used by the preregistered `brms` models. | Primary-analysis eligibility requires the outcome effect and variance, protein intake, resistance-training indicator, age, and duration—but not protein-intake uncertainty. | Prevents avoidable data loss and keeps the primary analysis distinct from the out-of-scope measurement-error sensitivity models. |
+| Outcome sample size could be unavailable at one time point or could differ between baseline and follow-up. | The smaller of baseline and follow-up $n$ is used when both are available; otherwise the available outcome-specific $n$ is used. | Uses the participants contributing to the contrast without discarding a contrast solely because one redundant field is absent. |
+| Missing or non-estimable inputs were not represented as an auditable set of row-level reasons. | The pipeline records separate flags for mean change, baseline SD, sample size, pre–post correlation, effect-size estimability, protein intake, resistance training, age, and duration. | Makes every analysis exclusion reproducible and prevents silent complete-case loss. |
+
+These corrections are embodied in the audited preparation changes beginning with [`0f800f5`](https://github.com/jamessteeleii/protein_dose_response_meta/commit/0f800f5) and [`c2ba07d`](https://github.com/jamessteeleii/protein_dose_response_meta/commit/c2ba07d). Commit links identify provenance; the live pipeline is the authoritative final implementation.
+
+### Corrections to model-formula semantics
+
+Three additional code changes made the formulas match the registered prose:
+
+1. **Raw knot retained after centring.** The median control intake in the final data was 1.1 g/kg/day rather than 1.12 in the worked example. The centred piecewise knot was consequently changed from 0.48 to 0.50, leaving the substantive knot at exactly 1.6 g/kg/day.
+2. **Resistance-training-specific smooths use a factor.** The example code passed a numeric 0/1 indicator to the `by` argument of the smooth. That coding can multiply one group’s smooth by zero; it does not estimate the intended separate smooths for both resistance-training levels. The final formula uses a factor-by smooth.
+3. **Study-varying smooths use a factor.** Numeric study IDs were replaced by an explicit study factor for the factor-smooth term, with the same limited basis dimension. This implements study-specific deviations rather than treating the arbitrary study number as a continuous covariate.
+
+## Genuine model and inferential deviations
+
+### Prior scale correction
+
+The registration and example code gave generic weakly regularising coefficient priors as Student-$t(3,0,10)$. On the standardised-mean-change scale, that permits implausibly large effects and was inconsistent with the text’s description of a weakly *regularising* prior. The scale was corrected to 1. This changes the prior distribution, so it is disclosed as a deviation rather than a coding-only correction. Informative priors derived from earlier outcome syntheses were otherwise retained [@steeleMetaanalysisVariationSport2023; @kirkMachineBasedResistanceTraining2024].
+
+### Sampling iterations and Bayes factors
+
+The registration stated 2,000 warm-up and 40,000 sampling iterations per chain to support precise Savage–Dickey Bayes factors. The contemporaneous example code actually specified 6,000 total iterations (2,000 warm-up and 4,000 retained). Final primary fits used 8,000 total iterations: 2,000 warm-up and **6,000 retained draws per chain**. Bayes factors were not calculated. The final analysis therefore prioritises posterior estimation, predictive checks, and registered LOO/stacking comparison rather than point-null evidence. Four chains and the registered warm-up length were retained.
+
+### Dose-response summaries
+
+The preregistration proposed model-averaged local slopes. Final reporting instead uses posterior paired contrasts across combinations of current and proposed protein intake in the pairwise heatmaps. Contrasts are more directly interpretable for nonlinear models and avoid treating a derivative at a point as a sustained change over a practical intake interval. This changes the reported summary, not the fitted candidate models or their dose-response estimand. The preregistered region of practical equivalence of $-0.1$ to 0.1 standardised units is retained for interpreting contrast magnitudes [@makowskiBayestestRDescribingEffects2019].
+
+### Moderator reparameterisation
+
+Models containing age and duration were initially expressed around the preregistered reference values of 25 years and 12 weeks. During remediation, these covariates were z-standardised separately within each outcome dataset and assigned Student-$t(3,0,0.5)$ coefficient priors. This improved geometry and made the prior comparable across variables with different units. It retains adjustment for the registered moderators, but the intercept’s conditioning point moves from exactly 25 years/12 weeks to the outcome-specific sample means. Consequently, intercepts from these models should not be described as estimates at 25 years and 12 weeks.
+
+## Diagnostic decision rules
+
+Diagnostic changes were made before using predictive model-comparison results. The same rules were applied to every model–outcome pair:
+
+| Domain | Required rule |
+|---|---|
+| Hamiltonian geometry | 0 divergent transitions; 0 transitions at the configured maximum tree depth; minimum chain E-BFMI at least 0.30 |
+| Convergence | maximum $\widehat R$ no greater than 1.01 |
+| Effective samples | minimum bulk ESS and tail ESS at least 400 |
+| Monte Carlo precision | maximum posterior MCSE/SD ratio no greater than 0.10 |
+| Predictive behaviour | 400-draw posterior predictive audit of standardised residuals, randomized PIT tails, and empirical 90% interval coverage |
+
+Predictive flags were treated differently from sampling failures. The screen was intentionally sensitive: a model was flagged if even one observation had an absolute standardised residual above 3 or a PIT value outside 0.025--0.975, or if its overall 90% interval coverage fell outside 0.80--0.98. With 261--757 observations per outcome, the occurrence of at least one tail value is not in itself a calibrated global goodness-of-fit failure. Interpretation therefore considered empirical coverage, visual predictive checks, the magnitude and recurrence of observation-level flags, and whether a pattern was localized to a model or shared across functional forms. A localized, model-specific warning could motivate further investigation; a similar warning across nearly all functional forms for the same outcome was interpreted as a descriptive indication of tail observations or remaining distributional structure, not a licence to select the most favourable dose-response curve.
+
+## Principled ordering of diagnostic remedies
+
+The remedial sequence was designed to minimise analytic discretion. A later, more substantive step was attempted only when the earlier step did not resolve the diagnosed problem.
+
+1. **Verify the data and formula implementation.** Repair joins and identifiers; make factor smooths and the 1.6-g/kg/day knot represent what was registered.
+2. **Increase sampler effort without changing the model.** Raise `adapt_delta` and, where necessary, maximum tree depth.
+3. **Use likelihood-equivalent rescaling.** Standardise age/duration and express protein in half-unit increments to improve the scale on which Hamiltonian sampling operates.
+4. **Remove weakly identified correlation parameters.** Replace selected correlated study-level coefficient structures with independent study-level coefficients while retaining their marginal heterogeneity.
+5. **Regularise only the implicated hierarchical scale.** Add progressively targeted priors to variance or smoothness parameters rather than tightening all coefficients indiscriminately.
+6. **Change the functional basis only as a last resort.** This occurred for one of 104 fits: strength model 4.
+
+This ladder preserves the fixed-effects estimand for as long as possible. It also separates computational controls from substantive changes, so that a high `adapt_delta` is not presented as if it were a new scientific model.
+
+## Model-remediation chronology
+
+### Initial pilot specification
+
+All 104 pairs were first assigned validated controls based on short pilot runs. Controls ranged from `adapt_delta = 0.99`, maximum tree depth 10 to `adapt_delta = 0.999`, maximum tree depth 15. Eight pairs used independent rather than correlated study-level coefficients, and 14 pairs received Student-$t(3,0,1)$ priors on hierarchical standard deviations or smooth standard deviations. Four pairs were rerun at the full schedule without structural change.
+
+- Uncorrelated study coefficients: `r fmt_indices(yes(audit$uncorrelated_study_effects))`.
+- Regularised variance components: `r fmt_indices(yes(audit$regularised_variance_priors))`.
+
+These lists show the *final* specification; several entries were introduced only at a later stage below.
+
+### Stage 1: systematic reparameterisation and smooth regularisation
+
+The first full-fit remedy registry contained 69 unique model–outcome pairs:
+
+- all 52 moderator-containing pairs used outcome-specific z-standardised age and duration;
+- 31 of the 32 thin-plate-spline pairs used protein in 0.5-g/kg/day units plus a half-Normal-equivalent smooth SD prior, `Normal(0, 0.5)` on the positive scale; and
+- strength model 4 used a natural cubic spline with three degrees of freedom instead of the thin-plate basis.
+
+Prior-predictive trials compared smooth SD scales 1.0, 0.5, and 0.25. The middle scale was selected before the full refits because it reduced implausible nonlinear excursions without forcing the curve to be nearly linear. This was a calibration decision about plausible curvature, not a selection based on which posterior association was most favourable.
+
+Three additional function models (13, 22, and 25) had study-level correlation parameters removed at this stage.
+
+### Stage 2: residual geometry only
+
+Only 11 pairs were refitted:
+
+- tree-depth-only cases—strength models 1, 2, 9, 16, and 19, and function models 1, 16, and 21—received sampler-control escalation without a structural change;
+- whole-body model 13 and function model 25 each had a single divergence and first received `adapt_delta = 0.999` and maximum tree depth 15, preserving their covariance structures; and
+- function model 13 had persistent divergences after study correlations had already been removed, so variance terms and its piecewise fixed/random slopes received Student-$t(3,0,0.5)$ priors.
+
+### Stage 3: localized final remedies
+
+Two function models required one final refit:
+
+- **function model 13:** the remaining divergence was localized to the study-varying second piecewise segment. Its SD received `Normal(0, 0.25)`; the fixed piecewise terms and first segment SD retained Student-$t(3,0,0.5)$ priors.
+- **function model 25:** the remaining divergence implicated the second piecewise coefficient, its study-varying SD, and the resistance-training interaction. The second-segment SD received `Normal(0, 0.25)` and the implicated fixed/interaction terms received Student-$t(3,0,0.5)$ priors.
+
+No additional candidate was changed or excluded after these two fits passed the sampling criteria.
+
+## Final diagnostic results
+
+```{r}
+#| label: tbl-stage-counts
+#| tbl-cap: "Source of the final fit used for each outcome."
+stage_counts <- as.data.frame.matrix(table(audit$Outcome, audit$Stage))
+stage_counts$Outcome <- rownames(stage_counts)
+rownames(stage_counts) <- NULL
+stage_counts <- stage_counts[, c("Outcome", intersect(unname(source_labels), names(stage_counts))), drop = FALSE]
+table_html(stage_counts)
+```
+
+All models passed the numerical sampling and convergence rules. The “warning” label in the audit refers to a sensitive posterior-predictive tail screen, not an unresolved divergent transition, convergence failure, or automatic judgment that the model is substantively inadequate.
+
+```{r}
+#| label: tbl-ppc-summary
+#| tbl-cap: "Outcome-level posterior predictive audit across the 26 candidate models."
+ppc_display <- data.frame(
+  Outcome = unname(outcome_labels[ppc$outcome]),
+  Observations = ppc$observations,
+  `Flagged in any model` = ppc$observations_flagged_in_any_model,
+  `Flagged in all models` = ppc$observations_flagged_in_all_models,
+  `90% coverage range` = sprintf("%.3f-%.3f", ppc$coverage_min, ppc$coverage_max),
+  `Maximum |residual| range` = sprintf(
+    "%.2f-%.2f", ppc$maximum_residual_min, ppc$maximum_residual_max
+  ),
+  check.names = FALSE
+)
+table_html(ppc_display)
+```
+
+All 104 model--outcome fits had empirical 90% predictive coverage within the prespecified 0.80--0.98 acceptance band. Coverage was close to nominal for strength (`r sprintf("%.3f--%.3f", ppc$coverage_min[ppc$outcome == "strength"], ppc$coverage_max[ppc$outcome == "strength"])`) and somewhat conservative for the other outcomes. Strength showed the most persistent upper-tail PIT pattern, whereas function models showed the largest individual standardised residuals. These findings indicate localized tail discrepancies rather than broad undercoverage, consistent with the visual predictive checks. They warrant transparent reporting but, considered alongside the overall coverage and their recurrence across functional forms, did not indicate further model remediation or provide a principled reason to delete an observation or dose-response candidate.
+
+The audit cannot distinguish a genuine extreme observation from an error in a source report or from remaining likelihood, variance, or dependence misspecification. Extracted values were checked against, and effect sizes calculated from, the information reported in the source publications; this verifies the extraction and calculation but not the correctness of the original reports. No value was altered or excluded solely because it was posterior-predictively unusual.
+
+## Leave-one-observation-out model-comparison audit
+
+### What was being estimated
+
+Leave-one-out cross-validation asks how well a fitted model predicts each observation when that observation is not used to fit the model. The unit held out here is one effect-size observation, **not** an entire study. Other observations from the same study, arm, or outcome definition remain available, matching the preregistered pointwise LOO comparison. The resulting expected log predictive density (ELPD) rewards predictive distributions that assign greater probability to the held-out observations; higher ELPD indicates better expected predictive performance.
+
+Fitting each candidate once per observation would have required `r nrow(loo_observations)` separate case-deletion fits across the 104-model ensemble. Pareto-smoothed importance sampling (PSIS) instead reuses draws from the full-data posterior and reweights them to approximate each leave-one-out posterior [@vehtariPracticalBayesianModel2017]. The Pareto shape diagnostic $k$ describes how difficult that reweighting is. We used the prespecified operational threshold $k>0.7$ to identify approximations that should not be accepted without remediation; $k>1$ indicates particularly unstable raw importance weights.
+
+### Why the initial conditional calculation failed
+
+The first calculation used the ordinary pointwise log likelihood returned by `brms`. For a multilevel model, that density is conditional on the sampled study-, arm-, and outcome-level effects. Those latent effects were themselves estimated with the observation that was nominally being left out. The calculation was therefore trying to approximate an observation-level deletion while continuing to condition on latent quantities partly learned from that same observation. This can make the full-data and case-deleted posteriors very different and produce large or unstable importance weights.
+
+That pattern was pervasive: all `r conditional_warning_models` candidate fits had at least one $k>0.7$ value, comprising `r format(conditional_warnings, big.mark = ",")` observation–model warnings, of which `r format(conditional_k_gt_one, big.mark = ",")` exceeded 1. The ubiquity across outcomes and functional forms, together with very large conditional effective-parameter counts, pointed to the conditional likelihood construction rather than to a few unusually influential scientific observations.
+
+### Progression of attempted remedies
+
+The approaches were evaluated in an escalating sequence so that a fast approximation was retained if it could be made reliable, and expensive exact refitting was reserved for cases that still required it.
+
+| Stage | What the method does | Why it was attempted and what happened |
+|---|---|---|
+| 1. Conditional PSIS | Reweights full-posterior draws using observation-wise likelihood values conditional on the fitted latent effects. | This is the standard fast first calculation. It exposed the widespread high-$k$ pattern described above and was not used for stacking. |
+| 2. Moment-matching pilot | Affinely transforms posterior draws for a problematic observation so their moments more closely resemble the case-deleted posterior, then repeats PSIS. | For whole-body model 1 it reduced the number of $k>0.7$ observations from 43 to 12, but the maximum remained 0.973. Moment matching improved the importance approximation but could not remove the underlying self-conditioning through the latent effects, so it was not expanded to all 104 models. |
+| 3. Partial integration pilot | Analytically averages over the nested arm and outcome random intercepts before evaluating each observation’s predictive density, while retaining the sampled study effect. | Warnings for the same pilot fell to 5 and the maximum $k$ to 0.853. This confirmed that conditioning on lower-level latent effects was a major source of the problem, but the study effect also needed to be integrated. |
+| 4. Fully integrated pilot | Averages over study, arm, and outcome random effects and evaluates the conditional distribution of each observation given the other observations in its study. | Whole-body model 1 then had no $k>0.7$ warnings and a maximum $k$ of 0.169. Representative pilots for a correlated study intercept/slope model, an uncorrelated piecewise-slope model, and a study factor-smooth model also reduced their warning counts to zero. |
+| 5. Integrated observation-level PSIS for all candidates | Applies the same Gaussian integration to each candidate’s actual study structure, including correlated or independent random slopes and study-specific smooth bases. | Across all 104 candidates, only `r integrated_pre_exact_warnings` $k>0.7$ cases remained: two whole-body cases and one hypertrophy case. Strength and physical-function candidates required no exact refits. |
+| 6. Exact case-deletion refits | Removes the flagged observation, refits the unchanged candidate model to the remaining data, and directly evaluates the held-out observation under that case-deleted posterior. | The three unreliable PSIS point estimates were replaced rather than discarded or accepted. This is computationally expensive but does not rely on importance weights for the flagged observation. |
+| 7. Geometry remedy for one exact refit | Repeats the same case-deletion fit with a more conservative Hamiltonian Monte Carlo target acceptance rate. | The first hypertrophy model-20 exact refit had one divergence. Increasing `adapt_delta` from 0.999 to 0.9999, while retaining maximum tree depth 15, removed it. The likelihood, priors, training data, four-chain schedule, and model formula were unchanged. |
+
+The integrated calculation is possible here because the primary candidates use Gaussian identity-link likelihoods with Gaussian multilevel effects. For each posterior draw, the study, arm, and outcome effects can be averaged out analytically. The calculation retains the covariance induced among observations from the same clusters: when one observation is scored, the other observations in its study still inform its conditional predictive distribution. This is therefore integrated **observation-level** LOO, not leave-one-study-out cross-validation and not a population-only prediction that ignores the remaining within-study information.
+
+### The three exact refits
+
+Each exact refit used the candidate’s final formula and priors, four chains, 2,000 warm-up iterations, and 6,000 retained iterations per chain. After deleting the one flagged row, the held-out predictive density was calculated with the same integrated Gaussian likelihood used in the ensemble-wide audit. The exact pointwise ELPD then replaced only the unreliable PSIS contribution for that observation.
+
+```{r}
+#| label: tbl-exact-loo-refits
+#| tbl-cap: "Exact observation-level LOO replacements after integrated PSIS."
+exact_display <- data.frame(
+  Outcome = unname(outcome_labels[loo_exact$outcome]),
+  Model = loo_exact$model_index,
+  Candidate = loo_exact$model_name,
+  `Held-out observation` = sprintf(
+    "%d (study %s; arm %s; outcome ID %s)",
+    loo_exact$observation,
+    loo_exact$study_no,
+    loo_exact$arm_no,
+    loo_exact$outcome_no
+  ),
+  `PSIS Pareto k` = sprintf("%.3f", loo_exact$old_psis_pareto_k),
+  `PSIS pointwise ELPD` = sprintf("%.3f", loo_exact$old_psis_elpd_loo),
+  `Exact pointwise ELPD` = sprintf("%.3f", loo_exact$exact_elpd_loo),
+  `Exact - PSIS` = sprintf("%+.3f", loo_exact$exact_minus_psis_elpd),
+  `Exact ELPD MCSE` = sprintf("%.3f", loo_exact$exact_elpd_mcse),
+  `Final refit passed` = ifelse(loo_exact$diagnostic_pass, "Yes", "No"),
+  check.names = FALSE
+)
+table_html(exact_display)
+```
+
+The two whole-body warnings concerned the same observation under models 7 and 8, but each candidate required its own case-deleted posterior. The exact-minus-PSIS changes ranged from `r sprintf("%+.3f", min(loo_exact$exact_minus_psis_elpd))` to `r sprintf("%+.3f", max(loo_exact$exact_minus_psis_elpd))` ELPD units. Exact refitting was nevertheless used because the decision rule was based on approximation reliability, not on whether the eventual numerical correction appeared small.
+
+The final hypertrophy model-20 refit had zero divergences, zero maximum-tree-depth hits, minimum E-BFMI `r sprintf("%.3f", loo_exact$minimum_ebfmi[loo_exact$outcome == "hypertrophy"])`, maximum $\widehat R$ `r sprintf("%.3f", loo_exact$maximum_rhat[loo_exact$outcome == "hypertrophy"])`, and minimum bulk and tail effective sample sizes above 2,000. Raising `adapt_delta` asks the sampler to use smaller, more cautious integration steps; it addresses numerical exploration of the same posterior and is not a new substantive model.
+
+### Final LOO status
+
+```{r}
+#| label: tbl-final-loo-status
+#| tbl-cap: "Progression from conditional PSIS to the final corrected observation-level LOO ensemble."
+loo_status <- lapply(names(outcome_labels), function(outcome_code) {
+  initial_rows <- conditional_loo[conditional_loo$outcome == outcome_code, , drop = FALSE]
+  final_row <- loo_outcome[loo_outcome$outcome == outcome_code, , drop = FALSE]
+  exact_rows <- loo_exact[loo_exact$outcome == outcome_code, , drop = FALSE]
+  pre_exact_max <- max(
+    c(final_row$maximum_pareto_k, exact_rows$old_psis_pareto_k),
+    na.rm = TRUE
+  )
+  data.frame(
+    Outcome = outcome_labels[[outcome_code]],
+    `Conditional models warned` = sum(initial_rows$n_pareto_k_gt_threshold > 0),
+    `Conditional k > 0.7` = sum(initial_rows$n_pareto_k_gt_threshold),
+    `Conditional k > 1` = sum(initial_rows$n_pareto_k_gt_1),
+    `Integrated k > 0.7 before exact refits` = nrow(exact_rows),
+    `Maximum integrated k before exact refits` = sprintf("%.3f", pre_exact_max),
+    `Exact refits` = final_row$exact_loo_refits,
+    `Final unresolved warnings` = final_row$total_pareto_k_warnings,
+    `Ready for stacking` = ifelse(final_row$stacking_ready, "Yes", "No"),
+    check.names = FALSE
+  )
+})
+loo_status <- do.call(rbind, loo_status)
+table_html(loo_status)
+```
+
+All four outcome ensembles are therefore eligible for the preregistered stacking analysis. The final LOO values differ from the initial conditional values because the predictive density was corrected to match the observation-level prediction task; they should not be interpreted as a post hoc change made to favour particular dose-response functions. No candidate formula was added, removed, or ranked during this remediation sequence.
+
+## Corrected stacking and model-averaged contrasts
+
+Stacking weights were calculated separately for each outcome from the 26 corrected final LOO objects. The implementation validates that every outcome contains the complete candidate set in model order, that all weights are finite and non-negative, and that the weights sum to one. It never recomputes the earlier conditional LOO values downstream.
+
+The earlier analysis code combined independently selected posterior draws by multiplying each model's draw by its stacking weight and summing across models. That operation does not represent the posterior distribution of a model mixture and can combine mutually unrelated draws into a synthetic curve. The final implementation instead allocates 4,000 mixture draws in proportion to the stacking weights and retains an entire population-level dose-response curve from the selected candidate for each draw. The same complete curve supplies every protein-intake value for a given draw, so uncertainty and dependence across the dose-response function are preserved. Outcome-specific random seeds make this allocation reproducible.
+
+<details><summary>Final stacking weights for all candidate models</summary>
+
+```{r}
+#| label: tbl-stacking-weights
+#| results: asis
+for (outcome_code in names(outcome_labels)) {
+  x <- stacking[stacking$outcome == outcome_code, , drop = FALSE]
+  x <- x[order(x$model_index), , drop = FALSE]
+  display <- data.frame(
+    Model = x$model_index,
+    Candidate = x$model_name,
+    `Stacking weight` = sprintf("%.6f", x$stacking_weight),
+    check.names = FALSE
+  )
+  cat("<h4>", outcome_labels[[outcome_code]], "</h4>\n\n", sep = "")
+  cat(table_html(display), "\n\n")
+}
+```
+
+</details>
+
+Posterior-mixture means and 95% quantile intervals are reported over a 0.01-g/kg/day grid. Pairwise contrasts are calculated as differences within the same mixture draw for every combination of current and proposed intake shown in the heatmaps. This replaces the preregistered local-slope summaries with directly interpretable intake contrasts while retaining the registered model set and model-comparison framework.
+
+The pairwise contrast heatmaps apply the same paired-draw calculation to every combination of current and proposed intake. Fill represents the mean proposed-minus-current contrast. For each cell, posterior probabilities are calculated for a meaningful benefit (contrast greater than 0.10 standardised units), practical equivalence (between -0.10 and 0.10), and meaningful detriment (less than -0.10). Contours identify cells attaining at least 95% posterior probability for one of those classifications. Cells outside the protein-intake range observed for the relevant resistance-training condition are retained in the data but masked from the publication plot, preventing unsupported extrapolations from being presented as classified regions.
+
+## Complete model-by-model deviation register
+
+The tables below are generated from the final audit artifacts rather than transcribed by hand. “Original/pilot specification” means the final selected fit did not require a post-pilot replacement; it does not imply that global data/formula corrections or the generic prior-scale correction were absent. The modification column reports pair-specific departures.
+
+```{r}
+#| label: tbl-full-register
+#| results: asis
+for (outcome_code in names(outcome_labels)) {
+  x <- audit[audit$outcome == outcome_code, , drop = FALSE]
+  x <- x[order(x$model_index), , drop = FALSE]
+  display <- data.frame(
+    Model = x$model_index,
+    Candidate = x$model,
+    `Final source` = x$Stage,
+    `Pair-specific modification` = x$modification,
+    Controls = x$Controls,
+    Divergences = x$divergent_transitions,
+    `Depth hits` = x$maximum_treedepth_transitions,
+    `Max R-hat` = sprintf("%.3f", x$maximum_rhat),
+    `Final decision` = "Retain",
+    check.names = FALSE
+  )
+  cat("<details><summary>", outcome_labels[[outcome_code]], " &mdash; 26 models</summary>\n\n", sep = "")
+  cat(table_html(display), "\n\n")
+  cat("</details>\n\n")
+}
+```
+
+## Interpretation and limits
+
+The final set is a diagnostically screened candidate ensemble, not a claim that every model is equally plausible or that every tail observation is well reproduced. The final integrated LOO calculations are reliable under the stated $k$ rule. The separate posterior-predictive flags remain documented as localized tail limitations, but the acceptable empirical coverage and visual checks did not indicate a general predictive failure or a need for further model or data remediation. In particular:
+
+- no candidate was removed because its substantive result was inconvenient;
+- sampling and LOO remedies were tied to explicit numerical criteria and localized diagnostics;
+- the sole basis substitution is identifiable in the register rather than hidden within a generic “convergence adjustment”;
+- the three exact LOO replacements were triggered only by $k>0.7$, and the geometry remedy did not alter the candidate formula or priors; and
+- the later measurement-error Stan models and Mundlak analyses remain exploratory sensitivity analyses outside this deviation record.
+
+This supplement should be versioned with the analysis code. Because its sampling register, LOO tables, and stacking weights are read directly from the final pipeline artifacts, rerendering will fail rather than silently publish stale results when an audit or the model-averaging output is unavailable.
+
+## Reproducibility
+
+The HTML page is built as a file target in the project’s `{targets}` pipeline. The document depends on the final diagnostic summary, definitive classification, posterior predictive outcome summary, all five tables in the final observation-level LOO audit, and the final stacking-weight register. The repository’s locked R environment and the embedded-resource HTML format allow the published page to be archived as the single self-contained file `preregistration-deviations.html`.
+
+## References

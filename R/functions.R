@@ -6,6 +6,101 @@ set_rstan_options <- function() {
   options(mc.cores = parallel::detectCores() - 1)
 }
 
+find_quarto_cli <- function() {
+  candidates <- c(
+    Sys.getenv("QUARTO_PATH", unset = ""),
+    unname(Sys.which("quarto")),
+    Sys.getenv("RSTUDIO_QUARTO", unset = "")
+  )
+
+  if (.Platform$OS.type == "windows") {
+    candidates <- c(
+      candidates,
+      file.path(
+        Sys.getenv("ProgramFiles", unset = ""),
+        "RStudio", "resources", "app", "bin", "quarto", "bin",
+        "quarto.exe"
+      ),
+      file.path(
+        Sys.getenv("ProgramFiles", unset = ""),
+        "Quarto", "bin", "quarto.exe"
+      )
+    )
+  }
+
+  candidates <- unique(candidates[nzchar(candidates)])
+  valid <- candidates[file.exists(candidates)]
+
+  if (!length(valid)) {
+    stop(
+      paste(
+        "Quarto CLI not found. Install Quarto or use an RStudio release",
+        "that bundles it before building a document target."
+      ),
+      call. = FALSE
+    )
+  }
+
+  normalizePath(valid[[1L]], winslash = "/", mustWork = TRUE)
+}
+
+render_quarto_document <- function(input, output, dependencies = character()) {
+  missing_dependencies <- dependencies[!file.exists(dependencies)]
+  if (length(missing_dependencies)) {
+    stop(
+      "Required report inputs are missing: ",
+      paste(missing_dependencies, collapse = ", "),
+      call. = FALSE
+    )
+  }
+
+  quarto <- find_quarto_cli()
+  old_quarto_r <- Sys.getenv("QUARTO_R", unset = NA_character_)
+  old_local_app_data <- Sys.getenv("LOCALAPPDATA", unset = NA_character_)
+  on.exit(
+    {
+      if (is.na(old_quarto_r)) {
+        Sys.unsetenv("QUARTO_R")
+      } else {
+        Sys.setenv(QUARTO_R = old_quarto_r)
+      }
+      if (.Platform$OS.type == "windows") {
+        if (is.na(old_local_app_data)) {
+          Sys.unsetenv("LOCALAPPDATA")
+        } else {
+          Sys.setenv(LOCALAPPDATA = old_local_app_data)
+        }
+      }
+    },
+    add = TRUE
+  )
+  Sys.setenv(QUARTO_R = normalizePath(R.home("bin"), winslash = "/"))
+  if (.Platform$OS.type == "windows") {
+    quarto_cache <- file.path("_targets", "quarto-cache")
+    dir.create(quarto_cache, recursive = TRUE, showWarnings = FALSE)
+    Sys.setenv(
+      LOCALAPPDATA = normalizePath(
+        quarto_cache,
+        winslash = "/",
+        mustWork = TRUE
+      )
+    )
+  }
+
+  status <- system2(
+    quarto,
+    args = c("render", shQuote(input)),
+    stdout = "",
+    stderr = ""
+  )
+
+  if (!identical(status, 0L) || !file.exists(output)) {
+    stop("Quarto failed to render: ", input, call. = FALSE)
+  }
+
+  normalizePath(output, winslash = "/", mustWork = TRUE)
+}
+
 # Preliminary re-analysis with Nunes et al. (https://doi.org/10.1002/jcsm.12922) lean soft tissue/muscle data ----
 
 read_prepare_nunes_data <- function(file1, file2) {
@@ -604,6 +699,10 @@ download_open_powerlifting_strength_sd <- function(url) {
 # Function to fit all candidate models
 fit_candidate_models <- function(formula, priors, data) {
   formula <- as.formula(paste0(formula))
+  # Stored preliminary priors may come from an older brms release whose
+  # `brmsprior` table included columns (for example `tag`) that are absent from
+  # the current schema. Normalise before brms combines them with default priors.
+  priors <- normalize_primary_brms_priors(priors)
   model <- brm(
     formula,
     data = data,
@@ -615,10 +714,1535 @@ fit_candidate_models <- function(formula, priors, data) {
     iter = 6000, # just for pre-reg so it doesn't take so long to run
     # iter = 42000, # so as to have 40k iterations for BF calculations
     control = list(adapt_delta = 0.99),
-    save_pars = save_pars(all = TRUE) 
+    save_pars = save_pars(all = TRUE)
   )
-  
+
   return(model)
+}
+
+# Functions to define, fit, and diagnose the primary candidate models ----
+
+make_uncorrelated_study_formula <- function(formula) {
+  updated_formula <- stringr::str_replace_all(
+    formula,
+    stringr::fixed(" | study_no)"),
+    " || study_no)"
+  )
+
+  if (identical(updated_formula, formula)) {
+    stop(
+      "Could not find a correlated study-level term to make uncorrelated.",
+      call. = FALSE
+    )
+  }
+
+  updated_formula
+}
+
+add_regularised_variance_priors <- function(priors) {
+  c(
+    priors,
+    brms::set_prior("student_t(3, 0, 1)", class = "sd"),
+    brms::set_prior("student_t(3, 0, 1)", class = "sds")
+  )
+}
+
+remove_global_primary_prior <- function(priors, class) {
+  priors[
+    !(
+      priors$class == class &
+        priors$coef == "" &
+        priors$group == ""
+    ),
+  ]
+}
+
+add_primary_standardised_moderators <- function(data) {
+  moderator_centres <- c(
+    age_centre = mean(data$age_centre),
+    duration_centre = mean(data$duration_centre)
+  )
+  moderator_scales <- c(
+    age_centre = stats::sd(data$age_centre),
+    duration_centre = stats::sd(data$duration_centre)
+  )
+
+  if (
+    any(!is.finite(moderator_centres)) ||
+      any(!is.finite(moderator_scales)) ||
+      any(moderator_scales <= 0)
+  ) {
+    stop(
+      "Age and duration could not be standardised for this outcome.",
+      call. = FALSE
+    )
+  }
+
+  data |>
+    dplyr::mutate(
+      age_outcome_z =
+        (age_centre - moderator_centres[["age_centre"]]) /
+          moderator_scales[["age_centre"]],
+      duration_outcome_z =
+        (duration_centre - moderator_centres[["duration_centre"]]) /
+          moderator_scales[["duration_centre"]]
+    ) |>
+    structure(
+      moderator_centres = moderator_centres,
+      moderator_scales = moderator_scales
+    )
+}
+
+add_primary_half_unit_protein <- function(data) {
+  dplyr::mutate(
+    data,
+    protein_intake_05 = protein_intake / 0.5
+  )
+}
+
+replace_primary_standardised_moderators <- function(formula) {
+  formula |>
+    stringr::str_replace_all(
+      "\\bage_centre\\b",
+      "age_outcome_z"
+    ) |>
+    stringr::str_replace_all(
+      "\\bduration_centre\\b",
+      "duration_outcome_z"
+    )
+}
+
+replace_primary_half_unit_protein <- function(formula) {
+  stringr::str_replace_all(
+    formula,
+    "\\bprotein_intake\\b",
+    "protein_intake_05"
+  )
+}
+
+replace_primary_tps_with_natural_spline <- function(formula) {
+  updated_formula <- stringr::str_replace(
+    formula,
+    paste0(
+      "s\\(\\s*protein_intake\\s*,\\s*",
+      "bs\\s*=\\s*['\"]tp['\"]\\s*,\\s*",
+      "k\\s*=\\s*4\\s*\\)"
+    ),
+    "splines::ns(protein_intake, df = 3)"
+  )
+
+  if (identical(updated_formula, formula)) {
+    stop(
+      "Could not find the simple TPS term to replace.",
+      call. = FALSE
+    )
+  }
+
+  updated_formula
+}
+
+add_primary_standardised_moderator_priors <- function(priors) {
+  c(
+    priors,
+    brms::set_prior(
+      "student_t(3, 0, 0.5)",
+      class = "b",
+      coef = "age_outcome_z"
+    ),
+    brms::set_prior(
+      "student_t(3, 0, 0.5)",
+      class = "b",
+      coef = "duration_outcome_z"
+    )
+  )
+}
+
+add_primary_targeted_smooth_prior <- function(
+    priors,
+    scale = 0.5
+) {
+  priors <- remove_global_primary_prior(priors, "sds")
+
+  c(
+    priors,
+    brms::set_prior(
+      paste0("normal(0, ", scale, ")"),
+      class = "sds"
+    )
+  )
+}
+
+normalize_primary_brms_priors <- function(priors) {
+  template <- as.data.frame(
+    brms::set_prior("student_t(3, 0, 1)", class = "b")
+  )
+  prior_table <- as.data.frame(priors)
+  missing_columns <- setdiff(names(template), names(prior_table))
+
+  for (column in missing_columns) {
+    prior_table[[column]] <- if (column %in% c("lb", "ub")) {
+      NA_character_
+    } else if (identical(column, "source")) {
+      "user"
+    } else {
+      ""
+    }
+  }
+
+  prior_table <- prior_table[, names(template), drop = FALSE]
+  structure(
+    prior_table,
+    class = c("brmsprior", "data.frame")
+  )
+}
+
+add_primary_piecewise_slope_priors <- function(
+    priors,
+    coefficient_scale = 0.5,
+    random_slope_scale = 0.5
+) {
+  priors <- normalize_primary_brms_priors(priors)
+  coefficient_prior <- paste0(
+    "student_t(3, 0, ", coefficient_scale, ")"
+  )
+  random_slope_prior <- paste0(
+    "student_t(3, 0, ", random_slope_scale, ")"
+  )
+  c(
+    priors,
+    brms::set_prior(
+      coefficient_prior,
+      class = "b",
+      coef = "lsplineprotein_intake0.51"
+    ),
+    brms::set_prior(
+      coefficient_prior,
+      class = "b",
+      coef = "lsplineprotein_intake0.52"
+    ),
+    brms::set_prior(
+      random_slope_prior,
+      class = "sd",
+      group = "study_no",
+      coef = "lsplineprotein_intake0.51"
+    ),
+    brms::set_prior(
+      random_slope_prior,
+      class = "sd",
+      group = "study_no",
+      coef = "lsplineprotein_intake0.52"
+    )
+  )
+}
+
+add_primary_function_tail_priors <- function(
+    priors,
+    include_interactions = FALSE,
+    coefficient_scale = 0.5,
+    first_random_slope_scale = 0.5,
+    second_random_slope_scale = 0.25
+) {
+  priors <- normalize_primary_brms_priors(priors)
+  fixed_coefficients <- c(
+    "lsplineprotein_intake0.51",
+    "lsplineprotein_intake0.52"
+  )
+  interaction_coefficients <- c(
+    "resistance_exercise_code:lsplineprotein_intake0.51",
+    "resistance_exercise_code:lsplineprotein_intake0.52"
+  )
+  coefficients_to_replace <- c(
+    fixed_coefficients,
+    if (isTRUE(include_interactions)) interaction_coefficients
+  )
+  replace <-
+    (priors$class == "b" & priors$coef %in% coefficients_to_replace) |
+    (
+      priors$class == "sd" &
+        priors$group == "study_no" &
+        priors$coef %in% fixed_coefficients
+    )
+  priors <- priors[!replace, , drop = FALSE]
+  priors <- structure(priors, class = c("brmsprior", "data.frame"))
+
+  coefficient_prior <- paste0(
+    "student_t(3, 0, ", coefficient_scale, ")"
+  )
+  priors <- c(
+    priors,
+    brms::set_prior(
+      coefficient_prior,
+      class = "b",
+      coef = fixed_coefficients[[1L]]
+    ),
+    brms::set_prior(
+      coefficient_prior,
+      class = "b",
+      coef = fixed_coefficients[[2L]]
+    ),
+    brms::set_prior(
+      paste0("student_t(3, 0, ", first_random_slope_scale, ")"),
+      class = "sd",
+      group = "study_no",
+      coef = fixed_coefficients[[1L]]
+    ),
+    brms::set_prior(
+      paste0("normal(0, ", second_random_slope_scale, ")"),
+      class = "sd",
+      group = "study_no",
+      coef = fixed_coefficients[[2L]]
+    )
+  )
+
+  if (isTRUE(include_interactions)) {
+    priors <- c(
+      priors,
+      brms::set_prior(
+        coefficient_prior,
+        class = "b",
+        coef = interaction_coefficients[[1L]]
+      ),
+      brms::set_prior(
+        coefficient_prior,
+        class = "b",
+        coef = interaction_coefficients[[2L]]
+      )
+    )
+  }
+
+  priors
+}
+
+get_primary_model_fit_specifications <- function(
+    model_names,
+    model_formulas
+) {
+  if (length(model_names) != 26L || length(model_formulas) != 26L) {
+    stop("Expected exactly 26 candidate models.", call. = FALSE)
+  }
+
+  numeric_rt_smooth <- stringr::str_detect(
+    model_formulas,
+    "by\\s*=\\s*resistance_exercise_code"
+  )
+  factor_rt_smooth <- stringr::str_detect(
+    model_formulas,
+    "by\\s*=\\s*resistance_exercise_factor"
+  )
+  numeric_study_smooth <- stringr::str_detect(
+    model_formulas,
+    "s\\(\\s*protein_intake\\s*,\\s*study_no\\s*,\\s*bs\\s*=\\s*['\"]fs['\"]"
+  )
+  factor_study_smooth <- stringr::str_detect(
+    model_formulas,
+    "s\\(\\s*protein_intake\\s*,\\s*study_factor\\s*,\\s*bs\\s*=\\s*['\"]fs['\"]"
+  )
+
+  if (
+    any(numeric_rt_smooth) ||
+      sum(factor_rt_smooth) != 4L ||
+      any(numeric_study_smooth) ||
+      sum(factor_study_smooth) != 4L
+  ) {
+    stop(
+      "The primary formulas must contain four factor-by RT smooths and ",
+      "four factor study smooths, with no numeric-by equivalents.",
+      call. = FALSE
+    )
+  }
+
+  control_groups <- tibble::tibble(
+    outcome = c(
+      rep("whole_body", 4),
+      rep("hypertrophy", 3),
+      rep("strength", 4),
+      rep("function", 4)
+    ),
+    adapt_delta = c(
+      0.99, 0.995, 0.995, 0.999,
+      0.99, 0.995, 0.999,
+      0.99, 0.995, 0.995, 0.999,
+      0.99, 0.995, 0.995, 0.999
+    ),
+    max_treedepth = c(
+      10L, 12L, 15L, 15L,
+      10L, 12L, 15L,
+      10L, 12L, 15L, 15L,
+      10L, 12L, 15L, 15L
+    ),
+    model_index = list(
+      c(1, 2, 3, 9, 15, 16, 21, 22),
+      c(4, 5, 6, 7, 8, 10, 12, 13, 14, 18, 19, 20, 24, 25),
+      11,
+      c(17, 23, 26),
+      c(1, 2, 3, 9, 10, 15, 16, 21, 22),
+      c(4, 5, 6, 7, 8, 11, 12, 13, 14, 18, 19, 20, 24, 25, 26),
+      c(17, 23),
+      c(1, 2),
+      c(6, 7, 8, 9, 10, 13, 14, 15, 16, 19, 22, 25),
+      c(3, 5, 12, 18, 21, 24),
+      c(4, 11, 17, 20, 23, 26),
+      c(1, 16),
+      c(2, 3, 4, 9, 11, 13, 14, 15, 21, 22, 25, 26),
+      c(5, 6, 7, 8, 12, 18, 19, 20, 24),
+      c(10, 17, 23)
+    )
+  ) |>
+    tidyr::unnest_longer(model_index) |>
+    dplyr::mutate(model_index = as.integer(model_index))
+
+  model_table <- tibble::tibble(
+    model_index = seq_along(model_names),
+    model_name = model_names,
+    preregistered_formula = model_formulas
+  )
+
+  specifications <- purrr::map_dfr(
+    c("whole_body", "hypertrophy", "strength", "function"),
+    ~ dplyr::mutate(model_table, outcome = .x, .before = 1)
+  ) |>
+    dplyr::left_join(
+      control_groups,
+      by = c("outcome", "model_index")
+    ) |>
+    dplyr::mutate(
+      pair = paste(outcome, model_index, sep = "_"),
+      uncorrelated_study_effects = pair %in% c(
+        "whole_body_10",
+        "strength_12", "strength_13", "strength_21", "strength_24",
+        "function_10", "function_12", "function_24"
+      ),
+      regularised_variance_priors = pair %in% c(
+        "whole_body_11", "whole_body_17", "whole_body_23", "whole_body_26",
+        "hypertrophy_11", "hypertrophy_23",
+        "strength_4", "strength_11", "strength_17", "strength_23", "strength_26",
+        "function_11", "function_17", "function_23"
+      ),
+      full_schedule_trial = pair %in% c(
+        "whole_body_3", "whole_body_16",
+        "hypertrophy_17", "hypertrophy_20"
+      ),
+      formula = purrr::map2_chr(
+        preregistered_formula,
+        uncorrelated_study_effects,
+        ~ if (.y) make_uncorrelated_study_formula(.x) else .x
+      )
+    ) |>
+    dplyr::select(-pair)
+
+  if (
+    nrow(specifications) != 104L ||
+      anyNA(specifications$adapt_delta) ||
+      anyNA(specifications$max_treedepth) ||
+      sum(specifications$uncorrelated_study_effects) != 8L ||
+      sum(specifications$regularised_variance_priors) != 14L ||
+      sum(specifications$full_schedule_trial) != 4L ||
+      any(
+        specifications$uncorrelated_study_effects &
+          specifications$regularised_variance_priors
+      )
+  ) {
+    stop("The primary model fitting registry failed validation.", call. = FALSE)
+  }
+
+  specification_list <- purrr::pmap(specifications, list)
+  names(specification_list) <- paste0(
+    specifications$outcome,
+    "_model_",
+    stringr::str_pad(specifications$model_index, 2, pad = "0")
+  )
+
+  specification_list
+}
+
+get_primary_model_remedy_specifications <- function(specifications) {
+  specification_table <- dplyr::bind_rows(specifications) |>
+    dplyr::mutate(
+      pair = paste(outcome, model_index, sep = "_"),
+      standardised_moderators = stringr::str_detect(
+        formula,
+        "\\bage_centre\\b|\\bduration_centre\\b"
+      ),
+      tps_model = stringr::str_detect(
+        formula,
+        "s\\(\\s*protein_intake\\s*,"
+      ),
+      natural_spline = outcome == "strength" & model_index == 4L,
+      half_unit_protein = tps_model & !natural_spline,
+      targeted_smooth_prior = tps_model & !natural_spline,
+      newly_uncorrelated_study_effects = pair %in% c(
+        "function_13", "function_22", "function_25"
+      ),
+      uncorrelated_study_effects =
+        uncorrelated_study_effects |
+          newly_uncorrelated_study_effects,
+      requires_refit =
+        standardised_moderators |
+          tps_model |
+          newly_uncorrelated_study_effects,
+      formula = purrr::map2_chr(
+        formula,
+        standardised_moderators,
+        ~ if (.y) {
+          replace_primary_standardised_moderators(.x)
+        } else {
+          .x
+        }
+      ),
+      formula = purrr::map2_chr(
+        formula,
+        half_unit_protein,
+        ~ if (.y) {
+          replace_primary_half_unit_protein(.x)
+        } else {
+          .x
+        }
+      ),
+      formula = purrr::map2_chr(
+        formula,
+        natural_spline,
+        ~ if (.y) {
+          replace_primary_tps_with_natural_spline(.x)
+        } else {
+          .x
+        }
+      ),
+      formula = purrr::map2_chr(
+        formula,
+        newly_uncorrelated_study_effects,
+        ~ if (.y) make_uncorrelated_study_formula(.x) else .x
+      ),
+      adapt_delta = dplyr::case_when(
+        natural_spline ~ 0.995,
+        pair %in% c("function_13", "function_22") ~ 0.999,
+        targeted_smooth_prior ~ 0.999,
+        TRUE ~ adapt_delta
+      ),
+      max_treedepth = dplyr::case_when(
+        natural_spline ~ 12L,
+        pair %in% c("function_13", "function_22") ~ 15L,
+        targeted_smooth_prior ~ 15L,
+        TRUE ~ max_treedepth
+      ),
+      smooth_prior_scale = dplyr::if_else(
+        targeted_smooth_prior,
+        0.5,
+        NA_real_
+      )
+    ) |>
+    dplyr::filter(requires_refit) |>
+    dplyr::select(-pair)
+
+  outcome_counts <- specification_table |>
+    dplyr::count(outcome) |>
+    tibble::deframe()
+
+  if (
+    nrow(specification_table) != 69L ||
+      !identical(
+        outcome_counts[c(
+          "whole_body", "hypertrophy", "strength", "function"
+        )],
+        c(
+          whole_body = 17L,
+          hypertrophy = 17L,
+          strength = 17L,
+          "function" = 18L
+        )
+      ) ||
+      sum(specification_table$standardised_moderators) != 52L ||
+      sum(specification_table$half_unit_protein) != 31L ||
+      sum(specification_table$natural_spline) != 1L ||
+      sum(specification_table$targeted_smooth_prior) != 31L ||
+      sum(
+        specification_table$newly_uncorrelated_study_effects
+      ) != 3L ||
+      any(
+        specification_table$standardised_moderators &
+          stringr::str_detect(
+            specification_table$formula,
+            "\\bage_centre\\b|\\bduration_centre\\b"
+          )
+      ) ||
+      any(
+        specification_table$half_unit_protein &
+          stringr::str_detect(
+            specification_table$formula,
+            "\\bprotein_intake\\b"
+          )
+      )
+  ) {
+    stop(
+      "The primary post-pilot remedy registry failed validation.",
+      call. = FALSE
+    )
+  }
+
+  specification_list <- purrr::pmap(specification_table, list)
+  names(specification_list) <- paste0(
+    specification_table$outcome,
+    "_model_",
+    stringr::str_pad(
+      specification_table$model_index,
+      2,
+      pad = "0"
+    )
+  )
+
+  specification_list
+}
+
+select_primary_model_remedy_specifications <- function(
+    specifications,
+    outcome
+) {
+  selected <- purrr::keep(
+    specifications,
+    ~ identical(.x$outcome, outcome)
+  )
+
+  expected <- if (identical(outcome, "function")) 18L else 17L
+
+  if (length(selected) != expected) {
+    stop(
+      "Expected ", expected,
+      " remedied specifications for outcome: ",
+      outcome,
+      call. = FALSE
+    )
+  }
+
+  selected
+}
+
+get_primary_model_second_remedy_specifications <- function(
+    primary_specifications,
+    first_remedy_specifications
+) {
+  primary_table <- dplyr::bind_rows(primary_specifications) |>
+    dplyr::mutate(remedy_stage = 0L)
+  first_remedy_table <- dplyr::bind_rows(first_remedy_specifications) |>
+    dplyr::mutate(remedy_stage = 1L)
+
+  current_table <- dplyr::bind_rows(
+    primary_table,
+    first_remedy_table
+  ) |>
+    dplyr::arrange(outcome, model_index, remedy_stage) |>
+    dplyr::group_by(outcome, model_index) |>
+    dplyr::slice_tail(n = 1L) |>
+    dplyr::ungroup() |>
+    dplyr::mutate(
+      pair = paste(outcome, model_index, sep = "_"),
+      standardised_moderators = dplyr::coalesce(
+        standardised_moderators,
+        FALSE
+      ),
+      half_unit_protein = dplyr::coalesce(
+        half_unit_protein,
+        FALSE
+      ),
+      natural_spline = dplyr::coalesce(natural_spline, FALSE),
+      targeted_smooth_prior = dplyr::coalesce(
+        targeted_smooth_prior,
+        FALSE
+      ),
+      newly_uncorrelated_study_effects = dplyr::coalesce(
+        newly_uncorrelated_study_effects,
+        FALSE
+      )
+    )
+
+  remedy_pairs <- c(
+    "whole_body_13",
+    "strength_1", "strength_2", "strength_9", "strength_16",
+    "strength_19",
+    "function_1", "function_13", "function_16", "function_21",
+    "function_25"
+  )
+
+  specification_table <- current_table |>
+    dplyr::filter(pair %in% remedy_pairs) |>
+    dplyr::mutate(
+      adapt_delta = dplyr::case_when(
+        pair %in% c("whole_body_13", "function_25") ~ 0.999,
+        TRUE ~ adapt_delta
+      ),
+      max_treedepth = dplyr::case_when(
+        pair %in% c(
+          "function_1", "function_16",
+          "strength_1", "strength_2"
+        ) ~ 12L,
+        TRUE ~ 15L
+      ),
+      regularised_variance_priors = dplyr::if_else(
+        pair == "function_13",
+        TRUE,
+        regularised_variance_priors
+      ),
+      targeted_piecewise_slope_priors = pair == "function_13",
+      second_remedy = TRUE,
+      requires_refit = TRUE,
+      second_remedy_reason = dplyr::case_when(
+        pair == "whole_body_13" ~ paste(
+          "one divergence; first sampler-only escalation before changing",
+          "the random-effect covariance structure"
+        ),
+        pair == "function_13" ~ paste(
+          "persistent divergences after stringent sampler controls;",
+          "regularise piecewise slopes and their study-level SDs"
+        ),
+        pair == "function_25" ~ paste(
+          "divergences; first escalate sampler controls before targeted",
+          "interaction/random-slope regularisation"
+        ),
+        TRUE ~ "maximum-treedepth saturation; depth-only escalation"
+      )
+    ) |>
+    dplyr::select(-pair, -remedy_stage)
+
+  specification_pairs <- paste(
+    specification_table$outcome,
+    specification_table$model_index,
+    sep = "_"
+  )
+  expected_adapt_delta <- c(
+    whole_body_13 = 0.999,
+    strength_1 = 0.99,
+    strength_2 = 0.99,
+    strength_9 = 0.995,
+    strength_16 = 0.995,
+    strength_19 = 0.995,
+    function_1 = 0.99,
+    function_13 = 0.999,
+    function_16 = 0.99,
+    function_21 = 0.995,
+    function_25 = 0.999
+  )
+  expected_max_treedepth <- c(
+    whole_body_13 = 15L,
+    strength_1 = 12L,
+    strength_2 = 12L,
+    strength_9 = 15L,
+    strength_16 = 15L,
+    strength_19 = 15L,
+    function_1 = 12L,
+    function_13 = 15L,
+    function_16 = 12L,
+    function_21 = 15L,
+    function_25 = 15L
+  )
+
+  function_13 <- specification_table |>
+    dplyr::filter(outcome == "function", model_index == 13L)
+
+  if (
+    nrow(specification_table) != 11L ||
+      !setequal(specification_pairs, remedy_pairs) ||
+      anyDuplicated(specification_pairs) ||
+      !identical(
+        unname(specification_table$adapt_delta),
+        unname(expected_adapt_delta[specification_pairs])
+      ) ||
+      !identical(
+        unname(specification_table$max_treedepth),
+        unname(expected_max_treedepth[specification_pairs])
+      ) ||
+      nrow(function_13) != 1L ||
+      !isTRUE(function_13$uncorrelated_study_effects) ||
+      !isTRUE(function_13$standardised_moderators) ||
+      !isTRUE(function_13$regularised_variance_priors) ||
+      !isTRUE(function_13$targeted_piecewise_slope_priors) ||
+      sum(specification_table$targeted_piecewise_slope_priors) != 1L ||
+      !all(specification_table$second_remedy) ||
+      !all(specification_table$requires_refit)
+  ) {
+    stop(
+      "The second-stage primary remedy registry failed validation.",
+      call. = FALSE
+    )
+  }
+
+  specification_list <- purrr::pmap(specification_table, list)
+  names(specification_list) <- paste0(
+    specification_table$outcome,
+    "_model_",
+    stringr::str_pad(
+      specification_table$model_index,
+      2,
+      pad = "0"
+    )
+  )
+
+  specification_list
+}
+
+select_primary_model_second_remedy_specifications <- function(
+    specifications,
+    outcome
+) {
+  selected <- purrr::keep(
+    specifications,
+    ~ identical(.x$outcome, outcome)
+  )
+  expected <- switch(
+    outcome,
+    whole_body = 1L,
+    strength = 5L,
+    "function" = 5L,
+    0L
+  )
+
+  if (length(selected) != expected) {
+    stop(
+      "Expected ", expected,
+      " second-stage remedies for outcome: ", outcome,
+      call. = FALSE
+    )
+  }
+
+  selected
+}
+
+get_primary_model_third_remedy_specifications <- function(
+    second_remedy_specifications
+) {
+  specification_table <- dplyr::bind_rows(
+    second_remedy_specifications
+  ) |>
+    dplyr::filter(
+      outcome == "function",
+      model_index %in% c(13L, 25L)
+    ) |>
+    dplyr::mutate(
+      regularised_variance_priors = TRUE,
+      targeted_piecewise_slope_priors = TRUE,
+      targeted_function_tail_priors = TRUE,
+      targeted_piecewise_interaction_priors = model_index == 25L,
+      third_remedy = TRUE,
+      requires_refit = TRUE,
+      third_remedy_reason = dplyr::case_when(
+        model_index == 13L ~ paste(
+          "one residual divergence localised to the weakly identified",
+          "second-segment study-slope SD; strengthen that SD prior"
+        ),
+        model_index == 25L ~ paste(
+          "one residual divergence localised chiefly to the second",
+          "piecewise coefficient and study-slope SD; apply targeted",
+          "tail-piece and interaction regularisation"
+        )
+      )
+    )
+
+  expected_indices <- c(13L, 25L)
+  if (
+    nrow(specification_table) != 2L ||
+      !identical(sort(specification_table$model_index), expected_indices) ||
+      any(specification_table$outcome != "function") ||
+      any(specification_table$adapt_delta != 0.999) ||
+      any(specification_table$max_treedepth != 15L) ||
+      !all(specification_table$uncorrelated_study_effects) ||
+      !all(specification_table$standardised_moderators) ||
+      !all(specification_table$regularised_variance_priors) ||
+      !all(specification_table$targeted_piecewise_slope_priors) ||
+      !all(specification_table$targeted_function_tail_priors) ||
+      !identical(
+        specification_table$targeted_piecewise_interaction_priors[
+          order(specification_table$model_index)
+        ],
+        c(FALSE, TRUE)
+      ) ||
+      !all(specification_table$third_remedy) ||
+      !all(specification_table$requires_refit)
+  ) {
+    stop(
+      "The third-stage primary remedy registry failed validation.",
+      call. = FALSE
+    )
+  }
+
+  specification_list <- purrr::pmap(specification_table, list)
+  names(specification_list) <- paste0(
+    specification_table$outcome,
+    "_model_",
+    stringr::str_pad(specification_table$model_index, 2, pad = "0")
+  )
+  specification_list
+}
+
+select_primary_model_third_remedy_specifications <- function(
+    specifications,
+    outcome
+) {
+  selected <- purrr::keep(
+    specifications,
+    ~ identical(.x$outcome, outcome)
+  )
+  expected <- if (identical(outcome, "function")) 2L else 0L
+
+  if (length(selected) != expected) {
+    stop(
+      "Expected ", expected,
+      " third-stage remedies for outcome: ", outcome,
+      call. = FALSE
+    )
+  }
+
+  selected
+}
+
+select_primary_model_fit_specifications <- function(
+    specifications,
+    outcome
+) {
+  selected <- purrr::keep(
+    specifications,
+    ~ identical(.x$outcome, outcome)
+  )
+
+  if (length(selected) != 26L) {
+    stop("Expected 26 specifications for outcome: ", outcome, call. = FALSE)
+  }
+
+  selected
+}
+
+fit_primary_candidate_model <- function(
+    specification,
+    priors,
+    data,
+    chains = 4,
+    cores = 4,
+    warmup = 2000,
+    iter = 8000,
+    seed = 1988
+) {
+  if (iter - warmup != 6000L) {
+    stop("Primary fits must retain 6000 iterations per chain.", call. = FALSE)
+  }
+
+  required_variables <- c(
+    "yi", "vi", "protein_intake", "resistance_exercise_code",
+    "resistance_exercise_factor", "study_factor", "study_no",
+    "arm_no", "outcome_no", "age_centre", "duration_centre"
+  )
+
+  missing_variables <- setdiff(required_variables, names(data))
+  if (length(missing_variables) > 0L) {
+    stop(
+      "The model data are missing: ",
+      paste(missing_variables, collapse = ", "),
+      call. = FALSE
+    )
+  }
+
+  if (
+    !is.factor(data$resistance_exercise_factor) ||
+      !is.factor(data$study_factor)
+  ) {
+    stop(
+      "resistance_exercise_factor and study_factor must both be factors.",
+      call. = FALSE
+    )
+  }
+
+  if (isTRUE(specification$regularised_variance_priors)) {
+    priors <- add_regularised_variance_priors(priors)
+  }
+
+  model <- brms::brm(
+    formula = stats::as.formula(specification$formula),
+    data = data,
+    prior = priors,
+    chains = chains,
+    cores = cores,
+    seed = seed,
+    warmup = warmup,
+    iter = iter,
+    control = list(
+      adapt_delta = specification$adapt_delta,
+      max_treedepth = specification$max_treedepth
+    ),
+    save_pars = brms::save_pars(all = TRUE)
+  )
+
+  list(
+    outcome = specification$outcome,
+    model_index = specification$model_index,
+    model_name = specification$model_name,
+    specification = specification,
+    model = model
+  )
+}
+
+prepare_primary_remedied_candidate <- function(
+    specification,
+    priors,
+    data
+) {
+  if (!isTRUE(specification$requires_refit)) {
+    stop(
+      "Only post-pilot replacement models can use this function.",
+      call. = FALSE
+    )
+  }
+
+  if (isTRUE(specification$regularised_variance_priors)) {
+    priors <- add_regularised_variance_priors(priors)
+  }
+
+  if (isTRUE(specification$standardised_moderators)) {
+    data <- add_primary_standardised_moderators(data)
+    priors <- add_primary_standardised_moderator_priors(priors)
+  }
+
+  if (isTRUE(specification$half_unit_protein)) {
+    data <- add_primary_half_unit_protein(data)
+  }
+
+  if (isTRUE(specification$natural_spline)) {
+    priors <- remove_global_primary_prior(priors, "sds")
+  }
+
+  if (isTRUE(specification$targeted_smooth_prior)) {
+    priors <- add_primary_targeted_smooth_prior(
+      priors,
+      scale = specification$smooth_prior_scale
+    )
+  }
+
+  list(
+    formula = specification$formula,
+    priors = priors,
+    data = data
+  )
+}
+
+fit_primary_remedied_candidate_model <- function(
+    specification,
+    priors,
+    data,
+    chains = 4,
+    cores = 4,
+    warmup = 2000,
+    iter = 8000,
+    seed = 1988
+) {
+  if (iter - warmup != 6000L) {
+    stop("Primary fits must retain 6000 iterations per chain.", call. = FALSE)
+  }
+
+  required_variables <- c(
+    "yi", "vi", "protein_intake", "resistance_exercise_code",
+    "resistance_exercise_factor", "study_factor", "study_no",
+    "arm_no", "outcome_no", "age_centre", "duration_centre"
+  )
+
+  missing_variables <- setdiff(required_variables, names(data))
+  if (length(missing_variables) > 0L) {
+    stop(
+      "The model data are missing: ",
+      paste(missing_variables, collapse = ", "),
+      call. = FALSE
+    )
+  }
+
+  if (
+    !is.factor(data$resistance_exercise_factor) ||
+      !is.factor(data$study_factor)
+  ) {
+    stop(
+      "resistance_exercise_factor and study_factor must both be factors.",
+      call. = FALSE
+    )
+  }
+
+  prepared <- prepare_primary_remedied_candidate(
+    specification = specification,
+    priors = priors,
+    data = data
+  )
+
+  model <- brms::brm(
+    formula = stats::as.formula(prepared$formula),
+    data = prepared$data,
+    prior = prepared$priors,
+    chains = chains,
+    cores = cores,
+    seed = seed,
+    warmup = warmup,
+    iter = iter,
+    control = list(
+      adapt_delta = specification$adapt_delta,
+      max_treedepth = specification$max_treedepth
+    ),
+    save_pars = brms::save_pars(all = TRUE)
+  )
+
+  list(
+    outcome = specification$outcome,
+    model_index = specification$model_index,
+    model_name = specification$model_name,
+    specification = specification,
+    model = model
+  )
+}
+
+fit_primary_second_remedied_candidate_model <- function(
+    specification,
+    priors,
+    data,
+    chains = 4,
+    cores = 4,
+    warmup = 2000,
+    iter = 8000,
+    seed = 1988
+) {
+  if (!isTRUE(specification$second_remedy)) {
+    stop(
+      "Only second-stage primary remedies can use this function.",
+      call. = FALSE
+    )
+  }
+
+  priors <- normalize_primary_brms_priors(priors)
+
+  if (isTRUE(specification$targeted_piecewise_slope_priors)) {
+    priors <- add_primary_piecewise_slope_priors(priors)
+  }
+
+  # Function model 13 has random-effect SDs but no smooth-term SD. Apply the
+  # regularising global SD prior directly so the generic first-stage helper
+  # does not add an inapplicable class = "sds" prior.
+  fitting_specification <- specification
+  if (
+    isTRUE(specification$targeted_piecewise_slope_priors) &&
+      isTRUE(specification$regularised_variance_priors)
+  ) {
+    priors <- c(
+      priors,
+      brms::set_prior("student_t(3, 0, 1)", class = "sd")
+    )
+    fitting_specification$regularised_variance_priors <- FALSE
+  }
+
+  fitted <- fit_primary_remedied_candidate_model(
+    specification = fitting_specification,
+    priors = priors,
+    data = data,
+    chains = chains,
+    cores = cores,
+    warmup = warmup,
+    iter = iter,
+    seed = seed
+  )
+
+  fitted$specification <- specification
+  fitted
+}
+
+fit_primary_third_remedied_candidate_model <- function(
+    specification,
+    priors,
+    data,
+    chains = 4,
+    cores = 4,
+    warmup = 2000,
+    iter = 8000,
+    seed = 1988
+) {
+  if (
+    !isTRUE(specification$third_remedy) ||
+      !isTRUE(specification$targeted_function_tail_priors)
+  ) {
+    stop(
+      "Only third-stage function remedies can use this function.",
+      call. = FALSE
+    )
+  }
+
+  priors <- add_primary_function_tail_priors(
+    priors = priors,
+    include_interactions =
+      specification$targeted_piecewise_interaction_priors
+  )
+  priors <- c(
+    priors,
+    brms::set_prior("student_t(3, 0, 1)", class = "sd")
+  )
+
+  fitting_specification <- specification
+  fitting_specification$regularised_variance_priors <- FALSE
+  fitted <- fit_primary_remedied_candidate_model(
+    specification = fitting_specification,
+    priors = priors,
+    data = data,
+    chains = chains,
+    cores = cores,
+    warmup = warmup,
+    iter = iter,
+    seed = seed
+  )
+
+  fitted$specification <- specification
+  fitted
+}
+
+merge_primary_candidate_fits <- function(
+    existing_candidates,
+    replacement_candidates
+) {
+  if (length(existing_candidates) != 26L) {
+    stop("Expected 26 existing candidate models.", call. = FALSE)
+  }
+
+  existing_indices <- purrr::map_int(
+    existing_candidates,
+    "model_index"
+  )
+  replacement_indices <- purrr::map_int(
+    replacement_candidates,
+    "model_index"
+  )
+  outcomes <- unique(c(
+    purrr::map_chr(existing_candidates, "outcome"),
+    purrr::map_chr(replacement_candidates, "outcome")
+  ))
+  expected_replacements <- if (
+    identical(outcomes, "function")
+  ) {
+    18L
+  } else {
+    17L
+  }
+
+  if (
+    length(outcomes) != 1L ||
+      !setequal(existing_indices, seq_len(26L)) ||
+      anyDuplicated(replacement_indices) ||
+      length(replacement_indices) != expected_replacements ||
+      !all(replacement_indices %in% existing_indices) ||
+      !all(purrr::map_lgl(
+        replacement_candidates,
+        ~ isTRUE(.x$specification$requires_refit)
+      ))
+  ) {
+    stop(
+      "The primary replacement-model set failed validation.",
+      call. = FALSE
+    )
+  }
+
+  candidates <- stats::setNames(
+    existing_candidates,
+    existing_indices
+  )
+  candidates[as.character(replacement_indices)] <-
+    replacement_candidates
+  candidates <- candidates[order(as.integer(names(candidates)))]
+
+  if (!identical(
+    unname(purrr::map_int(candidates, "model_index")),
+    1:26
+  )) {
+    stop(
+      "The merged primary model set failed validation.",
+      call. = FALSE
+    )
+  }
+
+  unname(candidates)
+}
+
+overlay_primary_candidate_fits <- function(
+    existing_candidates,
+    replacement_candidates,
+    expected_replacements
+) {
+  if (length(existing_candidates) != 26L) {
+    stop("Expected 26 existing candidate models.", call. = FALSE)
+  }
+
+  existing_indices <- purrr::map_int(existing_candidates, "model_index")
+  replacement_indices <- purrr::map_int(
+    replacement_candidates,
+    "model_index"
+  )
+  outcomes <- unique(c(
+    purrr::map_chr(existing_candidates, "outcome"),
+    purrr::map_chr(replacement_candidates, "outcome")
+  ))
+
+  if (
+    length(outcomes) != 1L ||
+      !setequal(existing_indices, seq_len(26L)) ||
+      anyDuplicated(replacement_indices) ||
+      length(replacement_indices) != expected_replacements ||
+      !all(replacement_indices %in% existing_indices) ||
+      !all(purrr::map_lgl(
+        replacement_candidates,
+        ~ isTRUE(.x$specification$second_remedy)
+      ))
+  ) {
+    stop(
+      "The second-stage replacement-model set failed validation.",
+      call. = FALSE
+    )
+  }
+
+  candidates <- stats::setNames(existing_candidates, existing_indices)
+  candidates[as.character(replacement_indices)] <- replacement_candidates
+  candidates <- candidates[order(as.integer(names(candidates)))]
+
+  if (!identical(
+    unname(purrr::map_int(candidates, "model_index")),
+    1:26
+  )) {
+    stop(
+      "The second-stage merged model set failed validation.",
+      call. = FALSE
+    )
+  }
+
+  unname(candidates)
+}
+
+overlay_primary_third_remedied_candidate_fits <- function(
+    existing_candidates,
+    replacement_candidates
+) {
+  if (length(existing_candidates) != 26L) {
+    stop("Expected 26 existing candidate models.", call. = FALSE)
+  }
+
+  # Dynamic `targets` branches arrive as named lists. Remove those storage
+  # names before strict value comparisons so valid model indices are not
+  # rejected solely because they carry branch-name attributes.
+  existing_indices <- unname(
+    purrr::map_int(existing_candidates, "model_index")
+  )
+  replacement_indices <- unname(purrr::map_int(
+    replacement_candidates,
+    "model_index"
+  ))
+  outcomes <- unname(unique(c(
+    purrr::map_chr(existing_candidates, "outcome"),
+    purrr::map_chr(replacement_candidates, "outcome")
+  )))
+
+  if (
+    !identical(outcomes, "function") ||
+      !setequal(existing_indices, seq_len(26L)) ||
+      !identical(sort(replacement_indices), c(13L, 25L)) ||
+      anyDuplicated(replacement_indices) ||
+      !all(purrr::map_lgl(
+        replacement_candidates,
+        ~ isTRUE(.x$specification$third_remedy)
+      ))
+  ) {
+    stop(
+      "The third-stage replacement-model set failed validation.",
+      call. = FALSE
+    )
+  }
+
+  candidates <- stats::setNames(existing_candidates, existing_indices)
+  candidates[as.character(replacement_indices)] <- replacement_candidates
+  candidates <- candidates[order(as.integer(names(candidates)))]
+
+  if (!identical(
+    unname(purrr::map_int(candidates, "model_index")),
+    1:26
+  )) {
+    stop(
+      "The third-stage merged model set failed validation.",
+      call. = FALSE
+    )
+  }
+
+  unname(candidates)
+}
+
+assemble_primary_candidate_models <- function(fitted_candidates) {
+  if (length(fitted_candidates) != 26L) {
+    stop("Expected 26 completed candidate models.", call. = FALSE)
+  }
+
+  model_indices <- purrr::map_int(fitted_candidates, "model_index")
+  fitted_candidates <- fitted_candidates[order(model_indices)]
+
+  models <- purrr::map(fitted_candidates, "model")
+  names(models) <- purrr::map_chr(fitted_candidates, "model_name")
+
+  if (anyDuplicated(names(models)) || !all(purrr::map_lgl(models, inherits, "brmsfit"))) {
+    stop("The assembled candidate model list failed validation.", call. = FALSE)
+  }
+
+  models
+}
+
+safe_diagnostic_minimum <- function(x) {
+  if (length(x) == 0L || all(is.na(x))) {
+    return(NA_real_)
+  }
+
+  min(x, na.rm = TRUE)
+}
+
+safe_diagnostic_maximum <- function(x) {
+  if (length(x) == 0L || all(is.na(x))) {
+    return(NA_real_)
+  }
+
+  max(x, na.rm = TRUE)
+}
+
+get_primary_candidate_model_diagnostics <- function(
+    fitted_candidate,
+    ppc_draws = 400
+) {
+  model <- fitted_candidate$model
+  specification <- fitted_candidate$specification
+
+  nuts <- brms::nuts_params(model) |>
+    tibble::as_tibble()
+
+  energy_diagnostics <- nuts |>
+    dplyr::filter(Parameter == "energy__") |>
+    dplyr::group_by(Chain) |>
+    dplyr::summarise(
+      ebfmi = mean(diff(Value)^2) / stats::var(Value),
+      .groups = "drop"
+    )
+
+  divergent_transitions <- nuts |>
+    dplyr::filter(Parameter == "divergent__") |>
+    dplyr::summarise(value = sum(Value)) |>
+    dplyr::pull(value)
+
+  maximum_treedepth_transitions <- nuts |>
+    dplyr::filter(Parameter == "treedepth__") |>
+    dplyr::summarise(
+      value = sum(Value >= specification$max_treedepth)
+    ) |>
+    dplyr::pull(value)
+
+  model_variables <- posterior::variables(model)
+  monitored_variables <- model_variables[
+    !stringr::str_detect(
+      model_variables,
+      "^(lp__|lprior$|log_lik\\[)"
+    )
+  ]
+
+  parameter_summary <- posterior::as_draws_array(
+    model,
+    variable = monitored_variables
+  ) |>
+    posterior::summarise_draws(
+      "mean", "sd", "rhat", "ess_bulk", "ess_tail", "mcse_mean"
+    ) |>
+    tibble::as_tibble() |>
+    dplyr::mutate(mcse_sd_ratio = mcse_mean / sd)
+
+  replicated <- brms::posterior_predict(model, ndraws = ppc_draws)
+  expected <- brms::posterior_epred(model, ndraws = ppc_draws)
+  observed <- model$data$yi
+  predictive_sd <- apply(replicated, 2, stats::sd)
+  standardised_residual <- (
+    observed - colMeans(expected)
+  ) / predictive_sd
+  pit <- colMeans(sweep(replicated, 2, observed, FUN = "<="))
+  predictive_interval <- apply(
+    replicated,
+    2,
+    stats::quantile,
+    probs = c(0.05, 0.95)
+  )
+
+  summary <- tibble::tibble(
+    outcome = fitted_candidate$outcome,
+    model_index = fitted_candidate$model_index,
+    model = fitted_candidate$model_name,
+    source = infer_primary_candidate_source(specification),
+    uncorrelated_study_effects =
+      specification$uncorrelated_study_effects,
+    regularised_variance_priors =
+      specification$regularised_variance_priors,
+    full_schedule_trial = specification$full_schedule_trial,
+    standardised_moderators =
+      isTRUE(specification$standardised_moderators),
+    half_unit_protein =
+      isTRUE(specification$half_unit_protein),
+    natural_spline =
+      isTRUE(specification$natural_spline),
+    targeted_smooth_prior =
+      isTRUE(specification$targeted_smooth_prior),
+    smooth_prior_scale = if (
+      is.null(specification$smooth_prior_scale)
+    ) {
+      NA_real_
+    } else {
+      specification$smooth_prior_scale
+    },
+    adapt_delta = specification$adapt_delta,
+    max_treedepth = specification$max_treedepth,
+    divergent_transitions = divergent_transitions,
+    maximum_treedepth_transitions = maximum_treedepth_transitions,
+    minimum_ebfmi = safe_diagnostic_minimum(energy_diagnostics$ebfmi),
+    maximum_rhat = safe_diagnostic_maximum(parameter_summary$rhat),
+    minimum_bulk_ess = safe_diagnostic_minimum(parameter_summary$ess_bulk),
+    minimum_tail_ess = safe_diagnostic_minimum(parameter_summary$ess_tail),
+    maximum_mcse_sd_ratio =
+      safe_diagnostic_maximum(parameter_summary$mcse_sd_ratio),
+    maximum_absolute_standardised_residual =
+      safe_diagnostic_maximum(abs(standardised_residual)),
+    pit_below_0.025 = sum(pit < 0.025),
+    pit_above_0.975 = sum(pit > 0.975),
+    predictive_90_interval_coverage = mean(
+      observed >= predictive_interval[1, ] &
+        observed <= predictive_interval[2, ]
+    ),
+    geometry_pass = divergent_transitions == 0L &&
+      maximum_treedepth_transitions == 0L &&
+      minimum_ebfmi >= 0.30,
+    convergence_pass = maximum_rhat <= 1.01 &&
+      minimum_bulk_ess >= 400 &&
+      minimum_tail_ess >= 400 &&
+      maximum_mcse_sd_ratio <= 0.10,
+    diagnostic_pass = geometry_pass && convergence_pass
+  )
+
+  parameter_failures <- parameter_summary |>
+    dplyr::filter(
+      rhat > 1.01 |
+        ess_bulk < 400 |
+        ess_tail < 400 |
+        mcse_sd_ratio > 0.10
+    )
+
+  list(
+    summary = summary,
+    parameter_summary = parameter_summary,
+    parameter_failures = parameter_failures,
+    energy_diagnostics = energy_diagnostics,
+    standardised_residuals = dplyr::bind_cols(
+      tibble::tibble(
+        outcome = fitted_candidate$outcome,
+        model_index = fitted_candidate$model_index,
+        observation = seq_along(observed)
+      ),
+      tibble::as_tibble(model$data[, intersect(
+        c("study_no", "arm_no", "outcome_no"),
+        names(model$data)
+      ), drop = FALSE]),
+      tibble::tibble(
+        observed = observed,
+        standardised_residual = standardised_residual,
+        pit = pit
+      )
+    )
+  )
 }
 
 # Functions to generate weights and obtain model averaged preds/slopes
@@ -881,7 +2505,7 @@ plot_preds_slopes <- function(data, preds, slopes) {
   combined_plots <- (preds_plot / slopes_plot) +
     plot_annotation(
       tag_levels = "i",
-      title = "Dose-response effects of protein intake on lean mass change",
+      title = "Dose-response association of protein intake with lean mass change",
       subtitle = "Bayesian model averaging with LOO-CV stacking weights",
       caption = "Note, reanalysis of Nunes et al. (DOI: 10.1002/jcsm.12922) for purpose of pre-registration of analysis code pipelines"
     ) &
@@ -1404,6 +3028,12 @@ prepare_protein_data <- function(protein_data){
     resistance_exercise_code = case_when(
       resistance_exercise_yes_no == "yes" ~ 0,
       resistance_exercise_yes_no == "no" ~ 1,
+    ),
+    # Add explicit factor coding for factor-by smooths while retaining the
+    # numeric coding used for the other interaction models
+    resistance_exercise_factor = factor(
+      resistance_exercise_yes_no,
+      levels = c("yes", "no")
     )
   ) |>
 
@@ -1645,582 +3275,6 @@ get_kirk_function_priors <- function() {
 }
 
 
-get_model_avg_preds_new <- function(models, weights, data) {
-  
-  models_new <- models
-  weights_stacking_new <- weights
-  data_new <- data
-  protein_median <- data$protein_median[1]
-  
-  preds <- map(models_new, ~ predictions(.x, 
-                                           re_formula= NA,
-                                           newdata   = datagrid(
-                                             resistance_exercise_code = c(0,1),
-                                             protein_intake = seq(min(data_new$protein_intake, na.rm = TRUE), max(data_new$protein_intake, na.rm = TRUE), by = 0.01),
-                                             age_centre = 0,
-                                             duration_centre = 0,
-                                             vi = 0
-                                           )))
-  
-  weighted_preds <- map2(preds, weights_stacking_new, function(pred_df, w) {
-    pred_df %>%
-      mutate(
-        .pred_weighted = estimate * w,
-        .lower_weighted = conf.low * w,
-        .upper_weighted = conf.high * w
-      )
-  })
-  
-  combined_preds <- reduce(weighted_preds, function(df1, df2) {
-    df1 %>%
-      mutate(
-        .pred_weighted = .pred_weighted + df2$.pred_weighted,
-        .lower_weighted = .lower_weighted + df2$.lower_weighted,
-        .upper_weighted = .upper_weighted + df2$.upper_weighted
-      )
-  }) 
-  
-  final_predictions <- combined_preds %>%
-    mutate(
-      estimate = .pred_weighted,
-      conf.low = .lower_weighted,
-      conf.high = .upper_weighted
-    ) |>
-    mutate(
-      resistance_exercise_label = "Resistance Exercise?",
-      resistance_exercise = case_when(
-        resistance_exercise_code == 0 ~ "YES",
-        resistance_exercise_code == 1 ~ "NO"
-      ),
-      protein_intake = protein_intake + protein_median
-    )
-  
-  return(final_predictions)
-}
-
-# get_model_avg_slopes_new <- function(models, weights, data) {
-#   
-#   models_new <- models
-#   weights_stacking_new <- weights
-#   data_new <- data
-#   
-#   # Because can't run slopes(model, variables = "protein_intake") on intercept model with no protein_intake
-#   safe_slopes <- possibly(slopes, otherwise = NULL) 
-#   
-#   slopes <- map(models_new, ~ safe_slopes(.x, 
-#                                             re_formula= NA,
-#                                             variables = "protein_intake",
-#                                             newdata   = datagrid(
-#                                               resistance_exercise_code = c(0,1),
-#                                               protein_intake = seq(min(data_new$protein_intake, na.rm = TRUE), max(data_new$protein_intake, na.rm = TRUE), by = 0.2),
-#                                               age_centre = 0,
-#                                               duration_centre = 0,
-#                                               vi = 0
-#                                             )) |> get_draws())
-#   
-#   
-#   # remove nulls from slopes and weights
-#   slopes_clean <- compact(slopes)
-#   weights_stacking_new_clean <- weights_stacking_new[!map_lgl(slopes, is.null)] 
-#   
-#   # Convert each to a matrix (rowid-draw order must match)
-#   draw_matrices <- map(slopes_clean, ~ matrix(.x$draw, ncol = 1))
-#   
-#   # Stack into matrix: rows = rowid × draw, cols = models
-#   draw_mat <- do.call(cbind, draw_matrices)  # fast column binding
-#   
-#   # Multiply each column by stacking weight
-#   weighted_draw_mat <- sweep(draw_mat, 2, weights_stacking_new_clean, FUN = "*")
-#   
-#   # Sum across models
-#   stacked_draws <- rowSums(weighted_draw_mat)
-#   
-#   # Reattach draw + rowid info
-#   meta <- slopes_clean[[1]] |> select(rowid, draw, resistance_exercise_code, protein_intake)
-#   
-#   stacked_df <- bind_cols(meta, estimate = stacked_draws) |>
-#     mutate(
-#       resistance_exercise_label = "Resistance Exercise?",
-#       resistance_exercise = case_when(
-#         resistance_exercise_code == 0 ~ "YES",
-#         resistance_exercise_code == 1 ~ "NO"
-#       ),
-#       protein_intake = protein_intake + protein_median
-#     )
-#   
-#   stacked_df
-# }
-
-
-get_model_avg_slopes_new <- function(models, weights, data) {
-  
-  if (length(models) != length(weights)) {
-    stop("The number of models does not equal the number of weights.")
-  }
-  
-  if (is.null(names(models)) || any(names(models) == "")) {
-    stop("All models must have names.")
-  }
-  
-  is_brmsfit <- map_lgl(models, inherits, what = "brmsfit")
-  
-  if (any(!is_brmsfit)) {
-    stop(
-      "These objects are not brmsfit models: ",
-      paste(names(models)[!is_brmsfit], collapse = ", ")
-    )
-  }
-  
-  data_new <- data
-  protein_median <- data_new$protein_median[[1]]
-  
-  # Intercept-only models have a slope of exactly zero.
-  is_intercept_only <- startsWith(names(models), "Intercept only model")
-  
-  slope_draws <- imap(models, function(model, model_name) {
-    
-    if (startsWith(model_name, "Intercept only model")) {
-      return(NULL)
-    }
-    
-    tryCatch(
-      {
-        marginaleffects::slopes(
-          model,
-          re_formula = NA,
-          variables = "protein_intake",
-          newdata = marginaleffects::datagrid(
-            model = model,
-            resistance_exercise_code = c(0, 1),
-            protein_intake = seq(
-              min(data_new$protein_intake, na.rm = TRUE),
-              max(data_new$protein_intake, na.rm = TRUE),
-              by = 0.42
-            ),
-            age_centre = 0,
-            duration_centre = 0,
-            vi = 0
-          )
-        ) |>
-          marginaleffects::get_draws()
-      },
-      error = function(e) {
-        stop(
-          sprintf(
-            "Slope extraction failed for '%s': %s",
-            model_name,
-            conditionMessage(e)
-          ),
-          call. = FALSE
-        )
-      }
-    )
-  })
-  
-  keep <- !is_intercept_only
-  slope_draws_clean <- slope_draws[keep]
-  
-  # Weights not renormalised. The omitted intercept-only models
-  # contribute zero slope while retaining their original stacking weight.
-  weights_clean <- as.numeric(weights[keep])
-  
-  row_counts <- map_int(slope_draws_clean, nrow)
-  
-  if (length(unique(row_counts)) != 1L) {
-    stop(
-      "Slope results have unequal numbers of rows: ",
-      paste(
-        names(row_counts),
-        row_counts,
-        sep = " = ",
-        collapse = "; "
-      )
-    )
-  }
-  
-  draw_mat <- do.call(
-    cbind,
-    map(slope_draws_clean, ~ .x$draw)
-  )
-  
-  stacked_draws <- drop(draw_mat %*% weights_clean)
-  
-  meta <- slope_draws_clean[[1]] |>
-    select(
-      rowid,
-      draw,
-      resistance_exercise_code,
-      protein_intake
-    )
-  
-  final_slopes <- bind_cols(meta, estimate = stacked_draws) |>
-    mutate(
-      resistance_exercise_label = "Resistance Exercise?",
-      resistance_exercise = case_when(
-        resistance_exercise_code == 0 ~ "YES",
-        resistance_exercise_code == 1 ~ "NO"
-      ),
-      protein_intake = protein_intake + protein_median
-    )
-  
-  return(final_slopes)
-}
-
-get_model_avg_contrasts_new <- function(
-    models,
-    weights,
-    data,
-    reference = 0.8,
-    increment = 0.2
-) {
-  
-  # Validation
-  if (length(models) != length(weights)) {
-    stop("The number of models does not equal the number of weights.")
-  }
-  
-  if (is.null(names(models)) || any(names(models) == "")) {
-    stop("All models must have names.")
-  }
-  
-  is_brmsfit <- map_lgl(models, inherits, what = "brmsfit")
-  
-  if (any(!is_brmsfit)) {
-    stop(
-      "These objects are not brmsfit models: ",
-      paste(names(models)[!is_brmsfit], collapse = ", ")
-    )
-  }
-  
-  weights <- as.numeric(weights)
-  
-  if (!isTRUE(all.equal(sum(weights), 1, tolerance = 1e-6))) {
-    stop("Model weights do not sum to 1.")
-  }
-  
-  protein_medians <- unique(na.omit(data$protein_median))
-  
-  if (length(protein_medians) != 1L) {
-    stop("data$protein_median must contain exactly one unique non-missing value.")
-  }
-  
-  protein_median <- protein_medians[[1]]
-  
-  # Values on the original and centred scales
-  maximum <- max(subset(data, resistance_exercise_yes_no == "yes")$protein_intake_raw, na.rm = TRUE)
-  
-  
-  protein_values_raw <- round(
-    seq(reference, maximum, by = increment),
-    digits = 10
-  )
-  
-  protein_values_centred <- protein_values_raw - protein_median
-  
-  # This accumulator avoids holding predictions from all 26 models in memory
-  averaged_contrasts <- reduce(
-    seq_along(models),
-    .init = NULL,
-    .f = function(accumulator, model_position) {
-      
-      model <- models[[model_position]]
-      model_name <- names(models)[[model_position]]
-      model_weight <- weights[[model_position]]
-      
-      model_contrasts <- tryCatch(
-        {
-          prediction_draws <- marginaleffects::predictions(
-            model,
-            type = "response",
-            re_formula = NA,
-            newdata = marginaleffects::datagrid(
-              model = model,
-              resistance_exercise_code = c(0, 1),
-              protein_intake = protein_values_centred,
-              age_centre = 0,
-              duration_centre = 0,
-              vi = 0
-            )
-          ) |>
-            marginaleffects::get_draws() |>
-            as_tibble() |>
-            mutate(
-              protein_intake_raw =
-                protein_intake + protein_median
-            )
-          
-          # One reference prediction for each posterior draw and
-          # resistance-exercise category
-          reference_draws <- prediction_draws |>
-            filter(near(protein_intake_raw, reference)) |>
-            select(
-              drawid,
-              resistance_exercise_code,
-              reference_prediction = draw
-            )
-          
-          # Calculate target dose minus 0.8 g/kg/day
-          prediction_draws |>
-            filter(protein_intake_raw > reference) |>
-            left_join(
-              reference_draws,
-              by = c(
-                "drawid",
-                "resistance_exercise_code"
-              )
-            ) |>
-            transmute(
-              drawid,
-              resistance_exercise_code,
-              reference_protein_intake = reference,
-              protein_intake = protein_intake_raw,
-              contrast_draw = draw - reference_prediction
-            ) |>
-            arrange(
-              resistance_exercise_code,
-              protein_intake,
-              drawid
-            )
-        },
-        error = function(e) {
-          stop(
-            sprintf(
-              "Contrast extraction failed for '%s': %s",
-              model_name,
-              conditionMessage(e)
-            ),
-            call. = FALSE
-          )
-        }
-      )
-      
-      # Initialise with the first model
-      if (is.null(accumulator)) {
-        return(
-          model_contrasts |>
-            transmute(
-              drawid,
-              resistance_exercise_code,
-              reference_protein_intake,
-              protein_intake,
-              estimate = contrast_draw * model_weight
-            )
-        )
-      }
-      
-      keys_match <- identical(
-        accumulator |>
-          select(
-            drawid,
-            resistance_exercise_code,
-            reference_protein_intake,
-            protein_intake
-          ),
-        model_contrasts |>
-          select(
-            drawid,
-            resistance_exercise_code,
-            reference_protein_intake,
-            protein_intake
-          )
-      )
-      
-      if (!keys_match) {
-        stop(
-          "Posterior draws do not align for model '",
-          model_name,
-          "'. Check that all models have the same number of posterior draws."
-        )
-      }
-      
-      accumulator$estimate <-
-        accumulator$estimate +
-        model_contrasts$contrast_draw * model_weight
-      
-      accumulator
-    }
-  )
-  
-  averaged_contrasts <- averaged_contrasts |>
-    mutate(
-      resistance_exercise_label = "Resistance Exercise?",
-      resistance_exercise = case_when(
-        resistance_exercise_code == 0 ~ "YES",
-        resistance_exercise_code == 1 ~ "NO"
-      ),
-      comparison = sprintf(
-        "%.1f versus %.1f g/kg/day",
-        protein_intake,
-        reference_protein_intake
-      )
-    )
-  
-  return(averaged_contrasts)
-}
-
-get_rope_pd_new <- function(contrasts) {
-  
-  rope <- contrasts |>
-    group_by(protein_intake, resistance_exercise, comparison) |>
-    nest() |>
-    mutate(
-      rope_percent = map(data, ~ rope(.x$estimate, range = c(-0.1, 0.1), ci = 1))
-    ) |>
-    unnest(rope_percent) |>
-    select(comparison, protein_intake, resistance_exercise, ROPE_low, ROPE_high, ROPE_Percentage) |>
-    filter(resistance_exercise == "YES" | protein_intake < 1.8) |>
-    mutate(type = "rope")
-  
-  
-  pd <- contrasts |>
-    group_by(protein_intake, resistance_exercise, comparison) |>
-    nest() |>
-    mutate(
-      rope_percent = map(data, ~ rope(.x$estimate, range = c(0.1, Inf), ci = 1))
-    ) |>
-    unnest(rope_percent) |>
-    select(comparison, protein_intake, resistance_exercise, ROPE_low, ROPE_high, ROPE_Percentage) |>
-    filter(resistance_exercise == "YES" | protein_intake < 1.8) |>
-    mutate(type = "pd")
-  
-  rope_pd <- bind_rows(rope, pd)
-  
-  return(rope_pd)
-  
-  
-}
-
-plot_preds_contrasts_new <- function(data, preds, contrasts_0.8, contrasts_1.1,
-                                  title) {
-  
-  max_pro_no_rt <- max(subset(data, resistance_exercise_yes_no == "no")$protein_intake_raw, na.rm = TRUE)
-  
-  preds_plot <- preds |> 
-    filter(resistance_exercise == "YES" | protein_intake <= max_pro_no_rt) |>
-    ggplot(aes(x = protein_intake, y = estimate)) +
-    geom_hline(yintercept = 0, linetype = "dotted", alpha = 0.75) +
-    geom_point(data = data |>
-                 mutate(resistance_exercise_label = "Resistance Exercise?") |>
-                 rename(resistance_exercise = "resistance_exercise_yes_no") |>
-                 mutate(resistance_exercise = str_to_upper(resistance_exercise)), 
-               aes(x = protein_intake + protein_median, y = yi, size = size, color = condition), alpha = 0.5) +
-    geom_ribbon(aes(ymin = conf.low, ymax = conf.high),
-                alpha = 0.5, color = "black", size = 0.25) +
-    geom_line(aes(y = estimate), size = 0.75, color = "black") +
-    scale_color_manual(values = c("#0072B2", "darkorange", "darkgreen")) +
-    # scale_x_continuous(breaks = scales::breaks_width(width = 0.4)) +
-    scale_y_continuous(breaks = scales::breaks_width(width = 0.5, offset = 0)) +
-    ggh4x::facet_nested(.~ resistance_exercise_label + resistance_exercise,
-                        scales = "free") +
-    ggh4x::facetted_pos_scales(
-      x = list(
-        resistance_exercise == "NO" ~ scale_x_continuous(
-          breaks = scales::breaks_width(0.2)
-        ),
-        resistance_exercise == "YES" ~ scale_x_continuous(
-          breaks = scales::breaks_width(0.4)
-        )
-      )
-    ) +
-    labs(
-      x = "Protein Intake (g/kg/day)",
-      y = "Standardised Mean Change",
-      color = "Condition",
-      title = "Predicted effects",
-    ) +
-    guides(
-      size = "none"
-    ) +
-    theme_classic() +
-    theme(
-      plot.title = element_text(size = 12),
-      axis.title = element_text(size = 10)
-    )
-  
-  
-  contrasts_plot_0.8 <- contrasts_0.8 |>
-    filter(resistance_exercise == "YES" | protein_intake <= max_pro_no_rt) |>
-    ggplot(aes(x = protein_intake, y = estimate)) +
-    geom_hline(yintercept = 0, linetype = "dotted", alpha = 0.75) +
-    geom_hline(yintercept = c(-0.1,0.1), linetype = "dashed", alpha = 0.75) +
-    stat_pointinterval(.width = .95) +
-    # scale_x_continuous(breaks = scales::breaks_width(width = 0.4)) +
-    scale_y_continuous(breaks = scales::breaks_width(width = 0.05, offset = 0)) +
-    ggh4x::facet_nested(.~ resistance_exercise_label + resistance_exercise,
-                        scales = "free") +
-    ggh4x::facetted_pos_scales(
-      x = list(
-        resistance_exercise == "NO" ~ scale_x_continuous(
-          breaks = scales::breaks_width(0.2)
-        ),
-        resistance_exercise == "YES" ~ scale_x_continuous(
-          breaks = scales::breaks_width(0.4)
-        )
-      )
-    ) +
-    labs(
-      x = "Protein Intake (g/kg/day)",
-      y = "Difference in Standardised Mean Change",
-      title = "Contrasts against 0.8 g/kg/day (i.e., RDA intake)",
-      subtitle = "Note, dashed horizontal lines reflect a smallest effect size of interest of 0.1"
-    ) + 
-    guides(
-      size = "none"
-    ) +
-    theme_classic() +
-    theme(
-      plot.title = element_text(size = 12),
-      plot.subtitle = element_text(size = 8),
-      axis.title = element_text(size = 10)
-    )
-  
-  contrasts_plot_1.1 <- contrasts_1.1 |>
-    filter(resistance_exercise == "YES" | protein_intake <= max_pro_no_rt) |>
-    ggplot(aes(x = protein_intake, y = estimate)) +
-    geom_hline(yintercept = 0, linetype = "dotted", alpha = 0.75) +
-    geom_hline(yintercept = c(-0.1,0.1), linetype = "dashed", alpha = 0.75) +
-    stat_pointinterval(.width = .95) +
-    # scale_x_continuous(breaks = scales::breaks_width(width = 0.4)) +
-    scale_y_continuous(breaks = scales::breaks_width(width = 0.05, offset = 0)) +
-    ggh4x::facet_nested(.~ resistance_exercise_label + resistance_exercise,
-                        scales = "free") +
-    ggh4x::facetted_pos_scales(
-      x = list(
-        resistance_exercise == "NO" ~ scale_x_continuous(
-          breaks = scales::breaks_width(0.2)
-        ),
-        resistance_exercise == "YES" ~ scale_x_continuous(
-          breaks = scales::breaks_width(0.4)
-        )
-      )
-    ) +
-    labs(
-      x = "Protein Intake (g/kg/day)",
-      y = "Difference in Standardised Mean Change",
-      title = "Contrasts against 1.1 g/kg/day (i.e., median control/placebo intake)",
-      subtitle = "Note, dashed horizontal lines reflect a smallest effect size of interest of 0.1"
-    ) + 
-    guides(
-      size = "none"
-    ) +
-    theme_classic() +
-    theme(
-      plot.title = element_text(size = 12),
-      plot.subtitle = element_text(size = 8),
-      axis.title = element_text(size = 10)
-    )
-  
-  combined_plots <- (preds_plot / contrasts_plot_0.8 / contrasts_plot_1.1) +
-    plot_annotation(
-      title = paste("Dose-response effects of protein intake on", title),
-      subtitle = "Bayesian model averaging with LOO-CV stacking weights",
-    ) &
-    theme(
-      legend.position = "bottom"
-    )
-  
-  return(combined_plots)
-}
 
 ## Fitting error in variables models using stan ----
 

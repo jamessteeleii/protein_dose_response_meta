@@ -6,6 +6,10 @@ renv/library/
 # History files
 .Rhistory
 .Rapp.history
+Rplots.pdf
+
+# Local analysis scratch space
+/tmp/
 
 # Session Data files
 .RData
@@ -54,6 +58,9 @@ manuscript/_freeze/
 manuscript/manuscript.tex
 manuscript/manuscript_files/
 manuscript/protein_calculations.html
+supplement/.quarto/
+supplement/_freeze/
+supplement/*.html
 
 # translation temp files
 po/*~
