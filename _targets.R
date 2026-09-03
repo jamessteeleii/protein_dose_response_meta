@@ -1,8 +1,5 @@
 # Load packages required to define the pipeline:
 library(targets)
-library(tarchetypes) # Load other packages as needed.
-library(crew)
-
 
 # Set target options:
 tar_option_set(packages = c("here",
@@ -19,15 +16,13 @@ tar_option_set(packages = c("here",
                             "bayestestR",
                             "tidybayes",
                             "marginaleffects",
-                            "grateful",
-                            "progressr"),
+                            "grateful"),
                seed = 1988,  # <-- GLOBAL reproducible seed
                memory = "transient",
                format = "qs",
                garbage_collection = TRUE,
                storage = "worker",
                retrieval = "worker"
-               # controller = crew_controller_local(workers = 4)
                ) 
 
 # Run the R scripts in the R/ folder with your custom functions:
@@ -1683,7 +1678,7 @@ list(
     cite_packages(
       out.dir = "grateful/",
       cite.tidyverse = TRUE,
-      out.format = "pdf"
+      out.format = "html"
     ),
     format = "file"
   )
