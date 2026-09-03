@@ -950,23 +950,36 @@ list(
   ),
   
   tar_target(
-    open_powerlifting_url,
-    paste0(
-      "https://openpowerlifting.gitlab.io/opl-csv/files/",
-      "openpowerlifting-latest.zip"
+    open_powerlifting_snapshot_file,
+    here(
+      "data",
+      "external",
+      "openpowerlifting_strength_reference_2026-08-29.csv"
     ),
-    format = "url"
+    format = "file"
   ),
 
   tar_target(
     open_powerlifting_snapshot,
-    download_open_powerlifting_strength_sd(open_powerlifting_url)
+    read_open_powerlifting_strength_snapshot(
+      open_powerlifting_snapshot_file
+    )
   ),
 
   tar_target(
     strength_sd,
     open_powerlifting_snapshot |>
       select(squat_sd, bench_sd, deadlift_sd)
+  ),
+
+  tar_target(
+    primary_reference_values,
+    make_primary_reference_values(
+      protein_data = protein_data_prepared,
+      lean_mass_sd = lean_mass_sd,
+      muscle_thickness_sd = muscle_thickness_sd,
+      open_powerlifting_snapshot = open_powerlifting_snapshot
+    )
   ),
   
   # Grateful report ----

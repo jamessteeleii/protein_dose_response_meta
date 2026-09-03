@@ -73,12 +73,13 @@ take many hours and the local `_targets/` store can grow to tens of gigabytes.
 Inspect the manifest and use the `names` argument to run a specific target and
 its required dependencies when a full rebuild is unnecessary.
 
-The OpenPowerlifting input is downloaded from the project's official nightly
-bulk CSV release. The ZIP is processed in a temporary directory and deleted;
-only a small summary with the source filename, SHA-256 hash, row counts, and
-reference standard deviations is stored by `targets`. These descriptive
-reference values may therefore change slightly with the snapshot date. See
-[`data/external/README.md`](data/external/README.md) for full provenance.
+The OpenPowerlifting reference values are read from a compact, versioned
+summary of the snapshot dated 29 August 2026 and accessed on 2 September
+2026. The summary records the source filename, archive SHA-256 hash, row
+counts, filtering yield, and calculated reference standard deviations. A
+later nightly release therefore cannot silently change the manuscript. See
+[`data/external/README.md`](data/external/README.md) for full provenance and
+the explicit refresh procedure.
 
 ## Render the documents
 

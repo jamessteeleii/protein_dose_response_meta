@@ -1,0 +1,2 @@
+snapshot_date,accessed_date,source_url,source_file,source_sha256,source_rows,selected_lifters,squat_n,bench_n,deadlift_n,squat_sd,bench_sd,deadlift_sd
+2026-08-29,2026-09-02,https://openpowerlifting.gitlab.io/opl-csv/files/openpowerlifting-latest.zip,openpowerlifting-2026-08-29-04805e21.csv,9B2AC7AEE514AB6A8454456435F4DAF49F91EFF6A2911B39B2F97CFDD4939996,4009735,154361,110683,144298,116259,54.8166826016052,42.7338609113918,56.6613635599344

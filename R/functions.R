@@ -389,9 +389,15 @@ estimate_muscle_thickness_sd <- function(data) {
   rob_buckner_meta_sd <- robust(buckner_meta_sd, buckner_data$study)
   
   
-  buckner_sd <- as_tibble(predict(rob_buckner_meta_sd, 
-          newmods = log(median(buckner_data$pre_mean)))) |>
-    mutate(across(where(is.double), exp))
+  reference_mean <- median(buckner_data$pre_mean)
+  buckner_sd <- as_tibble(predict(
+    rob_buckner_meta_sd,
+    newmods = log(reference_mean)
+  )) |>
+    mutate(
+      across(where(is.double), exp),
+      reference_mean = reference_mean
+    )
   
   
   return(buckner_sd)
@@ -412,17 +418,100 @@ prepare_open_powerlifting_strength_data <- function(data) {
 
 }
 
-estimate_strength_sd <- function(data) {
+read_open_powerlifting_strength_snapshot <- function(path) {
+  snapshot <- readr::read_csv(
+    path,
+    col_types = readr::cols(
+      snapshot_date = readr::col_date(),
+      accessed_date = readr::col_date(),
+      source_url = readr::col_character(),
+      source_file = readr::col_character(),
+      source_sha256 = readr::col_character(),
+      source_rows = readr::col_double(),
+      selected_lifters = readr::col_double(),
+      squat_n = readr::col_double(),
+      bench_n = readr::col_double(),
+      deadlift_n = readr::col_double(),
+      squat_sd = readr::col_double(),
+      bench_sd = readr::col_double(),
+      deadlift_sd = readr::col_double()
+    ),
+    show_col_types = FALSE
+  )
 
-  open_powerlifting_sd <-
-    prepare_open_powerlifting_strength_data(data) |>
-    summarise(
-      squat_sd = sd(Best3SquatKg, na.rm=TRUE),
-      bench_sd = sd(Best3BenchKg, na.rm=TRUE),
-      deadlift_sd = sd(Best3DeadliftKg, na.rm=TRUE)
-    )
-  
-  return(open_powerlifting_sd)
+  required_columns <- c(
+    "snapshot_date", "accessed_date", "source_url", "source_file",
+    "source_sha256", "source_rows", "selected_lifters", "squat_n",
+    "bench_n", "deadlift_n", "squat_sd", "bench_sd", "deadlift_sd"
+  )
+
+  if (
+    nrow(snapshot) != 1L ||
+      !identical(names(snapshot), required_columns) ||
+      !grepl("^[A-F0-9]{64}$", snapshot$source_sha256) ||
+      any(!is.finite(unlist(snapshot[c(
+        "source_rows", "selected_lifters", "squat_n", "bench_n",
+        "deadlift_n", "squat_sd", "bench_sd", "deadlift_sd"
+      )], use.names = FALSE)))
+  ) {
+    stop("The pinned OpenPowerlifting snapshot is invalid.", call. = FALSE)
+  }
+
+  snapshot
+}
+
+make_primary_reference_values <- function(
+    protein_data,
+    lean_mass_sd,
+    muscle_thickness_sd,
+    open_powerlifting_snapshot,
+    rope_half_width = 0.10
+) {
+  protein_median <- unique(protein_data$protein_median)
+  lean_soft_tissue_sd <- lean_mass_sd$estimate[
+    lean_mass_sd$term == "outcomelmm"
+  ]
+  fat_free_mass_sd <- lean_mass_sd$estimate[
+    lean_mass_sd$term == "outcomeffm"
+  ]
+
+  if (
+    length(protein_median) != 1L ||
+      length(lean_soft_tissue_sd) != 1L ||
+      length(fat_free_mass_sd) != 1L ||
+      nrow(muscle_thickness_sd) != 1L ||
+      nrow(open_powerlifting_snapshot) != 1L ||
+      !is.finite(rope_half_width) ||
+      rope_half_width <= 0
+  ) {
+    stop("Could not assemble the manuscript reference values.", call. = FALSE)
+  }
+
+  list(
+    habitual_protein_intake = protein_median,
+    rope_half_width = rope_half_width,
+    lean_soft_tissue_mass_change_kg =
+      rope_half_width * lean_soft_tissue_sd,
+    fat_free_mass_change_kg = rope_half_width * fat_free_mass_sd,
+    muscle_thickness_reference_mean_cm =
+      muscle_thickness_sd$reference_mean[[1L]],
+    muscle_thickness_change_cm =
+      rope_half_width * muscle_thickness_sd$pred[[1L]],
+    squat_change_kg =
+      rope_half_width * open_powerlifting_snapshot$squat_sd[[1L]],
+    bench_change_kg =
+      rope_half_width * open_powerlifting_snapshot$bench_sd[[1L]],
+    deadlift_change_kg =
+      rope_half_width * open_powerlifting_snapshot$deadlift_sd[[1L]],
+    openpowerlifting_snapshot_date =
+      open_powerlifting_snapshot$snapshot_date[[1L]],
+    openpowerlifting_accessed_date =
+      open_powerlifting_snapshot$accessed_date[[1L]],
+    openpowerlifting_source_file =
+      open_powerlifting_snapshot$source_file[[1L]],
+    openpowerlifting_source_sha256 =
+      open_powerlifting_snapshot$source_sha256[[1L]]
+  )
 }
 
 download_open_powerlifting_strength_sd <- function(url) {

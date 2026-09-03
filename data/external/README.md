@@ -29,17 +29,22 @@ SHA-256:
 
 ## OpenPowerlifting data
 
-The full OpenPowerlifting CSV is intentionally not stored in this repository.
-The `open_powerlifting_url` target tracks the official nightly ZIP using its
-HTTP ETag/Last-Modified metadata. When the snapshot changes, the downstream
-target downloads it to a temporary directory, reads only the columns needed
-to estimate the reference strength standard deviations, records the archive
-filename and SHA-256 hash, and removes the temporary download.
+The manuscript uses the versioned summary
+`openpowerlifting_strength_reference_2026-08-29.csv`. It was calculated from
+the OpenPowerlifting snapshot dated 29 August 2026 and accessed from the
+official nightly bulk download on 2 September 2026. The source archive
+contained `openpowerlifting-2026-08-29-04805e21.csv` and had SHA-256:
 
-The values are used as indicative reference values rather than as estimates
-whose exact replication requires a permanently fixed OpenPowerlifting
-snapshot. Accordingly, they may change slightly when the nightly dataset is
-updated.
+`9B2AC7AEE514AB6A8454456435F4DAF49F91EFF6A2911B39B2F97CFDD4939996`
+
+The full archive is intentionally not stored in Git because it contains more
+than four million rows. The committed summary records the source identity,
+row counts, filtering yield, exercise-specific sample sizes, and calculated
+standard deviations needed by the manuscript. The pipeline reads this pinned
+summary, so a later nightly release cannot silently change the reported
+values. `download_open_powerlifting_strength_sd()` remains available as an
+explicit refresh utility; updating the reference values requires creating and
+reviewing a newly dated summary file.
 
 Official download page:
 [OpenPowerlifting Bulk CSV Downloads](https://openpowerlifting.gitlab.io/opl-csv/bulk-csv.html)
