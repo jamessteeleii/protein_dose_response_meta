@@ -1,0 +1,19 @@
+schema_version: 1
+tag_scheme: "<stage>-v<major>.<minor>.<patch>"
+releases:
+  - stage: preregistration
+    status: registered
+    registration_url: https://osf.io/w2qpx/overview
+    tag: null
+    commit: null
+    publication_date: null
+    doi: null
+  - stage: preprint
+    status: candidate
+    tag: preprint-v1.0.0
+    commit: null
+    publication_date: null
+    github_release_url: null
+    preprint_doi: null
+    archive_doi: null
+    notes: "Confirm the identifier in the manuscript and the exact reviewed assets before publication."
