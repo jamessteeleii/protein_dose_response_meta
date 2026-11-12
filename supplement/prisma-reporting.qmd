@@ -192,7 +192,7 @@ The table lists one row for each of the 119 study records. Baseline sample sizes
 
 # PRISMA 2020 checklist register
 
-The checklists use the printed page numbers in the 41-page manuscript draft dated 12 November 2026. Where the manuscript page directs readers to a supplement or dataset, the reporting location links to the detailed material.
+The checklists use the printed page numbers in the 41-page manuscript dated 12 November 2026. Where the manuscript page directs readers to a supplement or dataset, the reporting location links to the detailed material.
 
 ## Final analytical cross-references
 
@@ -212,7 +212,7 @@ The checklists use the printed page numbers in the 41-page manuscript draft date
 | Deviations and post-registration additions | [Preregistration deviations](preregistration-deviations.html) |
 | Individual-study results and inputs | [Primary analysis data](../manuscript/generated/reporting/primary-study-effects.csv.gz) and [extraction data and analysis code](https://github.com/jamessteeleii/protein_dose_response_meta) |
 | Characteristics and risk of bias by synthesis | [Study characteristics](#characteristics-of-the-included-studies), [primary sample by outcome](systematic-review-data-audit.html#current-analysis-dataset) and [risk of bias by synthesis](grade-appraisal.html#risk-of-bias) |
-| Primary synthesis estimates, precision and inconsistency | [Primary analysis verification tables](preregistration-deviations.html) and [GRADE inconsistency assessment](grade-appraisal.html#inconsistency) |
+| Primary synthesis estimates, precision and inconsistency | [Primary dose–response estimates](../manuscript/generated/reporting/bundles/primary_update_2026/dose_response_predictions.csv.gz) and [primary model diagnostics](preregistration-deviations.html) and [GRADE inconsistency assessment](grade-appraisal.html#inconsistency) |
 
 ## Main checklist
 
