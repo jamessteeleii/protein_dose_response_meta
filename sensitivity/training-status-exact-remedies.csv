@@ -1,0 +1,5 @@
+family,outcome,model_index,observation,stage,iter_warmup,iter_sampling,adapt_delta,max_treedepth,seed,initial_sha256,rationale
+supplement,strength,14,80,remedy_1,4000,12000,0.9995,15,1988,f7fc455c5bb70e52dcc73809d14ed2a65ab4448a91e3f1b1eaefb08b44539ff3,Severe mixing failure at 12000 retained draws; extend adaptation and raise adapt_delta without changing formula or priors.
+supplement,strength,14,81,remedy_1,4000,12000,0.9995,15,1988,a8411719fadf9463039eb66b35668c925f9a639f69a7bfd4b06464b0b0307256,Ten divergences and poor mixing; extend adaptation and raise adapt_delta without changing formula or priors.
+supplement,strength,26,80,remedy_1,4000,12000,0.9995,15,1988,84ec29bec619f62819297af223b037062640126878a72360834fca43addc3b29,Low ESS and Rhat above gate; extend adaptation and retained sampling without changing formula or priors.
+supplement,strength,26,81,remedy_1,4000,12000,0.9995,15,1988,0eccd936da0b004d7b2bbd3f5e87558a2e0d2f1bcc96086c6a6cfd58c6e6dd5c,Low ESS and Rhat above gate; extend adaptation and retained sampling without changing formula or priors.
