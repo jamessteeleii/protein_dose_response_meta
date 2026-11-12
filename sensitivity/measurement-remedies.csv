@@ -1,0 +1,3 @@
+variant,model_index,stage,adapt_delta,max_treedepth,rationale
+direct_only,10,remedy_1,0.999,15,Initial fit had 2 divergent transitions at adapt_delta 0.99 and max_treedepth 10; convergence passed; increase sampler controls while retaining the formula priors and full sampling schedule.
+direct_only,25,remedy_1,0.999,15,Initial fit had 1 divergent transition at adapt_delta 0.995 and max_treedepth 12; convergence passed; increase sampler controls while retaining the formula priors and full sampling schedule.

@@ -1256,7 +1256,8 @@ fit_primary_integrated_exact_loo_case <- function(
     cores = 4L,
     warmup = 2000L,
     iter = 8000L,
-    seed = 1988L
+    seed = 1988L,
+    iter_sampling = 6000L
 ) {
   if (
     !inherits(job$fitted_candidate$model, "brmsfit") ||
@@ -1265,7 +1266,9 @@ fit_primary_integrated_exact_loo_case <- function(
         as.integer(job$fitted_candidate$model_index),
         as.integer(job$model_index)
       ) ||
-      iter - warmup != 6000L || chains != 4L ||
+      length(iter_sampling) != 1L || is.na(iter_sampling) ||
+      !iter_sampling %in% c(6000L, 12000L) ||
+      iter - warmup != iter_sampling || chains != 4L ||
       cores < 1L || job$observation < 1L
   ) {
     stop("The exact-LOO refit inputs are invalid.", call. = FALSE)
