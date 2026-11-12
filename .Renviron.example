@@ -1,0 +1,9 @@
+# Optional machine-local paths. Copy this file to .Renviron and replace the
+# placeholders with absolute paths on a fast local disk. Never commit .Renviron.
+# Do not place these directories in Dropbox, OneDrive, iCloud, Google Drive,
+# or another filesystem-sync directory.
+
+RENV_PATHS_CACHE=C:/path/to/local/renv/cache
+TMPDIR=D:/path/to/local/tmp
+TMP=D:/path/to/local/tmp
+TEMP=D:/path/to/local/tmp

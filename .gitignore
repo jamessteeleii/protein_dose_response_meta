@@ -1,6 +1,8 @@
 # Large local inputs and pipeline state
 openpowerlifting-latest/
 _targets/
+_targets_age_duration/
+_targets_training_status/
 renv/library/
 
 # History files
@@ -10,6 +12,29 @@ Rplots.pdf
 
 # Local analysis scratch space
 /tmp/
+/model_archive/
+/outputs/
+/results/update_2026/
+/results/verification/
+/results/checkpoints/
+/results/figures/
+/results/supplementary/
+/plots/update_2026/
+/RELEASE_PLAN.md
+
+# Archived input workbooks and working review documents
+/data/protein_meta_data_all.xlsx
+/data/update_2026/protein_meta_data_update_2026.xlsx
+/data/RoB2/
+/data/PRISMA/
+/data/protein_manipulation_strategy_audit.csv
+/manuscript/manuscript_coauthor_review.*
+/manuscript/outcome-terminology-review.md
+/manuscript/manuscript.pdf
+/supplement/grateful-report.pdf
+/sensitivity/pruning-handoff.md
+/sensitivity/prune-reviewed-fits.ps1
+__pycache__/
 
 # Session Data files
 .RData
@@ -45,6 +70,7 @@ vignettes/*.pdf
 # Temporary files created by R markdown
 *.utf8.md
 *.knit.md
+*.inspect.ndjson
 
 # R Environment Variables
 .Renviron
@@ -57,10 +83,10 @@ manuscript/.quarto/
 manuscript/_freeze/
 manuscript/manuscript.tex
 manuscript/manuscript_files/
-manuscript/protein_calculations.html
 supplement/.quarto/
 supplement/_freeze/
 supplement/*.html
+supplement/*.log
 
 # translation temp files
 po/*~
@@ -72,6 +98,15 @@ rsconnect/
 grateful/*.log
 plots/*.zip
 plots/*.tiff
+plots/*-manuscript.pdf
+plots/update_2026/primary/*.tiff
+plots/update_2026/primary/*-manuscript.pdf
+plots/update_2026/measurement/
+results/update_2026/measurement/
+results/update_2026/age_duration/
+results/update_2026/training_status/
+plots/update_2026/age_duration/
 stan/*.exe
 stan/*.hpp
 stan/*.o
+stan/*.dll
