@@ -1,0 +1,71 @@
+
+Effect
+                Hypothesis  Prior prob. Post. prob. Inclusion BF
+Spike(0)        Null              0.500       0.950       18.920
+Normal(0, 0.71) Alternative       0.500       0.050        0.053
+                error%(Inclusion BF)
+Spike(0)                      15.245
+Normal(0, 0.71)               15.245
+
+Location: outcome_group
+                                           Hypothesis  Prior prob. Post. prob.
+mean difference contrast: mSpike(0)        Null              0.500       1.000
+mean difference contrast: mNormal(0, 0.35) Alternative       0.500       0.000
+                                           Inclusion BF error%(Inclusion BF)
+mean difference contrast: mSpike(0)            4999.000               65.580
+mean difference contrast: mNormal(0, 0.35)        0.000               65.580
+
+Location: dose_difference_z
+                Hypothesis  Prior prob. Post. prob. Inclusion BF
+Spike(0)        Null              0.500       0.855        5.888
+Normal(0, 0.35) Alternative       0.500       0.145        0.170
+                error%(Inclusion BF)
+Spike(0)                       5.159
+Normal(0, 0.35)                5.159
+
+Location: comparison_type
+                                           Hypothesis  Prior prob. Post. prob.
+mean difference contrast: mSpike(0)        Null              0.500       0.753
+mean difference contrast: mNormal(0, 0.35) Alternative       0.500       0.247
+                                           Inclusion BF error%(Inclusion BF)
+mean difference contrast: mSpike(0)               3.052               10.764
+mean difference contrast: mNormal(0, 0.35)        0.328               10.764
+
+Location: resistance_exercise_label
+                                           Hypothesis  Prior prob. Post. prob.
+mean difference contrast: mSpike(0)        Null              0.500       0.963
+mean difference contrast: mNormal(0, 0.35) Alternative       0.500       0.037
+                                           Inclusion BF error%(Inclusion BF)
+mean difference contrast: mSpike(0)              26.100                9.230
+mean difference contrast: mNormal(0, 0.35)        0.038                9.230
+
+Heterogeneity
+                        Hypothesis  Prior prob. Post. prob. Inclusion BF
+Spike(0)                Null              0.500       0.000        0.000
+Normal(0, 0.35)[0, Inf] Alternative       0.500       1.000          Inf
+                        error%(Inclusion BF)
+Spike(0)                                  NA
+Normal(0, 0.35)[0, Inf]                   NA
+
+Publication Bias
+                                Hypothesis  Prior prob. Post. prob.
+None                            Null              0.500       0.000
+omega[two-sided: .05]           Alternative       0.042       0.000
+omega[two-sided: .05, .1]       Alternative       0.042       0.000
+omega[one-sided: .05]           Alternative       0.042       0.000
+omega[one-sided: .025, .05]     Alternative       0.042       0.000
+omega[one-sided: .05, .5]       Alternative       0.042       0.000
+omega[one-sided: .025, .05, .5] Alternative       0.042       0.000
+PET                             Alternative       0.125       0.994
+PEESE                           Alternative       0.125       0.006
+                                Inclusion BF error%(Inclusion BF)
+None                                   0.000                   NA
+omega[two-sided: .05]                  0.000                   NA
+omega[two-sided: .05, .1]              0.000                   NA
+omega[one-sided: .05]                  0.000                   NA
+omega[one-sided: .025, .05]            0.000                   NA
+omega[one-sided: .05, .5]              0.000                   NA
+omega[one-sided: .025, .05, .5]        0.000                   NA
+PET                                 1131.211               30.294
+PEESE                                  0.043               30.294
+

@@ -1,0 +1,19 @@
+family,outcome,model_index,model_name,interaction,stacking_weight
+supplement,strength,1,Intercept only model [supplement g/day] [RT only; reported training status],none,5.187782783693838e-7
+supplement,strength,2,Linear model [supplement g/day] [RT only; reported training status],none,0.1841083217832302
+supplement,strength,4,Thin plate spline model [supplement g/day] [RT only; reported training status],none,1.3494938425746074e-5
+supplement,strength,5,Intercept only model (+ moderators) [supplement g/day] [RT only; reported training status],none,0.1504201075388176
+supplement,strength,6,Linear model (+ moderators) [supplement g/day] [RT only; reported training status],none,0.3761059054263418
+supplement,strength,8,Thin plate spline model (+ moderators) [supplement g/day] [RT only; reported training status],none,0.18686849970022737
+supplement,strength,9,Linear model (+ random slopes) [supplement g/day] [RT only; reported training status],none,1.2048873832123494e-6
+supplement,strength,11,Thin plate spline model (+ random smooths) [supplement g/day] [RT only; reported training status],none,0.0236017378747693
+supplement,strength,12,Linear model (+ moderators & random slopes) [supplement g/day] [RT only; reported training status],none,1.3631413550183481e-6
+supplement,strength,14,Thin plate spline model (+ moderators & random smooths) [supplement g/day] [RT only; reported training status],none,0.028652707106600717
+supplement,strength,15,Linear model (+ RT interaction) [supplement g/day] [RT only; reported training status],training,1.3203352266323233e-8
+supplement,strength,17,Thin plate spline model (+ RT interaction smooth) [supplement g/day] [RT only; reported training status],training,6.647481137551114e-8
+supplement,strength,18,Linear model (+ moderators & RT interaction) [supplement g/day] [RT only; reported training status],training,2.5741362997566343e-6
+supplement,strength,20,Thin plate spline model (+ moderators & RT interaction) [supplement g/day] [RT only; reported training status],training,2.520103120083968e-7
+supplement,strength,21,Linear model (+ random slopes & RT interaction) [supplement g/day] [RT only; reported training status],training,4.3850387822629264e-7
+supplement,strength,23,Thin plate spline model (+ random smooths & RT interaction smooth) [supplement g/day] [RT only; reported training status],training,0.05022219034337712
+supplement,strength,24,Linear model (+ moderators & random slopes & RT interaction) [supplement g/day] [RT only; reported training status],training,8.957530326740982e-8
+supplement,strength,26,Thin plate spline model (+ moderators & random smooths & RT interaction smooth) [supplement g/day] [RT only; reported training status],training,5.145772365988677e-7

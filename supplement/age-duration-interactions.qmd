@@ -1,0 +1,137 @@
+---
+title: "Protein Dose Interactions With Age and Intervention Duration"
+subtitle: "Expanded primary-family ensembles for relative intake, absolute total intake, and prescribed supplementation"
+author:
+  - name: James Steele
+  - name: Everson Araujo Nunes
+  - name: Myles Moore
+  - name: Matthew Lees
+  - name: Lauren Roxburgh
+  - name: Andrea Viloria Medina
+  - name: Stuart Phillips
+date: last-modified
+date-format: long
+format:
+  html:
+    theme: [cosmo, no-web-font.scss]
+    toc: true
+    toc-depth: 3
+    toc-location: body
+    toc-title: Contents
+    smooth-scroll: true
+    embed-resources: true
+    html-math-method: mathml
+    link-external-newwindow: true
+execute:
+  echo: false
+  warning: false
+  message: false
+---
+
+```{r}
+#| label: setup
+#| include: false
+
+library(dplyr)
+library(ggplot2)
+source(if (file.exists("supplement/report-helpers.R")) "supplement/report-helpers.R" else "report-helpers.R")
+source(file.path(report_project_root(), "supplement", "interaction-report.R"))
+
+scopes <- interaction_report_grid("age-duration-interactions") |>
+  mutate(
+    bundle = paste0("age_duration_", exposure, "_", outcome, "_update_2026"),
+    weights = lapply(bundle, read_bundle, candidates = "stacking_weights.csv.gz")
+  )
+```
+
+# Scope and Analysis Hierarchy
+
+These supplementary, post-registration analyses expand only the primary
+relative-intake, absolute total-intake and absolute supplementation-dose
+families. Existing primary analyses and sensitivity-family ensembles remain
+separately reported. The expanded ensembles estimate fresh stacking weights
+over the original candidates and the additional interaction candidates within
+each exposure and outcome.
+
+Age-only, duration-only and joint interaction candidates retain both additive
+moderators. Linear, piecewise-linear (relative intake only) and smooth dose
+functions follow their parent candidates. RT-specific dose functions also
+allow their moderator interactions to differ by RT condition, retaining the
+required lower-order terms. The joint models do not include an age-by-duration
+interaction. Study random-effect structures remain those of the parents.
+
+The reporting workflow requires all sampling and corrected observation-level
+LOO gates to pass on identical likelihood inputs before combination. Conditional
+predictions concern expected baseline-to-follow-up changes, excluding random
+effects. Differences in protein contrasts across profiles preserve pairing of
+posterior draws. They should not be interpreted as individual age effects or
+causal effects of extending an intervention.
+
+The 0.1-SD threshold is retained for protein contrasts. Its application to
+differences between protein contrasts is descriptive and was not separately
+validated as a meaningful threshold for effect modification.
+
+# Empirical Support and Model Averaging
+
+All 12 exposure–outcome ensembles met the diagnostic and reporting criteria. Stacking weights reflect predictive performance within each exposure and outcome.
+
+Age quartiles give each distinct arm one observation. Duration quartiles give each distinct study and follow-up one observation. The reference profile fixes age at 25 years and duration at 12 weeks. The typical profile uses the median age and duration in the analysis sample. The age quartiles hold duration at its median, and the duration quartiles hold age at its median. Absolute-exposure models with body-mass adjustment hold body mass at its outcome-specific mean.
+
+The local support screen requires at least three studies within 10 years and four weeks of the profile, with both doses inside that neighbourhood’s observed range. The profile tables report these counts and ranges.
+
+```{r}
+#| label: tbl-age-duration-weights
+#| tbl-cap: "Candidate counts and total predictive stacking weight on the added age or duration interaction candidates."
+
+scopes |>
+  transmute(
+    Exposure = unname(interaction_exposures[exposure]),
+    Outcome = unname(report_outcome_labels[outcome]),
+    Candidates = vapply(weights, nrow, integer(1)),
+    `Stacking weight on interaction candidates` = vapply(weights, function(x) {
+      sprintf("%.3f", sum(x$stacking_weight[x$interaction != "none"]))
+    }, character(1))
+  ) |>
+  knitr::kable()
+```
+
+# Dose–Response Results
+
+Curves show expected standardised baseline-to-follow-up change at each protein dose. Shading shows 95% posterior intervals. The reference profile is shown in both the age and duration rows for comparison. Some plotted doses extend outside local support, as documented in the linked tables.
+
+```{r}
+#| label: age-duration-curves
+#| results: asis
+#| fig-width: 11
+#| fig-height: 11
+#| out-width: "100%"
+
+for (exposure in names(interaction_exposures)) {
+  cat("\n## ", interaction_exposures[[exposure]], "\n\n", sep = "")
+  for (i in which(scopes$exposure == exposure)) {
+    cat("\n### ", report_outcome_labels[[scopes$outcome[[i]]]], "\n\n", sep = "")
+    predictions <- interaction_csv(scopes$path[[i]], "dose_response.csv.gz")
+    print(age_duration_curves(predictions, exposure))
+    interaction_links(scopes$relative_path[[i]], c(
+      "Predictions" = "dose_response.csv.gz",
+      "Profile support" = "profile_support.csv",
+      "Paired interaction contrasts" = "interaction_contrasts.csv.gz"
+    ))
+  }
+}
+```
+
+# Interpretation
+
+Across all four outcomes and all three protein-dose definitions, differences
+in protein contrasts between the upper and lower age or duration quartile
+profiles were generally small within locally supported dose ranges. No locally
+supported comparison met the 95% posterior-probability criterion for a
+difference exceeding 0.1 standardised units in either direction. Most
+supported comparisons met the descriptive practical-equivalence criterion;
+the remainder were uncertain rather than evidence of meaningful moderation.
+
+These study/arm-level analyses therefore do not identify important moderation
+by mean age or intervention duration within the represented evidence. They do
+not establish that individual age is irrelevant, nor do they determine what
+would occur over durations outside the locally supported ranges.

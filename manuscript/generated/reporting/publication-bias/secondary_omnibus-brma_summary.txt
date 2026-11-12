@@ -1,0 +1,42 @@
+
+Bayesian Multilevel Mixed-Effect Model (k = 250, clusters = 94)
+
+Common Estimates
+     Mean    SD 0.025   0.5 0.975 error(MCMC) error(MCMC)/SD  ESS R-hat
+tau 0.088 0.014 0.062 0.088 0.117     0.00017          0.012 6907 1.000
+rho 0.824 0.135 0.495 0.852 0.993     0.00186          0.014 5257 1.001
+
+Meta-Regression
+                                                         Mean    SD  0.025
+intercept                                               0.081 0.018  0.046
+outcome_group[direct muscle size/mass]                  0.016 0.023 -0.029
+outcome_group[strength]                                 0.020 0.021 -0.022
+outcome_group[function]                                 0.026 0.027 -0.027
+dose_difference_z                                       0.027 0.013  0.002
+comparison_type[Active dose vs active dose]            -0.081 0.043 -0.164
+resistance_exercise_label[Without resistance training] -0.012 0.030 -0.070
+                                                          0.5 0.975 error(MCMC)
+intercept                                               0.081 0.116     0.00027
+outcome_group[direct muscle size/mass]                  0.016 0.061     0.00020
+outcome_group[strength]                                 0.020 0.061     0.00018
+outcome_group[function]                                 0.026 0.079     0.00023
+dose_difference_z                                       0.027 0.052     0.00012
+comparison_type[Active dose vs active dose]            -0.081 0.003     0.00042
+resistance_exercise_label[Without resistance training] -0.013 0.047     0.00045
+                                                       error(MCMC)/SD   ESS
+intercept                                                       0.015  4271
+outcome_group[direct muscle size/mass]                          0.009 12436
+outcome_group[strength]                                         0.009 12877
+outcome_group[function]                                         0.008 13975
+dose_difference_z                                               0.009 11443
+comparison_type[Active dose vs active dose]                     0.010 10165
+resistance_exercise_label[Without resistance training]          0.015  4301
+                                                       R-hat
+intercept                                              1.001
+outcome_group[direct muscle size/mass]                 1.000
+outcome_group[strength]                                1.000
+outcome_group[function]                                1.001
+dose_difference_z                                      1.000
+comparison_type[Active dose vs active dose]            1.000
+resistance_exercise_label[Without resistance training] 1.001
+

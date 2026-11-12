@@ -1,6 +1,6 @@
 ---
 title: "Deviations from the preregistered analysis plan"
-subtitle: "An updated systematic review and dose–response meta-analysis of protein intake and lean soft tissue mass, muscle, strength, and function"
+subtitle: "An updated systematic review and dose–response meta-analysis of protein intake and whole-body lean/fat-free mass, measures of muscle size or mass, strength, and physical function"
 author:
   - name: James Steele
   - name: Everson Araujo Nunes
@@ -13,10 +13,11 @@ date: last-modified
 date-format: long
 format:
   html:
-    theme: cosmo
+    theme: [cosmo, no-web-font.scss]
     toc: true
     toc-depth: 3
-    toc-location: left
+    toc-location: body
+    toc-title: Contents
     smooth-scroll: true
     embed-resources: true
     html-math-method: mathml
@@ -38,45 +39,27 @@ execute:
 #| include: false
 options(width = 110)
 
-report_inputs <- targets::tar_read(preregistration_deviations_inputs)
-diagnostic_files <- report_inputs$diagnostics
-loo_files <- report_inputs$loo
-
-resolve_project_output <- function(path) {
-  candidates <- c(path, file.path("..", path))
-  existing <- candidates[file.exists(candidates)]
-  if (length(existing) < 1L) {
-    return(path)
-  }
-  normalizePath(existing[[1L]], winslash = "/", mustWork = TRUE)
+project_root <- if (file.exists("_targets.R")) {
+  normalizePath(".", winslash = "/", mustWork = TRUE)
+} else {
+  normalizePath("..", winslash = "/", mustWork = TRUE)
 }
 
-find_output <- function(paths, filename) {
-  match <- paths[basename(paths) == filename]
-  if (length(match) != 1L) {
-    stop("Expected exactly one pipeline output named: ", filename)
-  }
-  resolve_project_output(match[[1L]])
-}
-
-stacking_path <- resolve_project_output(
-  report_inputs$stacking
+bundle_root <- file.path(
+  project_root, "manuscript", "generated", "reporting", "bundles", "primary_update_2026"
 )
 
-audit_path <- find_output(diagnostic_files, "diagnostic_summary.csv")
-classification_path <- find_output(
-  diagnostic_files,
-  "definitive_classification.csv"
-)
-ppc_path <- find_output(diagnostic_files, "ppc_outcome_summary.csv")
-loo_outcome_path <- find_output(loo_files, "outcome_summary.csv")
-loo_model_path <- find_output(loo_files, "model_summary.csv")
-loo_comparison_path <- find_output(loo_files, "method_comparison.csv")
-loo_observation_path <- find_output(
-  loo_files,
-  "observation_diagnostics.csv"
-)
-loo_exact_path <- find_output(loo_files, "exact_refit_summary.csv")
+bundle_file <- function(filename) file.path(bundle_root, filename)
+
+audit_path <- bundle_file("diagnostic_summary.csv.gz")
+classification_path <- bundle_file("diagnostic_classification.csv.gz")
+ppc_path <- bundle_file("posterior_predictive_outcome_summary.csv.gz")
+loo_outcome_path <- bundle_file("loo_outcome_summary.csv.gz")
+loo_model_path <- bundle_file("loo_model_summary.csv.gz")
+loo_comparison_path <- bundle_file("loo_method_comparison.csv.gz")
+loo_observation_path <- bundle_file("loo_observation_diagnostics.csv.gz")
+loo_exact_path <- bundle_file("loo_exact_refit_summary.csv.gz")
+stacking_path <- bundle_file("stacking_weights.csv.gz")
 
 required_files <- c(
   audit_path,
@@ -91,7 +74,7 @@ required_files <- c(
 )
 if (any(!file.exists(required_files))) {
   stop(
-    "The final primary-model diagnostic and LOO audits must be built before this supplement. Missing: ",
+    "The final updated-primary verification bundle is incomplete. Missing: ",
     paste(required_files[!file.exists(required_files)], collapse = ", ")
   )
 }
@@ -135,8 +118,8 @@ stacking <- read.csv(
 )
 
 outcome_labels <- c(
-  whole_body = "Whole-body lean soft tissue mass",
-  hypertrophy = "Direct muscle size/mass",
+  whole_body = "Whole-body lean/fat-free mass",
+  hypertrophy = "Measures of muscle size or mass",
   strength = "Strength",
   "function" = "Physical function"
 )
@@ -296,7 +279,7 @@ details summary { color: #274b60; cursor: pointer; font-weight: 600; }
 ```
 
 ::: {.scope-box}
-**Scope of this document.** This supplement records departures from the *originally preregistered `brms` primary analysis*. It deliberately does **not** cover the later Stan measurement-error models, Mundlak models, or other exploratory sensitivity analyses. Those models require a separate rationale and diagnostic record and should not be interpreted as amendments to the primary analysis described here.
+**Scope of this document.** This is the final consolidated deviation record. It distinguishes changes required to implement and diagnose the originally preregistered relative-intake analysis from analyses added after registration. The preregistered relative-intake analysis remains primary. The later sensitivity, absolute-exposure, muscle-measurement, age/duration, and training-status analyses are recorded here for transparency but retain their post-registration status and are reported in dedicated supplements.
 :::
 
 ## Purpose and reference points
@@ -339,6 +322,16 @@ Stacking weights were then calculated only from those corrected final LOO object
 | LOO implementation refinement | integrated observation-level predictive densities, followed by three exact case-deletion refits | Preserved the registered observation-level predictive comparison while preventing each held-out observation from contributing to the latent effects used to predict itself. |
 | Model-averaging correction | stacking weights from the corrected LOO objects and posterior-mixture sampling of complete model-specific curves | Represents uncertainty over candidate models without averaging unrelated posterior draws point by point. |
 | Inferential/reporting deviation | fewer posterior draws, no Bayes factors, and paired dose contrasts rather than derivative summaries | Shifted emphasis from precise point-null testing to estimation, predictive comparison, and directly interpretable intake contrasts. |
+| Post-registration sensitivity programme | Mundlak, strict within-study, common-sample achieved and assignment-derived, errors-in-variables, residual-correlation, and arm-level and within-study intervention-strategy analyses | Tests the robustness of the primary conclusion to between-study confounding, exposure definition, measurement error, residual dependence, and protein addition versus macronutrient substitution. These analyses do not replace the registered primary analysis. |
+| Post-registration absolute-exposure programme | total protein intake and prescribed supplemental protein, both in g/day | Examines whether conclusions depend on scaling intake by body mass and addresses the intervention quantity most directly assigned in many trials. These are additional exploratory dose-response analyses, not newly designated primary outcomes. |
+| Pre-registration-as-written muscle-measurement sensitivity | excludes trunk and skinfold-derived measurements from the registered measures-of-muscle-size-or-mass outcome while retaining the registered imaging, biopsy, appendicular DXA, and appendicular BIA methods | Tests whether the broader measurement implementation used in the fitted primary analysis materially affected its conclusion. The originally fitted relative-intake analysis remains the manuscript's primary analysis. |
+| Post-registration direct-only muscle sensitivity | restricts the muscle outcome to MRI, CT, ultrasound, and muscle-biopsy measurements | Tests whether the conclusion depends on retaining appendicular DXA/BIA regional proxies. This changes both measurements and contributing studies and is not interpreted as a pure measurement-error contrast. |
+| Post-registration age and duration extension | adds protein-by-age and protein-by-duration terms, singly and jointly, to the retained primary candidate families and recalculates stacking weights within exposure and outcome | Examines study/arm-level effect modification by mean age and intervention duration. These exploratory expanded ensembles do not replace the original primary ensembles or their weights. |
+| Post-registration training-status extension | compares protein contrasts between trained and untrained RT samples across relative, total, and supplement exposures | Examines study-level effect modification by prior training status. It is restricted to RT studies and is interpreted cautiously where trained-study support is sparse. |
+
+## Outcome terminology
+
+The registration used “whole-body lean soft tissue mass” and “direct measures of muscle mass/size”. The manuscript and supplements use **whole-body lean/fat-free mass** and **measures of muscle size or mass** to reflect the measurements contributing to the primary analyses. The whole-body outcome includes lean soft tissue, which excludes bone mineral, and fat-free mass, which includes it [@heymsfieldAreLeanBody2024]. The muscle outcome combines direct measurements from MRI, CT, ultrasound, or biopsy with indirect body-composition estimates used as proxies for muscle size or mass. The [muscle measurement eligibility analyses](muscle-measurement-sensitivity-analyses.html) show how applying the preregistered measurement criteria as written and restricting eligibility to direct measurements affect the results.
 
 ## Registered elements retained
 
@@ -355,6 +348,38 @@ The following core commitments were retained:
 - predictive comparison with approximate leave-one-out cross-validation and stacking weights as the planned model-comparison framework [@vehtariPracticalBayesianModel2017; @yaoUsingStackingAverage2018].
 
 The sampling/convergence audit described first below preceded the leave-one-out comparison: its purpose was to establish that every candidate supplied to model comparison was computationally defensible. PSIS-LOO status was therefore recorded as “not assessed” in that earlier audit rather than being silently treated as passed. The separate final LOO audit and its remedies are documented later in this supplement.
+
+## Final analysis hierarchy and post-registration additions
+
+The original analytical priority has not changed. The **primary analysis** remains the preregistered arm-level association between achieved total protein intake in g/kg/day and standardised outcome change, averaged across the registered candidate set using LOO stacking. Because achieved intake is measured after randomisation and the arm-level models combine within-study and between-study information, this primary estimand is interpreted as a conditional dose-response association rather than a fully identified causal per-protocol effect.
+
+After registration, we added a structured sensitivity programme to examine the assumptions most relevant to that interpretation. These additions were not used to redefine the primary analysis or to select a more favourable result.
+
+| Added analysis | Main change from the primary analysis | Purpose and interpretation |
+|---|---|---|
+| Mundlak decomposition | Separates the study mean of each protein basis from the arm-specific deviation around that mean. | Assesses the extent to which the arm-level curve reflects between-study differences. It reduces, but does not eliminate, concerns about confounding. |
+| Strict within-study contrasts | Models matched protein-arm minus comparator-arm outcome contrasts against the corresponding achieved-intake contrast. | Restricts identification to randomised comparisons within studies and is the closest aggregate-data analysis to the randomised dose contrast. |
+| Common-sample achieved intake | Refits achieved-intake models only on arms for which an assignment-derived exposure can also be reconstructed. | Distinguishes the effect of sample restriction from the effect of changing the exposure definition. |
+| Common-sample assignment-derived intake | Replaces achieved intake with baseline intake plus the prescribed protein increment on exactly the same rows. | Provides an intention-to-treat-like dose proxy for comparison with post-randomisation achieved intake. |
+| Errors-in-variables | Treats the underlying arm intake as latent and informs it with the measured intake and its SE. | Assesses attenuation or distortion from measurement error in the intake exposure. |
+| Residual correlation | Estimates residual dependence among multiple effect estimates contributed by the same study. | Tests sensitivity to the conditional-independence working assumption after hierarchical effects are included. |
+| Addition-versus-Substitution, arm level | Adds intervention-strategy main effects and strategy-by-dose terms matched to each candidate's dose basis. | Examines whether adding protein and replacing other macronutrients imply different arm-level dose-response functions. |
+| Addition-versus-Substitution, within study | Applies the same strategy modification to matched within-study contrasts. | Examines whether any strategy difference persists when outcome effects are identified from randomised contrasts; the between-strategy comparison itself remains largely across studies. |
+
+Each relative-intake sensitivity retained the same four outcomes and the same 26 candidate identities per outcome. Changes were confined to the exposure, decomposition, likelihood, dependence structure, or prespecified strategy terms required by the sensitivity question. Each family underwent the same general workflow of sampling diagnostics, integrated observation-level LOO with exact refits when Pareto $k>0.7$, outcome-specific stacking, and posterior-mixture contrasts against the preregistered $\pm0.1$-standardised-unit smallest effect size of interest.
+
+Two additional dose-response scales were also added after registration:
+
+- **Achieved total protein intake (g/day).** Directly reported intervention-period g/day was preferred; otherwise it was reconstructed as g/kg/day multiplied by arm mean body mass. A common-sample assignment-derived exposure used baseline g/day plus the prescribed supplement dose. The total-intake programme applies the primary, Mundlak, strict within-study, common-sample achieved and assignment-derived, errors-in-variables, residual-correlation, and both intervention-strategy families where their required inputs are available.
+- **Prescribed supplemental protein (g/day).** Reported protein supplied by the assigned product was used, with structural zero assigned only to explicit control or placebo arms whose dose was missing. Reported comparator protein was retained and missing protein-arm doses remained missing. Primary, Mundlak, strict within-study, residual-correlation, and both intervention-strategy families are applicable. Separate achieved-versus-assignment and errors-in-variables supplement families were not fitted because systematically measured achieved supplement dose and corresponding measurement-error inputs were unavailable.
+
+For both absolute scales, the eight registered linear-spline candidates tied to a 1.6-g/kg/day knot were omitted because that relative threshold has no invariant equivalent in g/day. The remaining 18 candidate identities per outcome were retained and rescaled for numerical stability. Total intake was centred at the audited control/placebo median of 78.785 g/day and expressed per 50 g/day; prescribed supplementation was centred at zero and expressed per 25 g/day. These absolute-scale analyses test scale dependence and a more directly assigned intervention quantity, but they remain exploratory additions and do not supersede the preregistered relative-intake analysis.
+
+The muscle-outcome implementation was also audited against the registered measurement wording. The pre-registration-as-written sensitivity excludes trunk and skinfold-derived outcomes but retains imaging, biopsy, appendicular DXA, and appendicular BIA measures. A stricter post-registration direct-only analysis retains MRI, CT, ultrasound, and biopsy measurements. Both are supplementary restrictions against the originally fitted primary relative-intake analysis; the first addresses the registration wording and the second tests a narrower measurement definition.
+
+Two exploratory effect-modification programmes were added after registration. The age/duration programme augments each retained primary candidate family with age-only, duration-only, and joint protein-by-age plus protein-by-duration candidates, then estimates fresh stacking weights within each exposure and outcome. The training-status programme is restricted to RT studies and compares model-averaged protein contrasts between trained and untrained samples. Neither programme changes the candidate weights used for the registered primary analysis or for the sensitivity families reported elsewhere.
+
+The complete exposure-construction rules, including uncertainty propagation and the distinction between achieved total intake, assignment-derived total intake, and prescribed supplementation, are reported in the separate protein-calculations supplement. Dedicated supplements report the relative-intake sensitivities, both absolute-exposure programmes, muscle-measurement analyses, age/duration interactions, and training-status analyses. The final hierarchy retained in the manuscript and OSF amendment is: preregistered relative-intake analysis first; corrections needed to implement that analysis as written; post-registration robustness analyses; and additional exploratory dose-scale and effect-modification analyses.
 
 ## Protocol and operational deviations
 
@@ -592,7 +617,7 @@ loo_status <- lapply(names(outcome_labels), function(outcome_code) {
     `Integrated k > 0.7 before exact refits` = nrow(exact_rows),
     `Maximum integrated k before exact refits` = sprintf("%.3f", pre_exact_max),
     `Exact refits` = final_row$exact_loo_refits,
-    `Final unresolved warnings` = final_row$total_pareto_k_warnings,
+    `Final unresolved warnings` = final_row$remaining_pareto_k_warnings,
     `Ready for stacking` = ifelse(final_row$stacking_ready, "Yes", "No"),
     check.names = FALSE
   )
@@ -632,7 +657,7 @@ for (outcome_code in names(outcome_labels)) {
 
 Posterior-mixture means and 95% quantile intervals are reported over a 0.01-g/kg/day grid. Pairwise contrasts are calculated as differences within the same mixture draw for every combination of current and proposed intake shown in the heatmaps. This replaces the preregistered local-slope summaries with directly interpretable intake contrasts while retaining the registered model set and model-comparison framework.
 
-The pairwise contrast heatmaps apply the same paired-draw calculation to every combination of current and proposed intake. Fill represents the mean proposed-minus-current contrast. For each cell, posterior probabilities are calculated for a meaningful benefit (contrast greater than 0.10 standardised units), practical equivalence (between -0.10 and 0.10), and meaningful detriment (less than -0.10). Contours identify cells attaining at least 95% posterior probability for one of those classifications. Cells outside the protein-intake range observed for the relevant resistance-training condition are retained in the data but masked from the publication plot, preventing unsupported extrapolations from being presented as classified regions.
+The pairwise contrast heatmaps apply the same paired-draw calculation to every combination of current and proposed intake. Fill represents the mean outcome contrast at the proposed intake minus that at the current intake. Thus, cells above the diagonal represent an increase in protein intake, cells below it a decrease, and the sign of the contrast describes the direction of the outcome difference. Given the generally positive posterior mean dose-response functions, posterior probabilities are interpreted as a meaningful outcome gain from increasing intake (contrast greater than 0.10 standardised units above the diagonal), practical equivalence (between -0.10 and 0.10), or a meaningful outcome loss from decreasing intake (less than -0.10 below the diagonal). Contours identify cells attaining at least 95% posterior probability for one of those classifications. Cells outside the protein-intake range observed for the relevant resistance-training condition are retained in the data but masked from the publication plot, preventing unsupported extrapolations from being presented as classified regions.
 
 ## Complete model-by-model deviation register
 
@@ -670,12 +695,12 @@ The final set is a diagnostically screened candidate ensemble, not a claim that 
 - sampling and LOO remedies were tied to explicit numerical criteria and localized diagnostics;
 - the sole basis substitution is identifiable in the register rather than hidden within a generic “convergence adjustment”;
 - the three exact LOO replacements were triggered only by $k>0.7$, and the geometry remedy did not alter the candidate formula or priors; and
-- the later measurement-error Stan models and Mundlak analyses remain exploratory sensitivity analyses outside this deviation record.
+- the post-registration sensitivity, absolute-exposure, direct-only measurement, age/duration, and training-status programmes retain their exploratory or sensitivity status; they are summarised here to make the final analysis hierarchy explicit, while their model-specific diagnostics and results are reported in their dedicated supplements.
 
-This supplement should be versioned with the analysis code. Because its sampling register, LOO tables, and stacking weights are read directly from the final pipeline artifacts, rerendering will fail rather than silently publish stale results when an audit or the model-averaging output is unavailable.
+This supplement should be versioned with the analysis code. Its sampling register, LOO tables, and stacking weights are read from the final `primary_update_2026` verification bundle, so rerendering fails rather than silently publishing stale results when a required artifact is unavailable.
 
 ## Reproducibility
 
-The HTML page is built as a file target in the project’s `{targets}` pipeline. The document depends on the final diagnostic summary, definitive classification, posterior predictive outcome summary, all five tables in the final observation-level LOO audit, and the final stacking-weight register. The repository’s locked R environment and the embedded-resource HTML format allow the published page to be archived as the single self-contained file `preregistration-deviations.html`.
+The HTML page is rendered from the final updated-primary verification bundle. The document depends on the final diagnostic summary and classification, posterior-predictive outcome summary, observation-level LOO audit and exact-refit summary, and final stacking-weight register. The repository’s locked R environment and the embedded-resource HTML format allow the published page to be archived as the single self-contained file `preregistration-deviations.html` without requiring the disposable `_targets` cache.
 
 ## References

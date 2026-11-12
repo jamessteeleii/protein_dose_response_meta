@@ -1,0 +1,13 @@
+resistance_exercise_code,profile,age,weeks,local_studies,local_arms,local_min,local_max,age_within_range,duration_within_range
+0,reference,25,12,32,89,0,106,TRUE,TRUE
+1,reference,25,12,2,3,0,18,TRUE,TRUE
+0,typical,31.10135135135135,12,26,56,0,106,TRUE,TRUE
+1,typical,31.10135135135135,12,2,3,0,18,TRUE,TRUE
+0,age_q25,22.374999999999996,12,32,89,0,106,TRUE,TRUE
+1,age_q25,22.374999999999996,12,2,3,0,18,FALSE,TRUE
+0,age_q75,68,12,15,32,0,40,TRUE,TRUE
+1,age_q75,68,12,11,22,0,40,TRUE,TRUE
+0,duration_q25,31.10135135135135,8,27,58,0,106,TRUE,TRUE
+1,duration_q25,31.10135135135135,8,2,3,0,18,TRUE,TRUE
+0,duration_q75,31.10135135135135,12,26,56,0,106,TRUE,TRUE
+1,duration_q75,31.10135135135135,12,2,3,0,18,TRUE,TRUE

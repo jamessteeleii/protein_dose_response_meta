@@ -1,0 +1,217 @@
+---
+title: "Absolute total protein-intake analyses"
+subtitle: "Primary and sensitivity dose-response models using achieved total intake in g/day"
+author:
+  - name: James Steele
+  - name: Everson Araujo Nunes
+  - name: Myles Moore
+  - name: Matthew Lees
+  - name: Lauren Roxburgh
+  - name: Andrea Viloria Medina
+  - name: Stuart Phillips
+date: last-modified
+date-format: long
+format:
+  html:
+    theme: [cosmo, no-web-font.scss]
+    toc: true
+    toc-depth: 3
+    toc-location: body
+    toc-title: Contents
+    smooth-scroll: true
+    embed-resources: true
+    html-math-method: mathml
+    link-external-newwindow: true
+    code-fold: true
+    code-summary: "Show reproducibility code"
+    tbl-cap-location: top
+execute:
+  echo: false
+  warning: false
+  message: false
+---
+
+```{r}
+#| label: setup
+#| include: false
+library(dplyr)
+library(ggplot2)
+library(purrr)
+library(readr)
+library(tidyr)
+source(if (file.exists("supplement/report-helpers.R")) "supplement/report-helpers.R" else "report-helpers.R")
+
+families <- tibble::tribble(
+  ~bundle, ~label, ~within,
+  "total_primary_update_2026", "Primary absolute total intake", FALSE,
+  "total_mundlak_update_2026", "Mundlak decomposition", FALSE,
+  "total_within_update_2026", "Strict within-study", TRUE,
+  "total_achieved_update_2026", "Achieved intake, common sample", FALSE,
+  "total_assignment_update_2026", "Assignment-derived, common sample", FALSE,
+  "total_eiv_update_2026", "Errors-in-variables", FALSE,
+  "total_rescor_update_2026", "Residual correlation", FALSE,
+  "total_strategy_update_2026", "Strategy, arm level", FALSE,
+  "total_strategy_within_update_2026", "Strategy, within study", TRUE
+) |>
+  mutate(
+    data = map(bundle, ~ read_bundle(.x, "sample_rows.csv.gz")),
+    predictions = map2(bundle, label, ~ normalise_predictions(read_bundle(.x, "dose_response_predictions.csv.gz"), .y, "g/day")),
+    diagnostics = map2(bundle, label, diagnostic_row),
+    equivalence = map2(bundle, label, local_equivalence_summary)
+  )
+
+samples <- pmap_dfr(
+  list(families$data, families$label, families$within),
+  analysis_sample_row
+)
+diagnostics <- bind_rows(families$diagnostics)
+predictions <- bind_rows(families$predictions) |>
+  mutate(outcome = factor(outcome, levels = unname(report_outcome_labels)))
+equivalence <- bind_rows(families$equivalence)
+
+primary_predictions_raw <- read_bundle("total_primary_update_2026", "dose_response_predictions.csv.gz")
+support <- primary_predictions_raw |>
+  group_by(outcome, resistance_exercise) |>
+  summarise(
+    central_min = first(central_90_minimum),
+    central_max = first(central_90_maximum),
+    .groups = "drop"
+  )
+meaningful <- read_bundle("total_primary_update_2026", "supported_meaningful_contrasts.csv.gz") |>
+  filter(
+    supported %in% TRUE,
+    protein_intake_proposed > protein_intake_current,
+    probability_meaningful_benefit >= 0.95 | probability_meaningful_detriment >= 0.95
+  ) |>
+  left_join(support, by = c("outcome", "resistance_exercise")) |>
+  mutate(
+    within_central_90 = protein_intake_current >= central_min & protein_intake_proposed <= central_max,
+    Outcome = unname(report_outcome_labels[outcome]),
+    `RT condition` = report_rt_label(resistance_exercise)
+  )
+```
+
+# Scope
+
+This post-registration programme expresses achieved total protein intake in g/day. It complements, but does not replace, the preregistered g/kg/day analysis. Directly reported intervention-period g/day was preferred. Where necessary, total intake was reconstructed from audited relative intake and arm mean body mass. Total intake is still a post-randomisation exposure and should not be interpreted as a fully identified causal per-protocol dose.
+
+The eight relative-intake sensitivity questions were repeated where their inputs were available. The fixed 1.6-g/kg/day linear-spline candidates have no invariant absolute-dose equivalent and were therefore omitted. Each outcome retained 18 candidate identities for primary and sensitivity model averaging.
+
+# Final samples and diagnostics
+
+```{r}
+#| label: tbl-total-samples
+#| tbl-cap: "Absolute-total-intake analysis samples."
+samples |>
+  mutate(across(where(is.numeric), ~ ifelse(is.na(.x), "—", format_count(.x)))) |>
+  knitr::kable(align = c("l", "r", "r", "r", "r", "l"))
+```
+
+```{r}
+#| label: tbl-total-diagnostics
+#| tbl-cap: "Final sampling and exact-LOO diagnostic status."
+knitr::kable(diagnostics, align = c("l", "r", "r", "r", "r"))
+```
+
+All families passed their final reporting gates. Corrected observation-level LOO objects were used for outcome-specific stacking, with exact case-deletion refits where the family audit required them.
+
+# Dose-response results
+
+```{r}
+#| label: fig-total-curves
+#| fig-cap: "Model-averaged absolute-total-intake dose-response curves for non-strategy arm-level analyses. Ribbons are shown for the primary analysis; other final family curves are overlaid for comparison."
+#| fig-width: 12
+#| fig-height: 9
+
+arm <- predictions |> filter(is.na(strategy), !analysis %in% "Strict within-study")
+primary <- arm |> filter(analysis == "Primary absolute total intake")
+
+ggplot(arm, aes(dose, estimate, colour = analysis)) +
+  geom_ribbon(
+    data = primary,
+    aes(ymin = conf_low, ymax = conf_high, fill = analysis),
+    alpha = 0.15, colour = NA, inherit.aes = TRUE
+  ) +
+  geom_line(linewidth = 0.65) +
+  facet_grid(rt ~ outcome, scales = "free_y", labeller = report_facet_labels()) +
+  scale_colour_manual(values = report_curve_colours) +
+  scale_fill_manual(values = report_curve_colours, guide = "none") +
+  labs(x = report_dose_axes[["total"]], y = "Standardised Mean Change", colour = NULL) +
+  report_theme()
+```
+
+The primary and sensitivity families broadly reproduce the relative-intake pattern: generally modestly positive curves for whole-body lean/fat-free mass, measures of muscle size or mass, and strength, with shallow curvature for physical function. The strict within-study estimand is reported separately in its verification bundle because it represents matched contrasts rather than absolute arm outcomes.
+
+## Supported meaningful contrasts
+
+```{r}
+#| label: tbl-total-meaningful
+#| tbl-cap: "Supported primary contrasts meeting the 95% probability criterion for a meaningful benefit or detriment. The displayed rows summarise the outer boundaries by outcome and RT condition."
+
+meaningful_display <- meaningful |>
+  group_by(Outcome, `RT condition`) |>
+  summarise(
+    `Lowest current dose` = min(protein_intake_current),
+    `Highest proposed dose` = max(protein_intake_proposed),
+    `Maximum meaningful-benefit probability` = max(probability_meaningful_benefit),
+    `Any wholly within central 90%` = any(within_central_90),
+    `Supported contrasts` = n(),
+    .groups = "drop"
+  ) |>
+  mutate(`Maximum meaningful-benefit probability` = sprintf("%.3f", `Maximum meaningful-benefit probability`))
+
+if (nrow(meaningful_display)) {
+  knitr::kable(meaningful_display, align = c("l", "l", "r", "r", "r", "r", "r"))
+} else {
+  cat("No supported contrast met the 95% meaningful-difference criterion.")
+}
+```
+
+Only widely separated whole-body lean/fat-free-mass contrasts in the RT stratum met the meaningful-benefit criterion. None lay wholly within the central 90% exposure range. These tail comparisons should therefore be treated as limited evidence at sparse absolute doses rather than as precise intake targets.
+
+# Addition-versus-Substitution
+
+```{r}
+#| label: fig-total-strategy
+#| fig-cap: "Addition and Substitution curves for the arm-level and within-study absolute-total-intake strategy analyses."
+#| fig-width: 12
+#| fig-height: 10
+
+strategy <- predictions |>
+  filter(!is.na(strategy)) |>
+  mutate(panel = paste(analysis, unname(report_rt_display[rt]), sep = "\n"))
+
+ggplot(strategy, aes(dose, estimate, colour = strategy, fill = strategy)) +
+  geom_ribbon(aes(ymin = conf_low, ymax = conf_high), alpha = 0.10, colour = NA) +
+  geom_line(linewidth = 0.65) +
+  facet_grid(panel ~ outcome, scales = "free_y", labeller = report_facet_labels()) +
+  scale_colour_manual(values = report_curve_colours) +
+  scale_fill_manual(values = report_curve_colours) +
+  labs(x = report_dose_axes[["total"]], y = "Standardised Mean Change or Contrast", colour = NULL, fill = NULL) +
+  report_theme()
+```
+
+The strategy analyses do not show a stable general advantage for Addition or Substitution. Strategy is identified mainly across studies, so these curves are conditional effect-modification analyses rather than randomised head-to-head strategy effects.
+
+# Local practical equivalence
+
+```{r}
+#| label: tbl-total-equivalence
+#| tbl-cap: "Local practical-equivalence radii in g/day."
+equivalence |>
+  mutate(
+    across(c(equivalent_radius, equivalent_radius_q10, equivalent_radius_q90), ~ sprintf("%.1f", .x)),
+    supported_current_intakes = format_count(supported_current_intakes)
+  ) |>
+  rename(
+    `Median radius` = equivalent_radius,
+    `Q10 radius` = equivalent_radius_q10,
+    `Q90 radius` = equivalent_radius_q90,
+    `Supported current intakes` = supported_current_intakes
+  ) |>
+  knitr::kable(align = "l")
+```
+
+# Interpretation
+
+Changing the exposure scale from g/kg/day to absolute total g/day does not materially alter the overall conclusion. Local dose differences are commonly practically equivalent, larger contrasts remain more uncertain, and the only supported meaningful gains arise from very widely separated whole-body doses during RT in sparsely represented tails. The result does not justify replacing the preregistered relative-intake analysis or defining an absolute optimum.

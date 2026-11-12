@@ -1,0 +1,39 @@
+
+Effect
+                Hypothesis  Prior prob. Post. prob. Inclusion BF
+Spike(0)        Null              0.500       0.813        4.358
+Normal(0, 0.71) Alternative       0.500       0.187        0.229
+                error%(Inclusion BF)
+Spike(0)                       3.510
+Normal(0, 0.71)                3.510
+
+Heterogeneity
+                        Hypothesis  Prior prob. Post. prob. Inclusion BF
+Spike(0)                Null              0.500       0.000        0.000
+Normal(0, 0.35)[0, Inf] Alternative       0.500       1.000          Inf
+                        error%(Inclusion BF)
+Spike(0)                                  NA
+Normal(0, 0.35)[0, Inf]                   NA
+
+Publication Bias
+                                Hypothesis  Prior prob. Post. prob.
+None                            Null              0.500       0.093
+omega[two-sided: .05]           Alternative       0.042       0.001
+omega[two-sided: .05, .1]       Alternative       0.042       0.000
+omega[one-sided: .05]           Alternative       0.042       0.002
+omega[one-sided: .025, .05]     Alternative       0.042       0.001
+omega[one-sided: .05, .5]       Alternative       0.042       0.001
+omega[one-sided: .025, .05, .5] Alternative       0.042       0.001
+PET                             Alternative       0.125       0.694
+PEESE                           Alternative       0.125       0.208
+                                Inclusion BF error%(Inclusion BF)
+None                                   0.102                4.227
+omega[two-sided: .05]                  0.022               16.609
+omega[two-sided: .05, .1]              0.005               36.763
+omega[one-sided: .05]                  0.044               12.289
+omega[one-sided: .025, .05]            0.017               18.855
+omega[one-sided: .05, .5]              0.019               17.920
+omega[one-sided: .025, .05, .5]        0.012               21.826
+PET                                   15.863                3.037
+PEESE                                  1.839                3.025
+

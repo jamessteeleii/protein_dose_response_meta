@@ -1,0 +1,11 @@
+reason_flag,reason,excluded_contrasts,percent_of_excluded_contrasts
+exclusion_missing_protein_intake,missing protein intake,228,65.89595375722543
+exclusion_effect_size_not_estimable,effect size not estimable,120,34.68208092485549
+exclusion_missing_baseline_sd,missing baseline standardisation SD,101,29.190751445086704
+exclusion_missing_mean_change,missing mean change,19,5.491329479768786
+exclusion_missing_sample_size,missing outcome sample size,18,5.202312138728324
+exclusion_author_decision,excluded by author-group decision,12,3.468208092485549
+exclusion_missing_mean_age,missing mean age,6,1.7341040462427746
+exclusion_missing_resistance_exercise_code,missing resistance exercise code,2,0.5780346820809249
+exclusion_missing_duration,missing duration,0,0
+exclusion_missing_pre_post_correlation,missing pre-post correlation,0,0

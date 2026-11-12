@@ -1,0 +1,8 @@
+
+Zplot Estimates:
+            Mean Median 0.025   0.975
+EDR        0.091  0.090 0.050   0.156
+Soric FDR  0.598  0.532 0.284   1.000
+Missing N 10.366  0.000 0.000 144.561
+Estimated using 86 estimates, 8 significant (ODR = 0.09, 95% CI [0.04, 0.18]).
+

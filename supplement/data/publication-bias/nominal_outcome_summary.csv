@@ -1,0 +1,5 @@
+outcome_label,outcome_group,independent_studies,selected_contrasts,candidate_contrasts,median_total_n,minimum_total_n,maximum_total_n,statistically_significant,with_resistance_training,without_resistance_training
+Measures of muscle size or mass,direct muscle size/mass,47,47,252,31,16,181,5,35,12
+Physical function,function,27,27,143,50,14,181,6,13,14
+Strength,strength,76,76,383,30,12,181,8,60,16
+Whole-body lean/fat-free mass,whole body lean mass,72,72,147,30,12,141,10,59,13

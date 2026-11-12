@@ -1,0 +1,120 @@
+study_label,index_outcome_family,index_result,D1_final,D2_final,D3_final,D4_final,D5_final,overall_final
+S001 Aas 2020,Direct muscle size/mass,direct muscle size/mass | dexa - legs | 10 weeks | ROB2-S001-DMS,Low,Low,Low,Low,Low,Low
+S003 Aleman-Mateo 2014,Whole-body lean mass,whole body lean mass | prespecified historical index result,Low,Some concerns,Low,Low,Some concerns,Some concerns
+S005 Amasene 2019,Whole-body lean mass,whole body lean mass | prespecified historical index result,Low,Some concerns,Low,Low,Some concerns,Some concerns
+S008 Antonio 2014,Whole-body lean mass,whole body lean mass | prespecified historical index result,Low,Low,Low,Low,Some concerns,Some concerns
+S009 Antonio 2015,Whole-body lean mass,fat free mass,Low,Low,High,Low,High,High
+S010 Aristizabal 2014,Whole-body lean mass,whole body lean mass | dexa | 36 weeks | ROB2-S010-WBLM,Low,Low,High,Low,Some concerns,High
+S011 Arnarson 2013,Whole-body lean mass,whole body lean mass | prespecified historical index result,Low,Low,Low,Low,Some concerns,Some concerns
+S012 Babault 2014,Whole-body lean mass,whole body lean mass | bia | 10 weeks | ROB2-S012-WBLM,Low,Low,Low,Low,Some concerns,Some concerns
+S014 Bartholomae 2019,Whole-body lean mass,whole body lean mass | prespecified historical index result,Low,Low,Low,Low,Low,Low
+S018 Bridge 2019,Whole-body lean mass,whole body lean mass | prespecified historical index result,Low,Low,Low,Low,Low,Low
+S020 Brown 2004,Whole-body lean mass,whole body lean mass | prespecified historical index result,Low,Low,Low,Low,Some concerns,Some concerns
+S022 Burke 2001,Whole-body lean mass,whole body lean mass | prespecified historical index result,Low,Low,Low,Low,High,High
+S024 Campbell 2018,Whole-body lean mass,whole body lean mass | prespecified historical index result,Some concerns,Some concerns,Low,Low,Some concerns,Some concerns
+S025 Candow 2006,Whole-body lean mass,whole body lean mass | dexa | 6 weeks | ROB2-S025-WBLM,Low,Low,Low,Low,Some concerns,Some concerns
+S026 Candow 2006,Whole-body lean mass,whole body lean mass | bodpod | 12 weeks | ROB2-S026-WBLM,Low,Low,Low,Low,Some concerns,Some concerns
+S028 Chale 2013,Whole-body lean mass,whole body lean mass | prespecified historical index result,Low,Low,Low,Low,Some concerns,Some concerns
+S029 Coburn 2006,Whole-body lean mass,whole body lean mass | prespecified historical index result,Low,Low,Low,Low,High,High
+S032 Deibert 2011,Whole-body lean mass,whole body lean mass | prespecified historical index result,Low,Some concerns,Low,Low,Some concerns,Some concerns
+S033 Dillon 2009,Whole-body lean mass,whole body lean mass | prespecified historical index result,Some concerns,Some concerns,Low,Low,Some concerns,Some concerns
+S034 Dulac 2021,Whole-body lean mass,whole body lean mass | dexa - lean mass | 12 weeks | ROB2-S034-WBLM,Low,Low,Low,Low,Some concerns,Some concerns
+S035 Eliot 2008,Whole-body lean mass,whole body lean mass | prespecified historical index result,Low,Low,Low,Low,Some concerns,Some concerns
+S036 Erskine 2012,Direct muscle size/mass,direct muscle size/mass | mri - biceps brachii acsa | 12 weeks | ROB2-S036-DMS,Low,Low,Low,Low,Some concerns,Some concerns
+S038 Farup 2014,Direct muscle size/mass,direct muscle size/mass | mri - mid thigh - concentric | 12 weeks | ROB2-S038-DMS,Low,Low,Low,Low,Some concerns,Some concerns
+S043 Gryson 2014,Whole-body lean mass,whole body lean mass | prespecified historical index result,Low,Low,Low,Low,Some concerns,Some concerns
+S044 Hartman 2007,Whole-body lean mass,whole body lean mass | prespecified historical index result,Some concerns,Low,Low,Low,Some concerns,Some concerns
+S045 Mobley 2017,Whole-body lean mass,whole body lean mass | dexa | 12 weeks | ROB2-S045-WBLM,Low,Low,Low,Low,Low,Low
+S046 Herda 2013,Whole-body lean mass,whole body lean mass | prespecified historical index result,Low,Low,Low,Low,Some concerns,Some concerns
+S048 Hida 2012,Whole-body lean mass,fat free mass,Low,Low,Some concerns,Low,Some concerns,Some concerns
+S049 Hoffman 2007,Whole-body lean mass,whole body lean mass | prespecified historical index result,Low,Low,Low,Low,Some concerns,Some concerns
+S050 Hoffman 2009,Whole-body lean mass,whole body lean mass | prespecified historical index result,Low,Some concerns,Low,Low,Some concerns,Some concerns
+S053 Iglay 2009,Whole-body lean mass,whole body lean mass | prespecified historical index result,Low,Low,Low,Low,Some concerns,Some concerns
+S054 Ispoglou 2016,Whole-body lean mass,Lean tissue mass,Low,Low,Low,Low,Some concerns,Some concerns
+S057 Kerksick 2006,Whole-body lean mass,whole body lean mass | prespecified historical index result,Low,Low,Low,Low,Some concerns,Some concerns
+S058 Kim 2014,Whole-body lean mass,whole body lean mass | prespecified historical index result,Low,Low,Low,Low,Low,Low
+S059 Park NaN,Direct muscle size/mass,direct muscle size/mass | dexa - appendicular | 12 weeks | ROB2-S059-DMS,Low,Low,Low,Low,Some concerns,Some concerns
+S060 Kirmse 2019,Whole-body lean mass,whole body lean mass | prespecified historical index result,Low,Low,Low,Low,Some concerns,Some concerns
+S064 Leenders 2013,Whole-body lean mass,whole body lean mass | prespecified historical index result,Low,Low,Low,Low,Some concerns,Some concerns
+S065 Lockwood 2017,Whole-body lean mass,Total body skeletal muscle mass,Low,Low,Low,Low,Some concerns,Some concerns
+S066 Maesta 2007,Whole-body lean mass,whole body lean mass | prespecified historical index result,Some concerns,Some concerns,Low,Low,Some concerns,Some concerns
+S071 Mori 2018,Direct muscle size/mass,direct muscle size/mass | bia - arms | 24 weeks | ROB2-S071-DMS,Low,Low,Low,Some concerns,Some concerns,Some concerns
+S072 Nabuco NaN,Direct muscle size/mass,direct muscle size/mass | dexa - appendicular | 22 weeks | ROB2-S072-DMS,Low,Low,Low,Low,Some concerns,Some concerns
+S076 Nabuco 2019,Whole-body lean mass,whole body lean mass | bia | 12 weeks | ROB2-S076-WBLM,Low,Low,Low,Low,Some concerns,Some concerns
+S077 Nacliero 2017,Whole-body lean mass,whole body lean mass | bodpod | 8 weeks | ROB2-S077-WBLM,Low,Low,Low,Low,Some concerns,Some concerns
+S078 Nacliero 2017,Whole-body lean mass,whole body lean mass | dexa | 8 weeks | ROB2-S078-WBLM,Low,Low,Low,Low,Some concerns,Some concerns
+S081 Nahas 2019,Whole-body lean mass,whole body lean mass | prespecified historical index result,Low,Low,Some concerns,Low,Low,Some concerns
+S082 Nakayama 2021,Whole-body lean mass,whole body lean mass | bia - lean mass | 26 weeks | ROB2-S082-WBLM,Low,Low,Low,Low,Low,Low
+S083 Negro 2014,Whole-body lean mass,whole body lean mass | prespecified historical index result,Low,Low,Low,Low,Some concerns,Some concerns
+S084 Oertsen-Hagemann 2019,Whole-body lean mass,whole body lean mass | prespecified historical index result,Low,Low,Low,Low,Some concerns,Some concerns
+S086 Ormsbee 2018,Whole-body lean mass,whole body lean mass | dexa | 26 weeks | ROB2-S086-WBLM,High,Low,Low,Low,Some concerns,High
+S087 Orsatti 2018,Whole-body lean mass,Muscle mass,Some concerns,Some concerns,Low,High,Some concerns,High
+S088 Ottestad 2017,Whole-body lean mass,whole body lean mass | prespecified historical index result,Low,High,Low,Low,Low,High
+S089 Ozan 2020,Whole-body lean mass,whole body lean mass | prespecified historical index result,Some concerns,High,Low,Low,Some concerns,High
+S090 Paoli NaN,Whole-body lean mass,whole body lean mass | prespecified historical index result,Low,Some concerns,Low,Low,Some concerns,Some concerns
+S093 Pihoker 2018,Whole-body lean mass,whole body lean mass | prespecified historical index result,Low,Low,Low,Low,Some concerns,Some concerns
+S094 Planella-Farrugia 2019,Whole-body lean mass,increase in fat free mass,High,Low,Low,High,High,High
+S096 Markofski NaN,Whole-body lean mass,whole body lean mass | prespecified historical index result,Low,Low,Low,Low,High,High
+S097 Rankin 2004,Whole-body lean mass,fat-free soft tissue,High,Low,Low,Low,Some concerns,High
+S098 Reidy 2016,Whole-body lean mass,whole body lean mass | prespecified historical index result,Low,Low,Low,Low,High,High
+S100 Rossato 2017,Whole-body lean mass,whole body lean mass | prespecified historical index result,Low,Low,Low,Low,Low,Low
+S101 Rozenek 2002,Whole-body lean mass,FFM,Low,Low,Low,Low,Some concerns,Some concerns
+S104 Sharp 2018,Whole-body lean mass,whole body lean mass | prespecified historical index result,Low,Low,Low,Low,Some concerns,Some concerns
+S105 Snijders 2015,Whole-body lean mass,whole body lean mass | prespecified historical index result,Low,Low,Low,Low,Low,Low
+S106 Spillane 2016,Whole-body lean mass,whole body lean mass | prespecified historical index result,Low,Low,Low,Low,Some concerns,Some concerns
+S108 Taylor 2016,Whole-body lean mass,whole body lean mass | prespecified historical index result,Low,Low,Low,Low,Some concerns,Some concerns
+S111 van Dongen 2020,Whole-body lean mass,whole body lean mass | prespecified historical index result,Some concerns,Low,Low,Low,Some concerns,Some concerns
+S112 Vangsoe 2018,Whole-body lean mass,whole body lean mass | prespecified historical index result,Low,Low,Low,Low,Some concerns,Some concerns
+S113 Verdijk 2009,Whole-body lean mass,whole body lean mass | prespecified historical index result,Low,Low,Low,Low,Some concerns,Some concerns
+S114 Vieillevoye 2010,Whole-body lean mass,muscle mass,Some concerns,Some concerns,High,High,Some concerns,High
+S118 Walker 2010,Whole-body lean mass,whole body lean mass | prespecified historical index result,Low,Low,Low,Low,High,High
+S119 Watanabe 2018,Whole-body lean mass,Muscle mass,Low,Low,Low,High,High,High
+S120 Weisgarber 2012,Whole-body lean mass,whole body lean mass | prespecified historical index result,Low,Low,Low,Low,Some concerns,Some concerns
+S123 Willoughby 2007,Whole-body lean mass,whole body lean mass | prespecified historical index result,Low,Low,Low,High,High,High
+S124 Zhu 2015,Direct muscle size/mass,direct muscle size/mass | ct - calf | 104 weeks | ROB2-S124-DMS,Low,Low,Low,Low,Low,Low
+S125 Obradovic 2020,Whole-body lean mass,whole body lean mass | bia - fat free mass | 8 weeks | ROB2-S125-WBLM,Some concerns,Some concerns,Low,High,Some concerns,High
+S126 Norton 2015,Whole-body lean mass,whole body lean mass | dexa - lean mass | 24 weeks | ROB2-S126-WBLM,Some concerns,Low,Low,Low,Low,Some concerns
+S127 Atherton 2020,Whole-body lean mass,whole body lean mass | prespecified historical index result,Low,Low,Low,Low,Some concerns,Some concerns
+S128 Baek 2025,Whole-body lean mass,whole body lean mass | prespecified historical index result,Low,Low,Low,Low,Low,Low
+S129 Bagheri 2023,Whole-body lean mass,whole body lean mass | prespecified historical index result,Low,Some concerns,Low,Low,Low,Some concerns
+S130 Bagheri 2023,Whole-body lean mass,whole body lean mass | prespecified historical index result,Low,Some concerns,Low,Low,Low,Some concerns
+S131 Carroll 2024,Direct muscle size/mass,direct muscle size/mass | mri - quadriceps | 12 weeks | ROB2-S131-DMS,Low,Some concerns,Low,Low,Some concerns,Some concerns
+S132 de Azevedo Bach 2022,Whole-body lean mass,whole body lean mass | prespecified historical index result,Some concerns,Low,Low,Low,Low,Some concerns
+S134 Franzke 2022,Whole-body lean mass,whole body lean mass | bia - muscle mass | 17 weeks | ROB2-S134-WBLM,Some concerns,Some concerns,Low,High,Low,High
+S135 Griffen 2022,Strength,strength | 1RM - knee extension | 12 weeks | ROB2-S135-STR,Low,Low,Low,Low,Low,Low
+S136 Huschtscha 2021,Whole-body lean mass,whole body lean mass | dexa - lean mass | 12 weeks | ROB2-S136-WBLM,Low,Low,Low,Low,Low,Low
+S137 Ioannidou 2024,Whole-body lean mass,whole body lean mass | prespecified historical index result,Low,Low,Low,Low,Low,Low
+S138 Kim 2023,Whole-body lean mass,whole body lean mass | prespecified historical index result,Low,Low,Low,Low,High,High
+S139 Klemp 2025,Direct muscle size/mass,direct muscle size/mass | ultrasound - rectus femoris | 12 weeks | ROB2-S139-DMS,Low,Low,Low,Low,Low,Low
+S140 Koopmans 2024,Whole-body lean mass,whole body lean mass | prespecified historical index result,Low,Low,Low,Low,Low,Low
+S141 Lamb 2020,Whole-body lean mass,whole body lean mass | prespecified historical index result,Low,Some concerns,Low,Low,Low,Some concerns
+S142 McKenna 2021,Whole-body lean mass,whole body lean mass | prespecified historical index result,Low,Low,Low,Low,Low,Low
+S143 Mertz 2021,Whole-body lean mass,whole body lean mass | prespecified historical index result,Low,Low,Low,Low,Low,Low
+S145 Nygard 2021,Strength,strength | handgrip dynamometer | 52 weeks | ROB2-S145-STR,Low,Low,Low,Low,Some concerns,Some concerns
+S146 Oh 2022,Whole-body lean mass,whole body lean mass | prespecified historical index result,Low,Low,Low,Low,Some concerns,Some concerns
+S147 Peng 2024,Strength,strength | handgrip dynamometer | 12 weeks | ROB2-S147-STR,Low,Some concerns,Low,Low,Low,Some concerns
+S148 Pourabbas 2021,Whole-body lean mass,whole body lean mass | prespecified historical index result,Low,Low,Low,Low,Low,Low
+S149 Sambashivaiah 2024,Whole-body lean mass,whole body lean mass | prespecified historical index result,Low,Low,Low,Low,Low,Low
+S150 Seo 2024,Whole-body lean mass,whole body lean mass | prespecified historical index result,Low,Low,Low,Low,Some concerns,Some concerns
+S151 Sexton 2021,Whole-body lean mass,whole body lean mass | prespecified historical index result,Some concerns,Some concerns,Low,Low,Low,Some concerns
+S152 Silva 2020,Whole-body lean mass,whole body lean mass | prespecified historical index result,Low,Low,Low,Low,Low,Low
+S153 Unterberger 2022,Whole-body lean mass,whole body lean mass | prespecified historical index result,Low,Low,Low,Low,Low,Low
+S154 van den Helder 2020,Whole-body lean mass,whole body lean mass | prespecified historical index result,Low,Low,Low,Low,Low,Low
+S155 Vendruscolo 2025,Direct muscle size/mass,direct muscle size/mass | mri - elbow flexors 45 | 3 weeks | ROB2-S155-DMS,Low,Low,Low,Low,Some concerns,Some concerns
+S156 Wirth 2024,Whole-body lean mass,whole body lean mass | prespecified historical index result,Low,Low,Low,Low,Low,Low
+S157 Yuan 2024,Whole-body lean mass,whole body lean mass | prespecified historical index result,Low,Low,Some concerns,Low,Low,Some concerns
+S158 Zbinden-Foncea 2023,Whole-body lean mass,whole body lean mass | prespecified historical index result,Some concerns,Low,Low,Low,Some concerns,Some concerns
+S159 Cribb 2006,Whole-body lean mass,whole body lean mass | dexa - lean mass | 10 weeks | ROB2-S159-WBLM,Low,Low,Low,Low,Some concerns,Some concerns
+S160 Fabre 2017,Whole-body lean mass,whole body lean mass | dexa - lean mass | 9 weeks | ROB2-S160-WBLM,Low,Low,Low,Low,Some concerns,Some concerns
+S161 Jacinto 2022,Direct muscle size/mass,direct muscle size/mass | ultrasound - biceps brachii | 10 weeks | ROB2-S161-DMS,Low,Low,Low,Low,Some concerns,Some concerns
+S162 Sugihara 2018,Whole-body lean mass,whole body lean mass | dexa - muscle mass | 12 weeks | ROB2-S162-WBLM,Some concerns,Low,Low,Low,Some concerns,Some concerns
+S163 Bagheri 2026,Whole-body lean mass,muscle mass | BIA | 12 weeks | ROB2-NEW10-WBLM,Low,Low,Some concerns,Low,Some concerns,Some concerns
+S164 Ceglia 2026,Direct muscle size/mass,direct muscle size/mass | dexa appendicular lean mass/height² | 24 weeks | ROB2-NEW01-DMS,Low,Low,Low,Low,Low,Low
+S165 Huijing 2026,Direct muscle size/mass,direct muscle size/mass | dexa appendicular skeletal muscle mass index | 24 weeks | ROB2-NEW02-DMS,Low,Low,Low,Low,Low,Low
+S166 Kang 2025,Whole-body lean mass,whole body lean mass | dexa total lean body mass | 12 weeks | ROB2-NEW03-WBLM,Low,Low,Low,Low,Low,Low
+S167 Liu 2026,Whole-body lean mass,whole body lean mass | bia lean body mass | 8 weeks | ROB2-NEW04-WBLM,Low,Low,Low,High,Low,High
+S168 Moura-Maia 2026,Whole-body lean mass,whole body lean mass | measurement method not reported in main article | 12 weeks | ROB2-NEW05-WBLM,Low,Low,Low,High,Low,High
+S169 Patel 2025,Whole-body lean mass,whole body lean mass | dexa fat-free mass | 4.3 weeks (day 30) | ROB2-NEW06-WBLM,Low,Low,Low,Low,Low,Low
+S170 Seyhan 2026,Whole-body lean mass,whole body lean mass | bia lean body mass | 8 weeks | ROB2-NEW07-WBLM,Low,Low,Low,High,Low,High
+S171 Svensson 2026,Whole-body lean mass,whole body lean mass | dexa lean mass | 8 weeks | ROB2-NEW08-WBLM,Low,Low,Low,Low,Some concerns,Some concerns
+S172 Vaithanomsat 2025,Whole-body lean mass,whole body lean mass | dexa fat-free mass | 12 weeks | ROB2-NEW09-WBLM,Low,Low,Low,Low,Low,Low

@@ -1,0 +1,197 @@
+---
+title: "Muscle measurement eligibility analyses"
+subtitle: "Pre-registration-as-written and direct imaging/biopsy-only dose-response analyses"
+author:
+  - name: James Steele
+  - name: Everson Araujo Nunes
+  - name: Myles Moore
+  - name: Matthew Lees
+  - name: Lauren Roxburgh
+  - name: Andrea Viloria Medina
+  - name: Stuart Phillips
+date: last-modified
+date-format: long
+format:
+  html:
+    theme: [cosmo, no-web-font.scss]
+    toc: true
+    toc-depth: 3
+    toc-location: body
+    toc-title: Contents
+    smooth-scroll: true
+    embed-resources: true
+    html-math-method: mathml
+    link-external-newwindow: true
+    code-fold: true
+    code-summary: "Show reproducibility code"
+    tbl-cap-location: top
+execute:
+  echo: false
+  warning: false
+  message: false
+---
+
+```{r}
+#| label: setup
+#| include: false
+library(dplyr)
+library(ggplot2)
+library(purrr)
+library(readr)
+library(tidyr)
+source(if (file.exists("supplement/report-helpers.R")) "supplement/report-helpers.R" else "report-helpers.R")
+
+variants <- tibble::tribble(
+  ~bundle, ~label,
+  "measurement_prereg_methods_update_2026", "Registered measurement methods",
+  "measurement_direct_only_update_2026", "MRI/CT/ultrasound/biopsy only"
+) |>
+  mutate(
+    data = map(bundle, ~ read_bundle(.x, "sample_rows.csv.gz")),
+    selection = map(bundle, ~ read_bundle(.x, "selection_summary.csv.gz")),
+    audit = map(bundle, ~ read_bundle(.x, "selection_audit.csv.gz")),
+    predictions = map2(bundle, label, ~ normalise_predictions(read_bundle(.x, "dose_response_predictions.csv.gz"), .y, "g/kg/day")),
+    diagnostics = map2(bundle, label, diagnostic_row),
+    equivalence = map2(bundle, label, local_equivalence_summary)
+  )
+
+original_data <- read_bundle("primary_update_2026", "sample_rows.csv.gz") |>
+  filter(analysis_outcome == "hypertrophy")
+original_predictions <- normalise_predictions(
+  read_bundle("primary_update_2026", "dose_response_predictions.csv.gz") |>
+    filter(outcome == "hypertrophy"),
+  "Primary measurement eligibility", "g/kg/day"
+)
+prediction_data <- bind_rows(original_predictions, variants$predictions) |>
+  mutate(analysis = factor(
+    analysis,
+    levels = c(
+      "Primary measurement eligibility",
+      "Registered measurement methods",
+      "MRI/CT/ultrasound/biopsy only"
+    )
+  ))
+
+sample_summary <- bind_rows(
+  analysis_sample_row(original_data, "Primary measurement eligibility", FALSE),
+  map2_dfr(variants$data, variants$label, ~ analysis_sample_row(.x, .y, FALSE))
+)
+
+primary_diag <- read_bundle("primary_update_2026", "diagnostic_summary.csv.gz") |>
+  filter(outcome == "hypertrophy")
+primary_exact <- read_bundle("primary_update_2026", "loo_exact_refit_summary.csv.gz") |>
+  filter(outcome == "hypertrophy")
+diagnostics <- bind_rows(
+  tibble::tibble(
+    Analysis = "Primary measurement eligibility",
+    `Accepted fits` = nrow(primary_diag),
+    `Fits passing final diagnostics` = sum(primary_diag$diagnostic_pass),
+    `Exact LOO refits` = nrow(primary_exact),
+    `Exact refits passing` = sum(primary_exact$diagnostic_pass)
+  ),
+  bind_rows(variants$diagnostics)
+)
+
+selection_summary <- bind_rows(map2(variants$selection, variants$label, ~ mutate(.x, Analysis = .y))) |>
+  select(Analysis, original_rows, retained_rows, excluded_rows, studies, arms)
+
+decision_summary <- bind_rows(map2(variants$audit, variants$label, ~ mutate(.x, Analysis = .y))) |>
+  count(Analysis, decision, sort = TRUE)
+
+equivalence <- bind_rows(variants$equivalence)
+
+meaningful_summary <- map2_dfr(variants$bundle, variants$label, function(bundle, label) {
+  x <- read_bundle(bundle, "supported_meaningful_contrasts.csv.gz") |>
+    filter(
+      supported %in% TRUE,
+      protein_intake_proposed > protein_intake_current,
+      probability_meaningful_benefit >= 0.95 | probability_meaningful_detriment >= 0.95
+    )
+  tibble::tibble(Analysis = label, `Supported meaningful contrasts` = nrow(x))
+})
+```
+
+# Why these analyses were required
+
+The registered measures-of-muscle-size-or-mass outcome allowed imaging and biopsy measurements together with appendicular DXA and BIA regional proxies. The original fitted primary implementation was broader and also retained trunk and skinfold-derived measurements. The first analysis here restricts the outcome to the methods written in the registration and is therefore the principal sensitivity check against the primary analysis; it does not retroactively relabel the fitted primary analysis.
+
+A stricter post-registration sensitivity retains MRI, CT, ultrasound, and muscle-biopsy measurements only. It tests whether the conclusion depends on appendicular DXA/BIA proxies. Because the restriction changes both the measurements and the contributing studies, differences cannot be attributed solely to measurement error or method.
+
+# Eligibility audit
+
+```{r}
+#| label: tbl-measurement-selection
+#| tbl-cap: "Measurement eligibility and final analysis samples."
+knitr::kable(selection_summary, align = c("l", "r", "r", "r", "r", "r"))
+```
+
+```{r}
+#| label: tbl-measurement-decisions
+#| tbl-cap: "Row-level eligibility decisions recorded by the measurement audit."
+knitr::kable(decision_summary, align = c("l", "l", "r"))
+```
+
+The pre-registration-as-written restriction removes 12 of the 425 primary-analysis muscle rows. The direct-only sensitivity retains 255 rows from 29 studies and 84 arms.
+
+# Diagnostics and model averaging
+
+Each analysis retains the same 26 relative-intake candidate identities for the muscle outcome. Sampling diagnostics, corrected observation-level LOO, outcome-specific stacking, posterior-mixture curves, pairwise contrasts, and local-equivalence summaries were regenerated separately for each restricted dataset.
+
+```{r}
+#| label: tbl-measurement-diagnostics
+#| tbl-cap: "Final diagnostic and exact-LOO status."
+knitr::kable(diagnostics, align = c("l", "r", "r", "r", "r"))
+```
+
+# Dose-response comparison
+
+```{r}
+#| label: fig-measurement-curves
+#| fig-cap: "Relative-intake dose-response curves under the primary measurement eligibility, registered measurement methods, and direct imaging/biopsy-only eligibility. Ribbons are marginal 95% posterior intervals."
+#| fig-width: 11
+#| fig-height: 6.5
+
+ggplot(prediction_data, aes(dose, estimate, colour = analysis, fill = analysis)) +
+  geom_ribbon(aes(ymin = conf_low, ymax = conf_high), alpha = 0.10, colour = NA) +
+  geom_line(linewidth = 0.7) +
+  facet_wrap(~rt, nrow = 1, scales = "free_y", labeller = report_facet_labels()) +
+  scale_colour_manual(values = report_curve_colours) +
+  scale_fill_manual(values = report_curve_colours) +
+  labs(x = report_dose_axes[["relative"]], y = "Standardised Mean Change", colour = NULL, fill = NULL) +
+  report_theme()
+```
+
+The registered-method curves and inferential conclusions are similar to those under the primary measurement eligibility. The direct-only analysis is also similar with RT. Without RT, its curve is steeper and substantially less precise because the restricted evidence base is smaller.
+
+```{r}
+#| label: tbl-measurement-meaningful
+#| tbl-cap: "Supported contrasts meeting the 95% meaningful-difference criterion."
+knitr::kable(meaningful_summary, align = c("l", "r"))
+```
+
+Neither retained analysis identifies a supported contrast meeting the posterior-probability criterion for a meaningful gain from increasing intake or a meaningful loss from decreasing it.
+
+# Local practical equivalence
+
+```{r}
+#| label: tbl-measurement-equivalence
+#| tbl-cap: "Local practical-equivalence radii in g/kg/day."
+equivalence |>
+  mutate(
+    across(c(equivalent_radius, equivalent_radius_q10, equivalent_radius_q90), ~ sprintf("%.2f", .x)),
+    supported_current_intakes = format_count(supported_current_intakes)
+  ) |>
+  rename(
+    `Median radius` = equivalent_radius,
+    `Q10 radius` = equivalent_radius_q10,
+    `Q90 radius` = equivalent_radius_q90,
+    `Supported current intakes` = supported_current_intakes
+  ) |>
+  knitr::kable(align = "l")
+```
+
+Local practical equivalence remains supported, although the direct-only equivalence regions are generally narrower, especially without RT. This reflects reduced precision as well as changed measurement eligibility.
+
+# Interpretation
+
+Restricting the muscle outcome to the registered measurement scope does not materially alter the primary conclusion. Restricting further to direct imaging and biopsy measurements also does not reveal a supported meaningful gain that was hidden by the broader measurement set. The direct-only analysis provides useful reassurance about robustness but should not be described as isolating a pure measurement-method effect.

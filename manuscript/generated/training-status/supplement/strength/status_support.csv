@@ -1,0 +1,3 @@
+family,outcome,training_status,studies,arms,observations,distinct_doses,dose_min,dose_max
+supplement,strength,trained,17,44,143,23,0,94
+supplement,strength,untrained,38,91,344,41,0,106

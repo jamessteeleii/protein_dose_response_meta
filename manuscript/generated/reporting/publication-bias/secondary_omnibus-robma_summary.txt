@@ -1,0 +1,105 @@
+
+Robust Bayesian Model-Averaged Multilevel Mixed-Effect Model (k = 250, clusters = 94)
+
+Component Inclusion
+                 Prior prob. Post. prob. Inclusion BF error%(Inclusion BF)
+Effect                 0.500       0.050        0.053               15.245
+Heterogeneity          0.500       1.000   >39999.000                   NA
+Publication Bias       0.500       1.000   >39999.000                   NA
+
+Meta-Regression Inclusion
+                          Prior prob. Post. prob. Inclusion BF
+outcome_group                   0.500       0.000        0.000
+dose_difference_z               0.500       0.145        0.170
+comparison_type                 0.500       0.247        0.328
+resistance_exercise_label       0.500       0.037        0.038
+                          error%(Inclusion BF)
+outcome_group                           65.580
+dose_difference_z                        5.159
+comparison_type                         10.764
+resistance_exercise_label                9.230
+[0;31mBayes factor MC error for mu_outcome_group is based on only 8 posterior samples from the less frequent model.[0m
+
+Common Estimates
+     Mean    SD 0.025   0.5 0.975 error(MCMC) error(MCMC)/SD  ESS R-hat
+tau 0.079 0.013 0.055 0.079 0.107     0.00017          0.013 6408 1.000
+rho 0.838 0.133 0.509 0.869 0.994     0.00201          0.015 4414 1.000
+
+Meta-Regression
+                                                              Mean    SD  0.025
+intercept                                                   -0.001 0.009 -0.018
+outcome_group[dif: whole body lean mass]                     0.000 0.000  0.000
+outcome_group[dif: direct muscle size/mass]                  0.000 0.000  0.000
+outcome_group[dif: strength]                                 0.000 0.000  0.000
+outcome_group[dif: function]                                 0.000 0.000  0.000
+dose_difference_z                                            0.003 0.009  0.000
+comparison_type[dif: Protein vs comparator]                  0.007 0.014  0.000
+comparison_type[dif: Active dose vs active dose]            -0.007 0.014 -0.043
+resistance_exercise_label[dif: With resistance training]     0.000 0.003  0.000
+resistance_exercise_label[dif: Without resistance training]  0.000 0.003  0.000
+                                                              0.5 0.975
+intercept                                                   0.000 0.000
+outcome_group[dif: whole body lean mass]                    0.000 0.000
+outcome_group[dif: direct muscle size/mass]                 0.000 0.000
+outcome_group[dif: strength]                                0.000 0.000
+outcome_group[dif: function]                                0.000 0.000
+dose_difference_z                                           0.000 0.032
+comparison_type[dif: Protein vs comparator]                 0.000 0.043
+comparison_type[dif: Active dose vs active dose]            0.000 0.000
+resistance_exercise_label[dif: With resistance training]    0.000 0.000
+resistance_exercise_label[dif: Without resistance training] 0.000 0.000
+                                                            error(MCMC)
+intercept                                                       0.00055
+outcome_group[dif: whole body lean mass]                        0.00000
+outcome_group[dif: direct muscle size/mass]                     0.00000
+outcome_group[dif: strength]                                    0.00000
+outcome_group[dif: function]                                    0.00000
+dose_difference_z                                               0.00016
+comparison_type[dif: Protein vs comparator]                     0.00090
+comparison_type[dif: Active dose vs active dose]                0.00090
+resistance_exercise_label[dif: With resistance training]        0.00009
+resistance_exercise_label[dif: Without resistance training]     0.00009
+                                                            error(MCMC)/SD
+intercept                                                            0.064
+outcome_group[dif: whole body lean mass]                             0.005
+outcome_group[dif: direct muscle size/mass]                          0.005
+outcome_group[dif: strength]                                         0.005
+outcome_group[dif: function]                                         0.006
+dose_difference_z                                                    0.018
+comparison_type[dif: Protein vs comparator]                          0.067
+comparison_type[dif: Active dose vs active dose]                     0.067
+resistance_exercise_label[dif: With resistance training]             0.026
+resistance_exercise_label[dif: Without resistance training]          0.026
+                                                              ESS R-hat
+intercept                                                     826 1.045
+outcome_group[dif: whole body lean mass]                    30000 1.183
+outcome_group[dif: direct muscle size/mass]                 24441 1.148
+outcome_group[dif: strength]                                28914 1.095
+outcome_group[dif: function]                                23124 1.090
+dose_difference_z                                            2962 1.005
+comparison_type[dif: Protein vs comparator]                   242 1.011
+comparison_type[dif: Active dose vs active dose]              242 1.011
+resistance_exercise_label[dif: With resistance training]     2865 1.089
+resistance_exercise_label[dif: Without resistance training]  2865 1.089
+
+Publication Bias
+                   Mean    SD 0.025   0.5 0.975 error(MCMC) error(MCMC)/SD  ESS
+omega[0,0.025]    1.000 0.000 1.000 1.000 1.000          NA             NA   NA
+omega[0.025,0.05] 1.000 0.000 1.000 1.000 1.000     0.00000             NA    0
+omega[0.05,0.5]   1.000 0.000 1.000 1.000 1.000     0.00000             NA    0
+omega[0.5,0.95]   1.000 0.000 1.000 1.000 1.000     0.00000             NA    0
+omega[0.95,0.975] 1.000 0.000 1.000 1.000 1.000     0.00000             NA    0
+omega[0.975,1]    1.000 0.000 1.000 1.000 1.000     0.00000             NA    0
+PET               0.642 0.117 0.408 0.649 0.843     0.00301          0.026 1590
+PEESE             0.011 0.138 0.000 0.000 0.000     0.00307          0.022 3197
+                  R-hat
+omega[0,0.025]       NA
+omega[0.025,0.05]    NA
+omega[0.05,0.5]      NA
+omega[0.5,0.95]      NA
+omega[0.95,0.975]    NA
+omega[0.975,1]       NA
+PET               1.005
+PEESE             1.047
+P-value intervals for publication bias weights omega correspond to one-sided p-values.
+

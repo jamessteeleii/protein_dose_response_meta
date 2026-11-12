@@ -1,0 +1,19 @@
+family,outcome,model_index,model_name,interaction,stacking_weight
+supplement,hypertrophy,1,Intercept only model [supplement g/day] [RT only; reported training status],none,1.6472309195612814e-7
+supplement,hypertrophy,2,Linear model [supplement g/day] [RT only; reported training status],none,0.23317122819316033
+supplement,hypertrophy,4,Thin plate spline model [supplement g/day] [RT only; reported training status],none,3.626664500126813e-7
+supplement,hypertrophy,5,Intercept only model (+ moderators) [supplement g/day] [RT only; reported training status],none,0.07814990699993199
+supplement,hypertrophy,6,Linear model (+ moderators) [supplement g/day] [RT only; reported training status],none,0.39265480236110495
+supplement,hypertrophy,8,Thin plate spline model (+ moderators) [supplement g/day] [RT only; reported training status],none,8.993954756761408e-7
+supplement,hypertrophy,9,Linear model (+ random slopes) [supplement g/day] [RT only; reported training status],none,2.7580214096772725e-6
+supplement,hypertrophy,11,Thin plate spline model (+ random smooths) [supplement g/day] [RT only; reported training status],none,6.403803463219869e-7
+supplement,hypertrophy,12,Linear model (+ moderators & random slopes) [supplement g/day] [RT only; reported training status],none,0.04933843125304239
+supplement,hypertrophy,14,Thin plate spline model (+ moderators & random smooths) [supplement g/day] [RT only; reported training status],none,2.0012365344750438e-6
+supplement,hypertrophy,15,Linear model (+ RT interaction) [supplement g/day] [RT only; reported training status],training,7.921174913872674e-9
+supplement,hypertrophy,17,Thin plate spline model (+ RT interaction smooth) [supplement g/day] [RT only; reported training status],training,2.5880367690978914e-8
+supplement,hypertrophy,18,Linear model (+ moderators & RT interaction) [supplement g/day] [RT only; reported training status],training,6.390947031591929e-6
+supplement,hypertrophy,20,Thin plate spline model (+ moderators & RT interaction) [supplement g/day] [RT only; reported training status],training,9.639270745926816e-8
+supplement,hypertrophy,21,Linear model (+ random slopes & RT interaction) [supplement g/day] [RT only; reported training status],training,7.368639124373254e-7
+supplement,hypertrophy,23,Thin plate spline model (+ random smooths & RT interaction smooth) [supplement g/day] [RT only; reported training status],training,3.2230067709936006e-9
+supplement,hypertrophy,24,Linear model (+ moderators & random slopes & RT interaction) [supplement g/day] [RT only; reported training status],training,0.025395265914182417
+supplement,hypertrophy,26,Thin plate spline model (+ moderators & random smooths & RT interaction smooth) [supplement g/day] [RT only; reported training status],training,0.22127627762706892

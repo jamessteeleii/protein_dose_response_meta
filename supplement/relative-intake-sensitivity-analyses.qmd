@@ -1,0 +1,270 @@
+---
+title: "Relative protein-intake sensitivity analyses"
+subtitle: "Robustness of the preregistered body-mass-relative dose-response analysis"
+output-file: sensitivity-analyses.html
+author:
+  - name: James Steele
+  - name: Everson Araujo Nunes
+  - name: Myles Moore
+  - name: Matthew Lees
+  - name: Lauren Roxburgh
+  - name: Andrea Viloria Medina
+  - name: Stuart Phillips
+date: last-modified
+date-format: long
+format:
+  html:
+    theme: [cosmo, no-web-font.scss]
+    toc: true
+    toc-depth: 3
+    toc-location: body
+    toc-title: Contents
+    smooth-scroll: true
+    embed-resources: true
+    html-math-method: mathml
+    link-external-newwindow: true
+    code-fold: true
+    code-summary: "Show reproducibility code"
+    tbl-cap-location: top
+execute:
+  echo: false
+  warning: false
+  message: false
+---
+
+```{r}
+#| label: setup
+#| include: false
+
+library(dplyr)
+library(ggplot2)
+library(purrr)
+library(readr)
+library(tidyr)
+
+source(if (file.exists("supplement/report-helpers.R")) {
+  "supplement/report-helpers.R"
+} else {
+  "report-helpers.R"
+})
+
+family_register <- tibble::tribble(
+  ~key, ~bundle, ~label, ~within,
+  "primary", "primary_update_2026", "Primary achieved intake", FALSE,
+  "mundlak", "mundlak_update_2026", "Mundlak decomposition", FALSE,
+  "within", "within_update_2026", "Strict within-study", TRUE,
+  "achieved", "achieved_update_2026", "Achieved intake, common sample", FALSE,
+  "assignment", "assignment_update_2026", "Assignment-derived, common sample", FALSE,
+  "eiv", "eiv_update_2026", "Errors-in-variables", FALSE,
+  "rescor", "rescor_update_2026", "Residual correlation", FALSE,
+  "strategy", "strategy_update_2026", "Strategy, arm level", FALSE,
+  "strategy_within", "strategy_within_update_2026", "Strategy, within study", TRUE
+)
+
+family_register <- family_register |>
+  mutate(
+    analysis_data = map(bundle, ~ read_bundle(.x, "sample_rows.csv.gz")),
+    predictions = map2(bundle, label, ~ normalise_predictions(
+      read_bundle(.x, "dose_response_predictions.csv.gz"), .y, "g/kg/day"
+    )),
+    diagnostics = map2(bundle, label, diagnostic_row),
+    equivalence = map2(bundle, label, local_equivalence_summary)
+  )
+
+sample_summary <- pmap_dfr(
+  list(
+    family_register$analysis_data,
+    family_register$label,
+    family_register$within
+  ),
+  analysis_sample_row
+)
+diagnostic_summary <- bind_rows(family_register$diagnostics)
+equivalence_summary <- bind_rows(family_register$equivalence)
+prediction_data <- bind_rows(family_register$predictions)
+
+comparison_root <- file.path(report_input_root(), "relative-comparison")
+core_increment_data <- read_csv(
+  file.path(comparison_root, "reference_increment_overlay_data.csv.gz"),
+  show_col_types = FALSE
+) |>
+  mutate(
+    Analysis = recode(
+      analysis,
+      primary = "Primary achieved intake",
+      Primary = "Primary achieved intake",
+      mundlak = "Mundlak decomposition",
+      Mundlak = "Mundlak decomposition",
+      within = "Strict within-study",
+      .default = analysis
+    ),
+    Outcome = unname(report_outcome_labels[outcome]),
+    `RT condition` = report_rt_label(resistance_exercise)
+  )
+
+outcome_order <- unname(report_outcome_labels)
+sample_summary$Analysis <- factor(
+  sample_summary$Analysis, levels = family_register$label
+)
+prediction_data$outcome <- factor(prediction_data$outcome, levels = outcome_order)
+core_increment_data$Outcome <- factor(core_increment_data$Outcome, levels = outcome_order)
+
+purpose_table <- tibble::tribble(
+  ~Analysis, ~Change, ~`Question addressed`,
+  "Mundlak decomposition", "Separates study-mean and within-study arm-deviation protein bases.", "Could between-study differences be driving the arm-level association?",
+  "Strict within-study", "Models matched randomised arm contrasts against achieved-intake differences.", "What is supported when identification is restricted to within-trial comparisons?",
+  "Achieved intake, common sample", "Repeats achieved-intake models on the assignment-reconstructible subset.", "Does sample restriction explain any achieved-versus-assignment difference?",
+  "Assignment-derived, common sample", "Uses baseline intake plus prescribed protein on the identical subset.", "Does an intention-to-treat-like exposure definition change the result?",
+  "Errors-in-variables", "Treats true arm intake as latent and propagates its measurement uncertainty.", "Could intake measurement error be attenuating or distorting the curve?",
+  "Residual correlation", "Estimates dependence among multiple effects contributed by a study.", "Does the working conditional-independence assumption affect inference?",
+  "Strategy, arm level", "Adds Addition/Substitution main effects and dose interactions.", "Do the arm-level curves differ by protein-addition strategy?",
+  "Strategy, within study", "Applies the strategy modification to matched randomised contrasts.", "Does a strategy pattern remain under within-study identification?"
+)
+```
+
+# Analysis hierarchy
+
+The preregistered primary analysis relates achieved arm-level total protein intake, expressed in g/kg/day, to standardised baseline-to-follow-up outcome change. It combines within-study and between-study information and uses a post-randomisation exposure. It is therefore interpreted as a conditional dose-response association, not as a fully identified causal per-protocol effect.
+
+The sensitivity programme retains the four registered outcome groups and the same 26 candidate identities per outcome. Each family changes only the exposure definition, decomposition, likelihood, dependence structure, or Addition-versus-Substitution terms needed for its question. No family replaces the primary analysis, and no result was selected to become primary after inspection.
+
+```{r}
+#| label: tbl-sensitivity-purpose
+#| tbl-cap: "Sensitivity families and the assumptions they challenge."
+knitr::kable(purpose_table, align = c("l", "l", "l"))
+```
+
+# Final analysis samples
+
+```{r}
+#| label: tbl-relative-samples
+#| tbl-cap: "Final analysis samples. Within-study rows are matched contrasts; other rows are arm-level effects."
+sample_summary |>
+  arrange(Analysis) |>
+  mutate(across(where(is.numeric), ~ ifelse(is.na(.x), "—", format_count(.x)))) |>
+  knitr::kable(align = c("l", "r", "r", "r", "r", "l"))
+```
+
+The common-sample achieved and assignment-derived analyses use identical observations by design. Differences between those two analyses therefore isolate the exposure definition rather than the availability of reconstructible assignment. The within-study and strategy analyses answer different estimands and use smaller samples; their curves should not be read as if they were refits of the identical observations.
+
+# Diagnostics, LOO correction, and model averaging
+
+Every accepted model entered model comparison only after the family-specific sampling gate. Observation-level PSIS-LOO was evaluated on the intended predictive scale, and exact case-deletion refits replaced unreliable approximations where required. Stacking weights were then estimated separately within outcome and family. Numerically negligible weights were allowed; candidates were not removed for receiving little weight.
+
+```{r}
+#| label: tbl-relative-diagnostics
+#| tbl-cap: "Final sampling and exact-LOO diagnostic status."
+diagnostic_summary |>
+  knitr::kable(align = c("l", "r", "r", "r", "r"))
+```
+
+Posterior-predictive tail flags remain descriptive warnings rather than selection rules. Sampling validity, corrected predictive densities, and the common diagnostic gates determine whether a candidate enters stacking.
+
+# Primary, Mundlak, and within-study comparison
+
+The three analyses below provide the clearest progression from the comprehensive arm-level association toward within-study identification. Curves are expressed as changes from 0.8 g/kg/day so the within-study estimand can be displayed on the same reference scale.
+
+```{r}
+#| label: fig-core-relative-sensitivities
+#| fig-cap: "Model-averaged changes from 0.8 g/kg/day for the primary, Mundlak, and strict within-study analyses. Ribbons are marginal 95% posterior intervals. Curves are shown only over each analysis's reported grid; empirical support still varies across panels."
+#| fig-width: 12
+#| fig-height: 9
+
+ggplot(
+  core_increment_data,
+  aes(protein_intake, estimate, colour = Analysis, fill = Analysis)
+) +
+  geom_hline(yintercept = 0, linewidth = 0.25, colour = "grey55") +
+  geom_ribbon(aes(ymin = conf.low, ymax = conf.high), alpha = 0.10, colour = NA) +
+  geom_line(linewidth = 0.65) +
+  facet_grid(`RT condition` ~ Outcome, scales = "free_y", labeller = report_facet_labels()) +
+  scale_colour_manual(values = report_curve_colours) +
+  scale_fill_manual(values = report_curve_colours) +
+  labs(x = report_dose_axes[["relative"]], y = "Outcome Contrast From 0.8 g/kg/day (SMD)", colour = NULL, fill = NULL) +
+  report_theme()
+```
+
+The strict within-study curves are generally more attenuated than the primary arm-level curves. This indicates that the magnitude of the primary association can include between-study differences or post-randomisation components. Crucially, the within-study analysis does not reveal a large outcome gain from increasing intake that was hidden in the primary analysis.
+
+# All arm-level sensitivity curves
+
+```{r}
+#| label: fig-relative-arm-curves
+#| fig-cap: "Final arm-level model-averaged dose-response curves. Strategy models are shown separately below. Ribbons are omitted here to preserve readability; uncertainty is retained in the family verification bundles and local-equivalence summaries."
+#| fig-width: 12
+#| fig-height: 9
+
+arm_plot <- prediction_data |>
+  filter(
+    is.na(strategy),
+    !analysis %in% c("Strict within-study", "Strategy, within study")
+  )
+
+ggplot(arm_plot, aes(dose, estimate, colour = analysis)) +
+  geom_line(linewidth = 0.65, alpha = 0.9) +
+  facet_grid(rt ~ outcome, scales = "free_y", labeller = report_facet_labels()) +
+  scale_colour_manual(values = report_curve_colours) +
+  labs(x = report_dose_axes[["relative"]], y = "Standardised Mean Change", colour = NULL) +
+  report_theme()
+```
+
+The common-sample achieved and assignment-derived curves are broadly similar, indicating that neither restriction to reconstructible trials nor the assignment-derived exposure changes the overall interpretation. The errors-in-variables and residual-correlation families likewise remain compatible with the primary pattern.
+
+# Addition-versus-Substitution analyses
+
+Increasing protein by adding energy and increasing it by replacing other macronutrients are different intervention strategies. The strategy models estimate them jointly, with a main effect and a strategy-by-dose basis matched to each candidate. They do not constitute randomised head-to-head comparisons of Addition and Substitution because strategy is identified mainly across studies.
+
+```{r}
+#| label: fig-relative-strategy-curves
+#| fig-cap: "Model-averaged Addition and Substitution curves in the arm-level and within-study strategy analyses. The two rows represent different estimands and should not be pooled."
+#| fig-width: 12
+#| fig-height: 10
+
+strategy_plot <- prediction_data |>
+  filter(!is.na(strategy)) |>
+  mutate(panel = paste(analysis, unname(report_rt_display[rt]), sep = "\n"))
+
+ggplot(strategy_plot, aes(dose, estimate, colour = strategy, fill = strategy)) +
+  geom_ribbon(aes(ymin = conf_low, ymax = conf_high), alpha = 0.10, colour = NA) +
+  geom_line(linewidth = 0.65) +
+  facet_grid(panel ~ outcome, scales = "free_y", labeller = report_facet_labels()) +
+  scale_colour_manual(values = report_curve_colours) +
+  scale_fill_manual(values = report_curve_colours) +
+  labs(x = report_dose_axes[["relative"]], y = "Standardised Mean Change or Contrast", colour = NULL, fill = NULL) +
+  report_theme()
+```
+
+There is no stable strategy ordering across outcomes, RT conditions, and the two estimands. The data therefore do not support a general claim that Addition or Substitution is superior.
+
+# Local practical equivalence
+
+The table reports the median supported radius around a current intake for which contrasts met the registered practical-equivalence probability rule. It is a local statement within empirical support, not evidence that all more widely separated intakes are equivalent.
+
+```{r}
+#| label: tbl-relative-equivalence
+#| tbl-cap: "Local practical-equivalence radii in g/kg/day. Q10 and Q90 describe variation across supported current intakes."
+equivalence_summary |>
+  mutate(
+    across(c(equivalent_radius, equivalent_radius_q10, equivalent_radius_q90), ~ sprintf("%.2f", .x)),
+    supported_current_intakes = format_count(supported_current_intakes)
+  ) |>
+  rename(
+    `Median radius` = equivalent_radius,
+    `Q10 radius` = equivalent_radius_q10,
+    `Q90 radius` = equivalent_radius_q90,
+    `Supported current intakes` = supported_current_intakes
+  ) |>
+  knitr::kable(align = "l")
+```
+
+# Interpretation
+
+Across the completed relative-intake sensitivities:
+
+- the broad positive but small dose-response pattern is not overturned;
+- strict within-study estimates are generally attenuated, arguing against interpreting the primary magnitude as a causal per-protocol effect;
+- achieved-versus-assignment, intake-measurement-error, and residual-dependence analyses do not reveal a materially larger association;
+- Addition and Substitution do not show a consistent general ordering; and
+- local practical equivalence is supported more clearly than any sharp optimum or breakpoint, while wider contrasts remain less certain.
+
+These findings strengthen the robustness of the manuscript's substantive conclusion without eliminating confounding, adherence, aggregate-data, or sparse-support limitations. The final verification bundles contain the analysis data, model specifications, accepted-fit manifests, diagnostic summaries, corrected LOO records, stacking weights, prediction draws, pairwise contrasts, and checksums used by this report.

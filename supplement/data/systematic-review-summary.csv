@@ -1,0 +1,6 @@
+outcome_group,outcome,studies,arms,arms_control,arms_placebo,arms_protein,participants,participants_control,participants_placebo,participants_protein,contrasts,duration_median_weeks,duration_q1_weeks,duration_q3_weeks
+overall,Overall,95,254,39,61,154,4931,919,1095,2917,1864,12,8,12
+whole body lean mass,Whole-body lean/fat-free mass,82,220,32,55,133,4066,808,870,2388,283,10.5,8,12
+direct muscle size/mass,Measures of muscle size or mass,53,145,22,36,87,3072,549,685,1838,425,12,10,12
+strength,Strength,87,231,34,56,141,4490,833,1012,2645,794,12,8,12
+function,Function,33,93,17,20,56,2598,603,487,1508,362,12,12,24

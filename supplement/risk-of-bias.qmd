@@ -1,0 +1,202 @@
+---
+title: "Risk-of-bias assessment"
+subtitle: "Final RoB 2 judgments for prespecified index results"
+author:
+  - name: James Steele
+  - name: Everson Araujo Nunes
+  - name: Myles Moore
+  - name: Matthew Lees
+  - name: Lauren Roxburgh
+  - name: Andrea Viloria Medina
+  - name: Stuart Phillips
+date: last-modified
+date-format: long
+format:
+  html:
+    theme: [cosmo, no-web-font.scss]
+    toc: true
+    toc-depth: 3
+    toc-location: body
+    toc-title: Contents
+    smooth-scroll: true
+    embed-resources: true
+    html-math-method: mathml
+    link-external-newwindow: true
+    code-fold: true
+    code-summary: "Show reproducibility code"
+    tbl-cap-location: top
+execute:
+  echo: false
+  warning: false
+  message: false
+---
+
+```{css}
+.table-scroll { overflow-x: auto; max-height: 45rem; overflow-y: auto; }
+.table-scroll table { font-size: 0.78rem; white-space: nowrap; }
+.method-note { border-left: 5px solid #3487a7; background: #eef7fa; padding: .8rem 1rem; }
+```
+
+```{r}
+#| label: setup
+#| include: false
+
+library(dplyr)
+library(readr)
+
+project_root <- if (file.exists("_targets.R")) {
+  normalizePath(".", winslash = "/", mustWork = TRUE)
+} else {
+  normalizePath("..", winslash = "/", mustWork = TRUE)
+}
+
+source(file.path(project_root, "supplement", "report-helpers.R"))
+rob_root <- file.path(report_input_root(), "rob2")
+judgments <- read_csv(file.path(rob_root, "rob2_final_judgments.csv"), show_col_types = FALSE)
+domain_audit <- read_csv(file.path(rob_root, "rob2_domain_audit.csv"), show_col_types = FALSE)
+domain_summary <- read_csv(file.path(rob_root, "rob2_domain_summary.csv"), show_col_types = FALSE)
+
+judgment_labels <- c(
+  "Low" = "Low risk",
+  "Some concerns" = "Some concerns",
+  "High" = "High risk"
+)
+
+format_judgment <- function(x) {
+  out <- unname(judgment_labels[x])
+  ifelse(is.na(out), x, out)
+}
+
+domain_labels <- c(
+  D1 = "Randomisation process",
+  D2 = "Deviations from intended interventions",
+  D3 = "Missing outcome data",
+  D4 = "Measurement of the outcome",
+  D5 = "Selection of the reported result",
+  Overall = "Overall"
+)
+
+overall_counts <- judgments |>
+  count(overall_final, name = "Trials") |>
+  mutate(
+    Judgment = format_judgment(overall_final),
+    Percentage = sprintf("%.1f%%", 100 * Trials / sum(Trials))
+  ) |>
+  select(Judgment, Trials, Percentage)
+
+domain_display <- domain_summary |>
+  mutate(Domain = unname(domain_labels[domain])) |>
+  transmute(
+    Domain,
+    `Low risk` = sprintf("%s (%.1f%%)", low_n, 100 * low_pct),
+    `Some concerns` = sprintf("%s (%.1f%%)", some_concerns_n, 100 * some_concerns_pct),
+    `High risk` = sprintf("%s (%.1f%%)", high_n, 100 * high_pct)
+  )
+```
+
+# Scope and method
+
+Risk of bias was assessed with the Cochrane RoB 2 tool for the effect of assignment to intervention. RoB 2 is result-specific, whereas the dose-response synthesis spans multiple outcome and contrast clusters. The audit therefore uses one prespecified index result per trial: whole-body lean/fat-free mass where available, measures of muscle size or mass when whole-body data were unavailable, and strength when neither body-composition outcome was available. Within an outcome family, selection prioritised a result contributing to the primary model, then the longest follow-up, greatest number of included arms, largest follow-up sample, and a fixed lexical tie-break.
+
+One reviewer completed the assessments and a second reviewer independently assessed a random 10% sample, with discrepancies resolved through discussion. Domain-level assessor overrides were retained only when accompanied by sufficient domain-specific justification; otherwise, the algorithm judgment was used. Where a stored algorithm judgment was unavailable, it was reconstructed from complete signalling responses. Overall judgments were regenerated from the five final domain judgments.
+
+::: {.method-note}
+These judgments describe one prespecified index result per trial. They provide a pragmatic trial-level summary for descriptive reporting and GRADE, but are not formally transportable to every outcome, time point, or contrast contributed by that trial.
+:::
+
+# Overall results
+
+Risk-of-bias assessments were available for all `r nrow(judgments)` included trials.
+
+```{r}
+#| label: tbl-rob-overall
+#| tbl-cap: "Overall RoB 2 judgments for the prespecified index result."
+knitr::kable(overall_counts, align = c("l", "r", "r"))
+```
+
+```{r}
+#| label: fig-rob-proportions
+#| fig-cap: "Unweighted proportions of included trials rated low risk, some concerns, or high risk for each RoB 2 domain and overall."
+#| out-width: "100%"
+knitr::include_graphics(file.path(rob_root, "rob2_proportions.png"))
+```
+
+```{r}
+#| label: tbl-rob-domains
+#| tbl-cap: "Domain and overall RoB 2 judgments; cells give trials (percentage)."
+knitr::kable(domain_display, align = c("l", "r", "r", "r"))
+```
+
+# Study-level judgments
+
+```{r}
+#| label: fig-rob-traffic-light
+#| fig-cap: "Study-level risk-of-bias judgments for each prespecified index result. D1, randomisation process; D2, deviations from intended interventions; D3, missing outcome data; D4, measurement of the outcome; D5, selection of the reported result."
+#| out-width: "100%"
+knitr::include_graphics(file.path(rob_root, "rob2_traffic_light.png"))
+```
+
+::: {.table-scroll}
+```{r}
+#| label: tbl-rob-study
+#| tbl-cap: "Final study-level judgments and selected index results."
+
+judgments |>
+  transmute(
+    Study = study_label,
+    `Index outcome` = report_outcome_group_label(index_outcome_family),
+    `Index result` = sub(
+      "^whole body lean mass(?= \\|)", report_outcome_labels[["whole_body"]],
+      sub(
+        "^direct muscle size/mass(?= \\|)", report_outcome_labels[["hypertrophy"]],
+        index_result, perl = TRUE
+      ),
+      perl = TRUE
+    ),
+    D1 = format_judgment(D1_final),
+    D2 = format_judgment(D2_final),
+    D3 = format_judgment(D3_final),
+    D4 = format_judgment(D4_final),
+    D5 = format_judgment(D5_final),
+    Overall = format_judgment(overall_final)
+  ) |>
+  knitr::kable(
+    format = "html",
+    escape = TRUE,
+    align = c("l", "l", "l", rep("l", 6))
+  )
+```
+:::
+
+# Domain decision audit
+
+The complete audit below records the stored or reconstructed algorithm judgment, the original assessor judgment, the retained final judgment, and the decision rule for each domain.
+
+<details><summary>Show the complete domain-level audit (595 rows)</summary>
+
+::: {.table-scroll}
+```{r}
+#| label: tbl-rob-domain-audit
+
+domain_audit |>
+  transmute(
+    Study = study_label,
+    Domain = domain,
+    `Algorithm judgment` = format_judgment(algorithm_judgment),
+    `Assessor judgment` = format_judgment(assessor_original),
+    `Final judgment` = format_judgment(final_judgment),
+    `Decision rule` = decision_rule
+  ) |>
+  knitr::kable(
+    format = "html",
+    escape = TRUE,
+    align = rep("l", 6)
+  )
+```
+:::
+
+</details>
+
+# Reproducibility and interpretation
+
+The final judgments, domain audit, domain summary, and figures are available as portable reporting inputs. The GRADE supplement uses these final judgments to summarise risk of bias among the studies contributing to each assessed dose contrast. Risk of bias is one component of certainty and should be interpreted alongside inconsistency, indirectness, imprecision, and publication bias.

@@ -1,0 +1,596 @@
+study_label,domain,algorithm_judgment,assessor_original,final_judgment,decision_rule
+S001 Aas 2020,D1,Low,Low,Low,Algorithm and assessor agree
+S001 Aas 2020,D2,Low,Low,Low,Algorithm and assessor agree
+S001 Aas 2020,D3,Low,Low,Low,Algorithm and assessor agree
+S001 Aas 2020,D4,Low,Low,Low,Algorithm and assessor agree
+S001 Aas 2020,D5,Low,Low,Low,Algorithm and assessor agree
+S003 Aleman-Mateo 2014,D1,Low,Low,Low,Algorithm and assessor agree
+S003 Aleman-Mateo 2014,D2,Some concerns,Some concerns,Some concerns,Algorithm and assessor agree
+S003 Aleman-Mateo 2014,D3,Low,Low,Low,Algorithm and assessor agree
+S003 Aleman-Mateo 2014,D4,Low,Low,Low,Algorithm and assessor agree
+S003 Aleman-Mateo 2014,D5,Some concerns,Some concerns,Some concerns,Algorithm and assessor agree
+S005 Amasene 2019,D1,Low,Low,Low,Algorithm and assessor agree
+S005 Amasene 2019,D2,Some concerns,Some concerns,Some concerns,Reconstructed algorithm and assessor agree
+S005 Amasene 2019,D3,Low,Low,Low,Algorithm and assessor agree
+S005 Amasene 2019,D4,Low,Low,Low,Algorithm and assessor agree
+S005 Amasene 2019,D5,Some concerns,Some concerns,Some concerns,Algorithm and assessor agree
+S008 Antonio 2014,D1,Low,Low,Low,Algorithm and assessor agree
+S008 Antonio 2014,D2,Low,Low,Low,Algorithm and assessor agree
+S008 Antonio 2014,D3,Low,Low,Low,Algorithm and assessor agree
+S008 Antonio 2014,D4,Low,Low,Low,Algorithm and assessor agree
+S008 Antonio 2014,D5,Some concerns,Some concerns,Some concerns,Algorithm and assessor agree
+S009 Antonio 2015,D1,Low,Low,Low,Algorithm and assessor agree
+S009 Antonio 2015,D2,Low,Low,Low,Algorithm and assessor agree
+S009 Antonio 2015,D3,High,High,High,Algorithm and assessor agree
+S009 Antonio 2015,D4,Low,Low,Low,Algorithm and assessor agree
+S009 Antonio 2015,D5,High,High,High,Algorithm and assessor agree
+S010 Aristizabal 2014,D1,Low,Low,Low,Algorithm and assessor agree
+S010 Aristizabal 2014,D2,Low,Low,Low,Algorithm and assessor agree
+S010 Aristizabal 2014,D3,High,High,High,Algorithm and assessor agree
+S010 Aristizabal 2014,D4,Low,Low,Low,Algorithm and assessor agree
+S010 Aristizabal 2014,D5,Some concerns,Some concerns,Some concerns,Algorithm and assessor agree
+S011 Arnarson 2013,D1,Low,Low,Low,Algorithm and assessor agree
+S011 Arnarson 2013,D2,Low,Low,Low,Algorithm and assessor agree
+S011 Arnarson 2013,D3,Low,Low,Low,Algorithm and assessor agree
+S011 Arnarson 2013,D4,Low,Low,Low,Algorithm and assessor agree
+S011 Arnarson 2013,D5,Some concerns,Low,Some concerns,Algorithm used: assessor override lacked a sufficient domain-specific justification
+S012 Babault 2014,D1,Low,Low,Low,Algorithm and assessor agree
+S012 Babault 2014,D2,Low,Low,Low,Algorithm and assessor agree
+S012 Babault 2014,D3,Low,Low,Low,Algorithm and assessor agree
+S012 Babault 2014,D4,Low,Low,Low,Algorithm and assessor agree
+S012 Babault 2014,D5,Some concerns,Some concerns,Some concerns,Algorithm and assessor agree
+S014 Bartholomae 2019,D1,Low,Low,Low,Algorithm and assessor agree
+S014 Bartholomae 2019,D2,Low,Low,Low,Algorithm and assessor agree
+S014 Bartholomae 2019,D3,Low,Low,Low,Algorithm and assessor agree
+S014 Bartholomae 2019,D4,Low,Low,Low,Algorithm and assessor agree
+S014 Bartholomae 2019,D5,Low,Low,Low,Algorithm and assessor agree
+S018 Bridge 2019,D1,Low,Low,Low,Algorithm and assessor agree
+S018 Bridge 2019,D2,Low,Low,Low,Algorithm and assessor agree
+S018 Bridge 2019,D3,Low,Low,Low,Algorithm and assessor agree
+S018 Bridge 2019,D4,Low,Low,Low,Algorithm and assessor agree
+S018 Bridge 2019,D5,Low,Low,Low,Algorithm and assessor agree
+S020 Brown 2004,D1,Low,Low,Low,Algorithm and assessor agree
+S020 Brown 2004,D2,Low,Low,Low,Algorithm and assessor agree
+S020 Brown 2004,D3,Low,Low,Low,Algorithm and assessor agree
+S020 Brown 2004,D4,Low,Low,Low,Algorithm and assessor agree
+S020 Brown 2004,D5,Some concerns,Some concerns,Some concerns,Algorithm and assessor agree
+S022 Burke 2001,D1,Low,Low,Low,Algorithm and assessor agree
+S022 Burke 2001,D2,Low,Low,Low,Algorithm and assessor agree
+S022 Burke 2001,D3,Low,Low,Low,Algorithm and assessor agree
+S022 Burke 2001,D4,Low,Low,Low,Algorithm and assessor agree
+S022 Burke 2001,D5,High,Some concerns,High,Algorithm used: assessor override lacked a sufficient domain-specific justification
+S024 Campbell 2018,D1,Some concerns,Some concerns,Some concerns,Algorithm and assessor agree
+S024 Campbell 2018,D2,Some concerns,Some concerns,Some concerns,Algorithm and assessor agree
+S024 Campbell 2018,D3,Low,Low,Low,Algorithm and assessor agree
+S024 Campbell 2018,D4,Low,Low,Low,Algorithm and assessor agree
+S024 Campbell 2018,D5,Some concerns,Some concerns,Some concerns,Algorithm and assessor agree
+S025 Candow 2006,D1,Low,Low,Low,Algorithm and assessor agree
+S025 Candow 2006,D2,Low,Low,Low,Algorithm and assessor agree
+S025 Candow 2006,D3,Low,Low,Low,Algorithm and assessor agree
+S025 Candow 2006,D4,Low,Low,Low,Algorithm and assessor agree
+S025 Candow 2006,D5,Some concerns,Some concerns,Some concerns,Algorithm and assessor agree
+S026 Candow 2006,D1,Low,Low,Low,Algorithm and assessor agree
+S026 Candow 2006,D2,Low,Low,Low,Algorithm and assessor agree
+S026 Candow 2006,D3,Low,Low,Low,Algorithm and assessor agree
+S026 Candow 2006,D4,Low,Low,Low,Algorithm and assessor agree
+S026 Candow 2006,D5,Some concerns,Some concerns,Some concerns,Algorithm and assessor agree
+S028 Chale 2013,D1,Low,Low,Low,Algorithm and assessor agree
+S028 Chale 2013,D2,Low,Low,Low,Algorithm and assessor agree
+S028 Chale 2013,D3,Low,Low,Low,Algorithm and assessor agree
+S028 Chale 2013,D4,Low,Low,Low,Algorithm and assessor agree
+S028 Chale 2013,D5,Some concerns,Some concerns,Some concerns,Algorithm and assessor agree
+S029 Coburn 2006,D1,Low,Low,Low,Algorithm and assessor agree
+S029 Coburn 2006,D2,Low,Low,Low,Algorithm and assessor agree
+S029 Coburn 2006,D3,Low,Low,Low,Algorithm and assessor agree
+S029 Coburn 2006,D4,Low,Low,Low,Algorithm and assessor agree
+S029 Coburn 2006,D5,High,Some concerns,High,Algorithm used: assessor override lacked a sufficient domain-specific justification
+S032 Deibert 2011,D1,Low,Low,Low,Algorithm and assessor agree
+S032 Deibert 2011,D2,Some concerns,Some concerns,Some concerns,Algorithm and assessor agree
+S032 Deibert 2011,D3,Low,Low,Low,Algorithm and assessor agree
+S032 Deibert 2011,D4,Low,Low,Low,Algorithm and assessor agree
+S032 Deibert 2011,D5,Some concerns,Some concerns,Some concerns,Algorithm and assessor agree
+S033 Dillon 2009,D1,Some concerns,Some concerns,Some concerns,Algorithm and assessor agree
+S033 Dillon 2009,D2,Some concerns,Some concerns,Some concerns,Algorithm and assessor agree
+S033 Dillon 2009,D3,Low,Low,Low,Algorithm and assessor agree
+S033 Dillon 2009,D4,Low,Low,Low,Algorithm and assessor agree
+S033 Dillon 2009,D5,Some concerns,Some concerns,Some concerns,Algorithm and assessor agree
+S034 Dulac 2021,D1,Low,Low,Low,Algorithm and assessor agree
+S034 Dulac 2021,D2,Low,Low,Low,Algorithm and assessor agree
+S034 Dulac 2021,D3,Low,Low,Low,Algorithm and assessor agree
+S034 Dulac 2021,D4,Low,Low,Low,Algorithm and assessor agree
+S034 Dulac 2021,D5,Some concerns,Some concerns,Some concerns,Algorithm and assessor agree
+S035 Eliot 2008,D1,Low,Low,Low,Algorithm and assessor agree
+S035 Eliot 2008,D2,Low,Low,Low,Algorithm and assessor agree
+S035 Eliot 2008,D3,Low,Low,Low,Algorithm and assessor agree
+S035 Eliot 2008,D4,Low,Low,Low,Algorithm and assessor agree
+S035 Eliot 2008,D5,Some concerns,Some concerns,Some concerns,Algorithm and assessor agree
+S036 Erskine 2012,D1,Low,Low,Low,Algorithm and assessor agree
+S036 Erskine 2012,D2,Low,Low,Low,Algorithm and assessor agree
+S036 Erskine 2012,D3,Low,Low,Low,Algorithm and assessor agree
+S036 Erskine 2012,D4,Low,Low,Low,Algorithm and assessor agree
+S036 Erskine 2012,D5,Some concerns,Some concerns,Some concerns,Algorithm and assessor agree
+S038 Farup 2014,D1,Low,Low,Low,Algorithm and assessor agree
+S038 Farup 2014,D2,Low,Low,Low,Algorithm and assessor agree
+S038 Farup 2014,D3,Low,Low,Low,Algorithm and assessor agree
+S038 Farup 2014,D4,Low,Low,Low,Algorithm and assessor agree
+S038 Farup 2014,D5,Some concerns,Some concerns,Some concerns,Algorithm and assessor agree
+S043 Gryson 2014,D1,Low,Low,Low,Algorithm and assessor agree
+S043 Gryson 2014,D2,Low,Low,Low,Algorithm and assessor agree
+S043 Gryson 2014,D3,Low,Low,Low,Algorithm and assessor agree
+S043 Gryson 2014,D4,Low,Low,Low,Algorithm and assessor agree
+S043 Gryson 2014,D5,Some concerns,Some concerns,Some concerns,Algorithm and assessor agree
+S044 Hartman 2007,D1,Some concerns,Some concerns,Some concerns,Algorithm and assessor agree
+S044 Hartman 2007,D2,Low,Low,Low,Algorithm and assessor agree
+S044 Hartman 2007,D3,Low,Low,Low,Algorithm and assessor agree
+S044 Hartman 2007,D4,Low,Low,Low,Algorithm and assessor agree
+S044 Hartman 2007,D5,Some concerns,Some concerns,Some concerns,Algorithm and assessor agree
+S045 Mobley 2017,D1,Low,Low,Low,Algorithm and assessor agree
+S045 Mobley 2017,D2,Low,Low,Low,Algorithm and assessor agree
+S045 Mobley 2017,D3,Low,Low,Low,Algorithm and assessor agree
+S045 Mobley 2017,D4,Low,Low,Low,Algorithm and assessor agree
+S045 Mobley 2017,D5,Low,Low,Low,Algorithm and assessor agree
+S046 Herda 2013,D1,Low,Low,Low,Algorithm and assessor agree
+S046 Herda 2013,D2,Low,Low,Low,Algorithm and assessor agree
+S046 Herda 2013,D3,Low,Low,Low,Algorithm and assessor agree
+S046 Herda 2013,D4,Low,Low,Low,Algorithm and assessor agree
+S046 Herda 2013,D5,Some concerns,Some concerns,Some concerns,Algorithm and assessor agree
+S048 Hida 2012,D1,Low,Low,Low,Algorithm and assessor agree
+S048 Hida 2012,D2,Low,Low,Low,Algorithm and assessor agree
+S048 Hida 2012,D3,NA,Some concerns,Some concerns,"Assessor judgment retained: required signalling responses were incomplete, so the algorithm could not be reconstructed"
+S048 Hida 2012,D4,Low,Low,Low,Algorithm and assessor agree
+S048 Hida 2012,D5,Some concerns,Some concerns,Some concerns,Algorithm and assessor agree
+S049 Hoffman 2007,D1,Low,Low,Low,Algorithm and assessor agree
+S049 Hoffman 2007,D2,Low,Low,Low,Algorithm and assessor agree
+S049 Hoffman 2007,D3,Low,Low,Low,Algorithm and assessor agree
+S049 Hoffman 2007,D4,Low,Low,Low,Algorithm and assessor agree
+S049 Hoffman 2007,D5,Some concerns,Some concerns,Some concerns,Algorithm and assessor agree
+S050 Hoffman 2009,D1,Low,Low,Low,Algorithm and assessor agree
+S050 Hoffman 2009,D2,Some concerns,Some concerns,Some concerns,Algorithm and assessor agree
+S050 Hoffman 2009,D3,Low,Low,Low,Algorithm and assessor agree
+S050 Hoffman 2009,D4,Low,Low,Low,Algorithm and assessor agree
+S050 Hoffman 2009,D5,Some concerns,Some concerns,Some concerns,Algorithm and assessor agree
+S053 Iglay 2009,D1,Low,Low,Low,Algorithm and assessor agree
+S053 Iglay 2009,D2,Low,Low,Low,Algorithm and assessor agree
+S053 Iglay 2009,D3,Low,Low,Low,Algorithm and assessor agree
+S053 Iglay 2009,D4,Low,Low,Low,Algorithm and assessor agree
+S053 Iglay 2009,D5,Some concerns,Some concerns,Some concerns,Algorithm and assessor agree
+S054 Ispoglou 2016,D1,Low,Low,Low,Algorithm and assessor agree
+S054 Ispoglou 2016,D2,Low,Low,Low,Algorithm and assessor agree
+S054 Ispoglou 2016,D3,Low,Low,Low,Algorithm and assessor agree
+S054 Ispoglou 2016,D4,Low,Low,Low,Algorithm and assessor agree
+S054 Ispoglou 2016,D5,Some concerns,Some concerns,Some concerns,Algorithm and assessor agree
+S057 Kerksick 2006,D1,Low,Low,Low,Algorithm and assessor agree
+S057 Kerksick 2006,D2,Low,Low,Low,Algorithm and assessor agree
+S057 Kerksick 2006,D3,Low,Low,Low,Algorithm and assessor agree
+S057 Kerksick 2006,D4,Low,Low,Low,Algorithm and assessor agree
+S057 Kerksick 2006,D5,Some concerns,Some concerns,Some concerns,Algorithm and assessor agree
+S058 Kim 2014,D1,Low,Low,Low,Algorithm and assessor agree
+S058 Kim 2014,D2,Low,Low,Low,Algorithm and assessor agree
+S058 Kim 2014,D3,Low,Low,Low,Algorithm and assessor agree
+S058 Kim 2014,D4,Low,Low,Low,Algorithm and assessor agree
+S058 Kim 2014,D5,Low,Low,Low,Algorithm and assessor agree
+S059 Park NaN,D1,Low,Low,Low,Algorithm and assessor agree
+S059 Park NaN,D2,Low,Low,Low,Algorithm and assessor agree
+S059 Park NaN,D3,Low,Low,Low,Algorithm and assessor agree
+S059 Park NaN,D4,Low,Low,Low,Algorithm and assessor agree
+S059 Park NaN,D5,Some concerns,Some concerns,Some concerns,Algorithm and assessor agree
+S060 Kirmse 2019,D1,Low,Low,Low,Algorithm and assessor agree
+S060 Kirmse 2019,D2,Low,Low,Low,Algorithm and assessor agree
+S060 Kirmse 2019,D3,Low,Low,Low,Algorithm and assessor agree
+S060 Kirmse 2019,D4,Low,Low,Low,Algorithm and assessor agree
+S060 Kirmse 2019,D5,Some concerns,Some concerns,Some concerns,Algorithm and assessor agree
+S064 Leenders 2013,D1,Low,Low,Low,Algorithm and assessor agree
+S064 Leenders 2013,D2,Low,Low,Low,Algorithm and assessor agree
+S064 Leenders 2013,D3,Low,Low,Low,Algorithm and assessor agree
+S064 Leenders 2013,D4,Low,Low,Low,Algorithm and assessor agree
+S064 Leenders 2013,D5,Some concerns,Some concerns,Some concerns,Algorithm and assessor agree
+S065 Lockwood 2017,D1,Low,Low,Low,Algorithm and assessor agree
+S065 Lockwood 2017,D2,Low,Low,Low,Algorithm and assessor agree
+S065 Lockwood 2017,D3,Low,Low,Low,Algorithm and assessor agree
+S065 Lockwood 2017,D4,Low,Low,Low,Algorithm and assessor agree
+S065 Lockwood 2017,D5,Some concerns,Some concerns,Some concerns,Algorithm and assessor agree
+S066 Maesta 2007,D1,Some concerns,Low,Some concerns,Algorithm used: assessor override lacked a sufficient domain-specific justification
+S066 Maesta 2007,D2,Some concerns,Some concerns,Some concerns,Algorithm and assessor agree
+S066 Maesta 2007,D3,Low,Low,Low,Algorithm and assessor agree
+S066 Maesta 2007,D4,Low,Low,Low,Algorithm and assessor agree
+S066 Maesta 2007,D5,Some concerns,Low,Some concerns,Algorithm used: assessor override lacked a sufficient domain-specific justification
+S071 Mori 2018,D1,Low,Low,Low,Algorithm and assessor agree
+S071 Mori 2018,D2,Low,Low,Low,Algorithm and assessor agree
+S071 Mori 2018,D3,Low,Low,Low,Algorithm and assessor agree
+S071 Mori 2018,D4,Some concerns,Some concerns,Some concerns,Algorithm and assessor agree
+S071 Mori 2018,D5,Some concerns,Some concerns,Some concerns,Algorithm and assessor agree
+S072 Nabuco NaN,D1,Low,Low,Low,Algorithm and assessor agree
+S072 Nabuco NaN,D2,Low,Low,Low,Algorithm and assessor agree
+S072 Nabuco NaN,D3,Low,Low,Low,Algorithm and assessor agree
+S072 Nabuco NaN,D4,Low,Low,Low,Algorithm and assessor agree
+S072 Nabuco NaN,D5,Some concerns,Some concerns,Some concerns,Algorithm and assessor agree
+S076 Nabuco 2019,D1,Low,Low,Low,Algorithm and assessor agree
+S076 Nabuco 2019,D2,Low,Low,Low,Algorithm and assessor agree
+S076 Nabuco 2019,D3,Low,Low,Low,Algorithm and assessor agree
+S076 Nabuco 2019,D4,Low,Low,Low,Algorithm and assessor agree
+S076 Nabuco 2019,D5,Some concerns,Some concerns,Some concerns,Algorithm and assessor agree
+S077 Nacliero 2017,D1,Low,Low,Low,Algorithm and assessor agree
+S077 Nacliero 2017,D2,Low,Low,Low,Algorithm and assessor agree
+S077 Nacliero 2017,D3,Low,Low,Low,Algorithm and assessor agree
+S077 Nacliero 2017,D4,Low,Low,Low,Algorithm and assessor agree
+S077 Nacliero 2017,D5,Some concerns,Some concerns,Some concerns,Algorithm and assessor agree
+S078 Nacliero 2017,D1,Low,Low,Low,Algorithm and assessor agree
+S078 Nacliero 2017,D2,Low,Low,Low,Algorithm and assessor agree
+S078 Nacliero 2017,D3,Low,Low,Low,Algorithm and assessor agree
+S078 Nacliero 2017,D4,Low,Low,Low,Algorithm and assessor agree
+S078 Nacliero 2017,D5,Some concerns,Low,Some concerns,Algorithm used: assessor override lacked a sufficient domain-specific justification
+S081 Nahas 2019,D1,Low,Low,Low,Algorithm and assessor agree
+S081 Nahas 2019,D2,Low,Low,Low,Algorithm and assessor agree
+S081 Nahas 2019,D3,Some concerns,Some concerns,Some concerns,Algorithm and assessor agree
+S081 Nahas 2019,D4,Low,Low,Low,Algorithm and assessor agree
+S081 Nahas 2019,D5,Low,Low,Low,Algorithm and assessor agree
+S082 Nakayama 2021,D1,Low,Low,Low,Algorithm and assessor agree
+S082 Nakayama 2021,D2,Low,Low,Low,Algorithm and assessor agree
+S082 Nakayama 2021,D3,Low,Low,Low,Algorithm and assessor agree
+S082 Nakayama 2021,D4,Low,Low,Low,Algorithm and assessor agree
+S082 Nakayama 2021,D5,Low,Low,Low,Algorithm and assessor agree
+S083 Negro 2014,D1,Low,Low,Low,Algorithm and assessor agree
+S083 Negro 2014,D2,Low,Low,Low,Algorithm and assessor agree
+S083 Negro 2014,D3,Low,Low,Low,Algorithm and assessor agree
+S083 Negro 2014,D4,Low,Low,Low,Algorithm and assessor agree
+S083 Negro 2014,D5,Some concerns,Some concerns,Some concerns,Algorithm and assessor agree
+S084 Oertsen-Hagemann 2019,D1,Low,Low,Low,Algorithm and assessor agree
+S084 Oertsen-Hagemann 2019,D2,Low,Low,Low,Algorithm and assessor agree
+S084 Oertsen-Hagemann 2019,D3,Low,Low,Low,Algorithm and assessor agree
+S084 Oertsen-Hagemann 2019,D4,Low,Low,Low,Algorithm and assessor agree
+S084 Oertsen-Hagemann 2019,D5,Some concerns,Some concerns,Some concerns,Algorithm and assessor agree
+S086 Ormsbee 2018,D1,High,High,High,Algorithm and assessor agree
+S086 Ormsbee 2018,D2,Low,Low,Low,Algorithm and assessor agree
+S086 Ormsbee 2018,D3,Low,Low,Low,Algorithm and assessor agree
+S086 Ormsbee 2018,D4,Low,Low,Low,Algorithm and assessor agree
+S086 Ormsbee 2018,D5,Some concerns,Some concerns,Some concerns,Algorithm and assessor agree
+S087 Orsatti 2018,D1,Some concerns,Some concerns,Some concerns,Algorithm and assessor agree
+S087 Orsatti 2018,D2,Some concerns,Some concerns,Some concerns,Algorithm and assessor agree
+S087 Orsatti 2018,D3,Low,Low,Low,Algorithm and assessor agree
+S087 Orsatti 2018,D4,High,High,High,Algorithm and assessor agree
+S087 Orsatti 2018,D5,Some concerns,Some concerns,Some concerns,Algorithm and assessor agree
+S088 Ottestad 2017,D1,Low,Low,Low,Algorithm and assessor agree
+S088 Ottestad 2017,D2,High,Some concerns,High,Algorithm used: assessor override lacked a sufficient domain-specific justification
+S088 Ottestad 2017,D3,Low,Low,Low,Algorithm and assessor agree
+S088 Ottestad 2017,D4,Low,Low,Low,Algorithm and assessor agree
+S088 Ottestad 2017,D5,Low,Low,Low,Algorithm and assessor agree
+S089 Ozan 2020,D1,Some concerns,Some concerns,Some concerns,Algorithm and assessor agree
+S089 Ozan 2020,D2,High,High,High,Algorithm and assessor agree
+S089 Ozan 2020,D3,Low,Low,Low,Algorithm and assessor agree
+S089 Ozan 2020,D4,Low,Low,Low,Algorithm and assessor agree
+S089 Ozan 2020,D5,Some concerns,High,Some concerns,Algorithm used: assessor override lacked a sufficient domain-specific justification
+S090 Paoli NaN,D1,Low,Low,Low,Algorithm and assessor agree
+S090 Paoli NaN,D2,Some concerns,Some concerns,Some concerns,Algorithm and assessor agree
+S090 Paoli NaN,D3,Low,Low,Low,Algorithm and assessor agree
+S090 Paoli NaN,D4,Low,Low,Low,Algorithm and assessor agree
+S090 Paoli NaN,D5,Some concerns,Some concerns,Some concerns,Algorithm and assessor agree
+S093 Pihoker 2018,D1,Low,Low,Low,Algorithm and assessor agree
+S093 Pihoker 2018,D2,Low,Low,Low,Algorithm and assessor agree
+S093 Pihoker 2018,D3,Low,Low,Low,Algorithm and assessor agree
+S093 Pihoker 2018,D4,Low,Low,Low,Algorithm and assessor agree
+S093 Pihoker 2018,D5,Some concerns,Some concerns,Some concerns,Algorithm and assessor agree
+S094 Planella-Farrugia 2019,D1,High,Some concerns,High,Algorithm used: assessor override lacked a sufficient domain-specific justification
+S094 Planella-Farrugia 2019,D2,Low,Low,Low,Algorithm and assessor agree
+S094 Planella-Farrugia 2019,D3,Low,Low,Low,Algorithm and assessor agree
+S094 Planella-Farrugia 2019,D4,High,High,High,Algorithm and assessor agree
+S094 Planella-Farrugia 2019,D5,High,High,High,Algorithm and assessor agree
+S096 Markofski NaN,D1,Low,Low,Low,Algorithm and assessor agree
+S096 Markofski NaN,D2,Low,Low,Low,Algorithm and assessor agree
+S096 Markofski NaN,D3,Low,Low,Low,Algorithm and assessor agree
+S096 Markofski NaN,D4,Low,Low,Low,Algorithm and assessor agree
+S096 Markofski NaN,D5,High,Some concerns,High,Algorithm used: assessor override lacked a sufficient domain-specific justification
+S097 Rankin 2004,D1,High,High,High,Algorithm and assessor agree
+S097 Rankin 2004,D2,Low,Low,Low,Algorithm and assessor agree
+S097 Rankin 2004,D3,Low,Low,Low,Algorithm and assessor agree
+S097 Rankin 2004,D4,Low,Low,Low,Algorithm and assessor agree
+S097 Rankin 2004,D5,Some concerns,Some concerns,Some concerns,Algorithm and assessor agree
+S098 Reidy 2016,D1,Low,Low,Low,Algorithm and assessor agree
+S098 Reidy 2016,D2,Low,Low,Low,Algorithm and assessor agree
+S098 Reidy 2016,D3,Low,Low,Low,Algorithm and assessor agree
+S098 Reidy 2016,D4,Low,Low,Low,Algorithm and assessor agree
+S098 Reidy 2016,D5,High,Some concerns,High,Algorithm used: assessor override lacked a sufficient domain-specific justification
+S100 Rossato 2017,D1,Low,Low,Low,Algorithm and assessor agree
+S100 Rossato 2017,D2,Low,Low,Low,Algorithm and assessor agree
+S100 Rossato 2017,D3,Low,Low,Low,Algorithm and assessor agree
+S100 Rossato 2017,D4,Low,Low,Low,Algorithm and assessor agree
+S100 Rossato 2017,D5,Low,Low,Low,Algorithm and assessor agree
+S101 Rozenek 2002,D1,Low,Low,Low,Algorithm and assessor agree
+S101 Rozenek 2002,D2,Low,Low,Low,Algorithm and assessor agree
+S101 Rozenek 2002,D3,Low,Low,Low,Algorithm and assessor agree
+S101 Rozenek 2002,D4,Low,Low,Low,Algorithm and assessor agree
+S101 Rozenek 2002,D5,Some concerns,Some concerns,Some concerns,Algorithm and assessor agree
+S104 Sharp 2018,D1,Low,Low,Low,Algorithm and assessor agree
+S104 Sharp 2018,D2,Low,Low,Low,Algorithm and assessor agree
+S104 Sharp 2018,D3,Low,Low,Low,Algorithm and assessor agree
+S104 Sharp 2018,D4,Low,Low,Low,Algorithm and assessor agree
+S104 Sharp 2018,D5,Some concerns,Some concerns,Some concerns,Algorithm and assessor agree
+S105 Snijders 2015,D1,Low,Low,Low,Algorithm and assessor agree
+S105 Snijders 2015,D2,Low,Low,Low,Algorithm and assessor agree
+S105 Snijders 2015,D3,Low,Low,Low,Algorithm and assessor agree
+S105 Snijders 2015,D4,Low,Low,Low,Algorithm and assessor agree
+S105 Snijders 2015,D5,Low,Low,Low,Algorithm and assessor agree
+S106 Spillane 2016,D1,Low,Low,Low,Algorithm and assessor agree
+S106 Spillane 2016,D2,Low,Low,Low,Algorithm and assessor agree
+S106 Spillane 2016,D3,Low,Low,Low,Algorithm and assessor agree
+S106 Spillane 2016,D4,Low,Low,Low,Algorithm and assessor agree
+S106 Spillane 2016,D5,Some concerns,Some concerns,Some concerns,Algorithm and assessor agree
+S108 Taylor 2016,D1,Low,Low,Low,Algorithm and assessor agree
+S108 Taylor 2016,D2,Low,Low,Low,Algorithm and assessor agree
+S108 Taylor 2016,D3,Low,Low,Low,Algorithm and assessor agree
+S108 Taylor 2016,D4,Low,Low,Low,Algorithm and assessor agree
+S108 Taylor 2016,D5,Some concerns,Low,Some concerns,Algorithm used: assessor override lacked a sufficient domain-specific justification
+S111 van Dongen 2020,D1,Some concerns,Some concerns,Some concerns,Algorithm and assessor agree
+S111 van Dongen 2020,D2,Low,Low,Low,Algorithm and assessor agree
+S111 van Dongen 2020,D3,Low,Low,Low,Algorithm and assessor agree
+S111 van Dongen 2020,D4,Low,High,Low,Algorithm used: assessor override lacked a sufficient domain-specific justification
+S111 van Dongen 2020,D5,Some concerns,Some concerns,Some concerns,Algorithm and assessor agree
+S112 Vangsoe 2018,D1,Low,Low,Low,Algorithm and assessor agree
+S112 Vangsoe 2018,D2,Low,Low,Low,Algorithm and assessor agree
+S112 Vangsoe 2018,D3,Low,Low,Low,Algorithm and assessor agree
+S112 Vangsoe 2018,D4,Low,Low,Low,Algorithm and assessor agree
+S112 Vangsoe 2018,D5,Some concerns,Some concerns,Some concerns,Algorithm and assessor agree
+S113 Verdijk 2009,D1,Low,Low,Low,Algorithm and assessor agree
+S113 Verdijk 2009,D2,Low,Low,Low,Algorithm and assessor agree
+S113 Verdijk 2009,D3,Low,Low,Low,Algorithm and assessor agree
+S113 Verdijk 2009,D4,Low,Low,Low,Algorithm and assessor agree
+S113 Verdijk 2009,D5,Some concerns,Some concerns,Some concerns,Algorithm and assessor agree
+S114 Vieillevoye 2010,D1,Some concerns,Some concerns,Some concerns,Algorithm and assessor agree
+S114 Vieillevoye 2010,D2,Some concerns,Some concerns,Some concerns,Algorithm and assessor agree
+S114 Vieillevoye 2010,D3,High,High,High,Algorithm and assessor agree
+S114 Vieillevoye 2010,D4,High,High,High,Algorithm and assessor agree
+S114 Vieillevoye 2010,D5,Some concerns,Some concerns,Some concerns,Algorithm and assessor agree
+S118 Walker 2010,D1,Low,Low,Low,Algorithm and assessor agree
+S118 Walker 2010,D2,Low,Low,Low,Algorithm and assessor agree
+S118 Walker 2010,D3,Low,Low,Low,Algorithm and assessor agree
+S118 Walker 2010,D4,Low,Low,Low,Algorithm and assessor agree
+S118 Walker 2010,D5,High,High,High,Algorithm and assessor agree
+S119 Watanabe 2018,D1,Low,Low,Low,Algorithm and assessor agree
+S119 Watanabe 2018,D2,Low,Low,Low,Algorithm and assessor agree
+S119 Watanabe 2018,D3,Low,Low,Low,Algorithm and assessor agree
+S119 Watanabe 2018,D4,High,High,High,Algorithm and assessor agree
+S119 Watanabe 2018,D5,High,Some concerns,High,Algorithm used: assessor override lacked a sufficient domain-specific justification
+S120 Weisgarber 2012,D1,Low,Low,Low,Algorithm and assessor agree
+S120 Weisgarber 2012,D2,Low,Low,Low,Algorithm and assessor agree
+S120 Weisgarber 2012,D3,Low,Low,Low,Algorithm and assessor agree
+S120 Weisgarber 2012,D4,Low,Low,Low,Algorithm and assessor agree
+S120 Weisgarber 2012,D5,Some concerns,Some concerns,Some concerns,Algorithm and assessor agree
+S123 Willoughby 2007,D1,Low,Low,Low,Algorithm and assessor agree
+S123 Willoughby 2007,D2,Low,Low,Low,Algorithm and assessor agree
+S123 Willoughby 2007,D3,Low,Low,Low,Algorithm and assessor agree
+S123 Willoughby 2007,D4,High,High,High,Algorithm and assessor agree
+S123 Willoughby 2007,D5,High,Low,High,Algorithm used: assessor override lacked a sufficient domain-specific justification
+S124 Zhu 2015,D1,Low,Low,Low,Algorithm and assessor agree
+S124 Zhu 2015,D2,Low,Low,Low,Algorithm and assessor agree
+S124 Zhu 2015,D3,Low,Low,Low,Algorithm and assessor agree
+S124 Zhu 2015,D4,Low,Low,Low,Algorithm and assessor agree
+S124 Zhu 2015,D5,Low,Low,Low,Algorithm and assessor agree
+S125 Obradovic 2020,D1,Some concerns,Some concerns,Some concerns,Algorithm and assessor agree
+S125 Obradovic 2020,D2,Some concerns,High,Some concerns,Algorithm used: assessor override lacked a sufficient domain-specific justification
+S125 Obradovic 2020,D3,Low,Low,Low,Algorithm and assessor agree
+S125 Obradovic 2020,D4,High,High,High,Algorithm and assessor agree
+S125 Obradovic 2020,D5,Some concerns,Some concerns,Some concerns,Algorithm and assessor agree
+S126 Norton 2015,D1,Some concerns,Some concerns,Some concerns,Algorithm and assessor agree
+S126 Norton 2015,D2,Low,Low,Low,Algorithm and assessor agree
+S126 Norton 2015,D3,Low,Low,Low,Algorithm and assessor agree
+S126 Norton 2015,D4,Low,Low,Low,Algorithm and assessor agree
+S126 Norton 2015,D5,Low,Low,Low,Algorithm and assessor agree
+S127 Atherton 2020,D1,Low,Low,Low,Algorithm and assessor agree
+S127 Atherton 2020,D2,Low,Low,Low,Algorithm and assessor agree
+S127 Atherton 2020,D3,Low,Low,Low,Algorithm and assessor agree
+S127 Atherton 2020,D4,Low,Low,Low,Algorithm and assessor agree
+S127 Atherton 2020,D5,Some concerns,Some concerns,Some concerns,Algorithm and assessor agree
+S128 Baek 2025,D1,Low,Low,Low,Algorithm and assessor agree
+S128 Baek 2025,D2,Low,Low,Low,Algorithm and assessor agree
+S128 Baek 2025,D3,Low,Low,Low,Algorithm and assessor agree
+S128 Baek 2025,D4,Low,Low,Low,Algorithm and assessor agree
+S128 Baek 2025,D5,Low,Low,Low,Algorithm and assessor agree
+S129 Bagheri 2023,D1,Low,Low,Low,Algorithm and assessor agree
+S129 Bagheri 2023,D2,Some concerns,Some concerns,Some concerns,Algorithm and assessor agree
+S129 Bagheri 2023,D3,Low,Low,Low,Algorithm and assessor agree
+S129 Bagheri 2023,D4,Low,Low,Low,Algorithm and assessor agree
+S129 Bagheri 2023,D5,Low,Low,Low,Algorithm and assessor agree
+S130 Bagheri 2023,D1,Low,Low,Low,Algorithm and assessor agree
+S130 Bagheri 2023,D2,Some concerns,Some concerns,Some concerns,Algorithm and assessor agree
+S130 Bagheri 2023,D3,Low,Low,Low,Algorithm and assessor agree
+S130 Bagheri 2023,D4,Low,Low,Low,Algorithm and assessor agree
+S130 Bagheri 2023,D5,Low,Low,Low,Algorithm and assessor agree
+S131 Carroll 2024,D1,Low,Low,Low,Algorithm and assessor agree
+S131 Carroll 2024,D2,Some concerns,Some concerns,Some concerns,Algorithm and assessor agree
+S131 Carroll 2024,D3,Low,Low,Low,Algorithm and assessor agree
+S131 Carroll 2024,D4,Low,Low,Low,Algorithm and assessor agree
+S131 Carroll 2024,D5,Some concerns,Some concerns,Some concerns,Algorithm and assessor agree
+S132 de Azevedo Bach 2022,D1,Some concerns,Some concerns,Some concerns,Algorithm and assessor agree
+S132 de Azevedo Bach 2022,D2,Low,Low,Low,Algorithm and assessor agree
+S132 de Azevedo Bach 2022,D3,Low,Low,Low,Algorithm and assessor agree
+S132 de Azevedo Bach 2022,D4,Low,Low,Low,Algorithm and assessor agree
+S132 de Azevedo Bach 2022,D5,Low,Low,Low,Algorithm and assessor agree
+S134 Franzke 2022,D1,Some concerns,High,Some concerns,Algorithm used: assessor override lacked a sufficient domain-specific justification
+S134 Franzke 2022,D2,Some concerns,Some concerns,Some concerns,Algorithm and assessor agree
+S134 Franzke 2022,D3,Low,Low,Low,Algorithm and assessor agree
+S134 Franzke 2022,D4,High,High,High,Algorithm and assessor agree
+S134 Franzke 2022,D5,Low,Low,Low,Algorithm and assessor agree
+S135 Griffen 2022,D1,Low,Low,Low,Algorithm and assessor agree
+S135 Griffen 2022,D2,Low,Low,Low,Algorithm and assessor agree
+S135 Griffen 2022,D3,Low,Low,Low,Algorithm and assessor agree
+S135 Griffen 2022,D4,Low,Low,Low,Algorithm and assessor agree
+S135 Griffen 2022,D5,Low,Low,Low,Algorithm and assessor agree
+S136 Huschtscha 2021,D1,Low,Low,Low,Algorithm and assessor agree
+S136 Huschtscha 2021,D2,Low,Low,Low,Algorithm and assessor agree
+S136 Huschtscha 2021,D3,Low,Low,Low,Algorithm and assessor agree
+S136 Huschtscha 2021,D4,Low,Low,Low,Algorithm and assessor agree
+S136 Huschtscha 2021,D5,Low,Low,Low,Algorithm and assessor agree
+S137 Ioannidou 2024,D1,Low,Low,Low,Algorithm and assessor agree
+S137 Ioannidou 2024,D2,Low,Low,Low,Algorithm and assessor agree
+S137 Ioannidou 2024,D3,Low,Low,Low,Algorithm and assessor agree
+S137 Ioannidou 2024,D4,Low,Low,Low,Algorithm and assessor agree
+S137 Ioannidou 2024,D5,Low,Low,Low,Algorithm and assessor agree
+S138 Kim 2023,D1,Low,Low,Low,Algorithm and assessor agree
+S138 Kim 2023,D2,Low,Low,Low,Algorithm and assessor agree
+S138 Kim 2023,D3,Low,Low,Low,Algorithm and assessor agree
+S138 Kim 2023,D4,Low,Low,Low,Algorithm and assessor agree
+S138 Kim 2023,D5,High,Some concerns,High,Algorithm used: assessor override lacked a sufficient domain-specific justification
+S139 Klemp 2025,D1,Low,Low,Low,Algorithm and assessor agree
+S139 Klemp 2025,D2,Low,Low,Low,Algorithm and assessor agree
+S139 Klemp 2025,D3,Low,Low,Low,Algorithm and assessor agree
+S139 Klemp 2025,D4,Low,Low,Low,Algorithm and assessor agree
+S139 Klemp 2025,D5,Low,Low,Low,Algorithm and assessor agree
+S140 Koopmans 2024,D1,Low,Low,Low,Algorithm and assessor agree
+S140 Koopmans 2024,D2,Low,Low,Low,Algorithm and assessor agree
+S140 Koopmans 2024,D3,Low,Low,Low,Algorithm and assessor agree
+S140 Koopmans 2024,D4,Low,Low,Low,Algorithm and assessor agree
+S140 Koopmans 2024,D5,Low,Low,Low,Algorithm and assessor agree
+S141 Lamb 2020,D1,Low,Low,Low,Algorithm and assessor agree
+S141 Lamb 2020,D2,Some concerns,Some concerns,Some concerns,Algorithm and assessor agree
+S141 Lamb 2020,D3,Low,Low,Low,Algorithm and assessor agree
+S141 Lamb 2020,D4,Low,Low,Low,Algorithm and assessor agree
+S141 Lamb 2020,D5,Low,Low,Low,Algorithm and assessor agree
+S142 McKenna 2021,D1,Low,Low,Low,Algorithm and assessor agree
+S142 McKenna 2021,D2,Low,Low,Low,Algorithm and assessor agree
+S142 McKenna 2021,D3,Low,Low,Low,Algorithm and assessor agree
+S142 McKenna 2021,D4,Low,Low,Low,Algorithm and assessor agree
+S142 McKenna 2021,D5,Low,Low,Low,Algorithm and assessor agree
+S143 Mertz 2021,D1,Low,Low,Low,Algorithm and assessor agree
+S143 Mertz 2021,D2,Low,Low,Low,Algorithm and assessor agree
+S143 Mertz 2021,D3,Low,Low,Low,Algorithm and assessor agree
+S143 Mertz 2021,D4,Low,Low,Low,Algorithm and assessor agree
+S143 Mertz 2021,D5,Low,Low,Low,Algorithm and assessor agree
+S145 Nygard 2021,D1,Low,Low,Low,Algorithm and assessor agree
+S145 Nygard 2021,D2,Low,Low,Low,Algorithm and assessor agree
+S145 Nygard 2021,D3,Low,Low,Low,Algorithm and assessor agree
+S145 Nygard 2021,D4,Low,Low,Low,Algorithm and assessor agree
+S145 Nygard 2021,D5,Some concerns,Some concerns,Some concerns,Algorithm and assessor agree
+S146 Oh 2022,D1,Low,Low,Low,Algorithm and assessor agree
+S146 Oh 2022,D2,Low,Low,Low,Algorithm and assessor agree
+S146 Oh 2022,D3,Low,Low,Low,Algorithm and assessor agree
+S146 Oh 2022,D4,Low,Low,Low,Algorithm and assessor agree
+S146 Oh 2022,D5,Some concerns,Some concerns,Some concerns,Algorithm and assessor agree
+S147 Peng 2024,D1,Low,Low,Low,Algorithm and assessor agree
+S147 Peng 2024,D2,Some concerns,Some concerns,Some concerns,Algorithm and assessor agree
+S147 Peng 2024,D3,Low,Low,Low,Algorithm and assessor agree
+S147 Peng 2024,D4,Low,Low,Low,Algorithm and assessor agree
+S147 Peng 2024,D5,Low,Low,Low,Algorithm and assessor agree
+S148 Pourabbas 2021,D1,Low,Low,Low,Algorithm and assessor agree
+S148 Pourabbas 2021,D2,Low,Low,Low,Algorithm and assessor agree
+S148 Pourabbas 2021,D3,Low,Low,Low,Algorithm and assessor agree
+S148 Pourabbas 2021,D4,Low,Low,Low,Algorithm and assessor agree
+S148 Pourabbas 2021,D5,Low,Low,Low,Algorithm and assessor agree
+S149 Sambashivaiah 2024,D1,Low,Low,Low,Algorithm and assessor agree
+S149 Sambashivaiah 2024,D2,Low,Low,Low,Algorithm and assessor agree
+S149 Sambashivaiah 2024,D3,Low,Low,Low,Algorithm and assessor agree
+S149 Sambashivaiah 2024,D4,Low,Low,Low,Algorithm and assessor agree
+S149 Sambashivaiah 2024,D5,Low,Low,Low,Algorithm and assessor agree
+S150 Seo 2024,D1,Low,Low,Low,Algorithm and assessor agree
+S150 Seo 2024,D2,Low,Low,Low,Algorithm and assessor agree
+S150 Seo 2024,D3,Low,Low,Low,Algorithm and assessor agree
+S150 Seo 2024,D4,Low,Low,Low,Algorithm and assessor agree
+S150 Seo 2024,D5,Some concerns,Some concerns,Some concerns,Algorithm and assessor agree
+S151 Sexton 2021,D1,Some concerns,Some concerns,Some concerns,Algorithm and assessor agree
+S151 Sexton 2021,D2,Some concerns,Some concerns,Some concerns,Algorithm and assessor agree
+S151 Sexton 2021,D3,Low,Low,Low,Algorithm and assessor agree
+S151 Sexton 2021,D4,Low,Low,Low,Algorithm and assessor agree
+S151 Sexton 2021,D5,Low,Low,Low,Algorithm and assessor agree
+S152 Silva 2020,D1,Low,Low,Low,Algorithm and assessor agree
+S152 Silva 2020,D2,Low,Low,Low,Algorithm and assessor agree
+S152 Silva 2020,D3,Low,Low,Low,Algorithm and assessor agree
+S152 Silva 2020,D4,Low,Low,Low,Algorithm and assessor agree
+S152 Silva 2020,D5,Low,Low,Low,Algorithm and assessor agree
+S153 Unterberger 2022,D1,Low,Low,Low,Algorithm and assessor agree
+S153 Unterberger 2022,D2,Low,Low,Low,Algorithm and assessor agree
+S153 Unterberger 2022,D3,Low,Low,Low,Algorithm and assessor agree
+S153 Unterberger 2022,D4,Low,Low,Low,Algorithm and assessor agree
+S153 Unterberger 2022,D5,Low,Low,Low,Algorithm and assessor agree
+S154 van den Helder 2020,D1,Low,Low,Low,Algorithm and assessor agree
+S154 van den Helder 2020,D2,Low,Low,Low,Algorithm and assessor agree
+S154 van den Helder 2020,D3,Low,Low,Low,Algorithm and assessor agree
+S154 van den Helder 2020,D4,Low,Low,Low,Algorithm and assessor agree
+S154 van den Helder 2020,D5,Low,Low,Low,Algorithm and assessor agree
+S155 Vendruscolo 2025,D1,Low,Low,Low,Algorithm and assessor agree
+S155 Vendruscolo 2025,D2,Low,Low,Low,Algorithm and assessor agree
+S155 Vendruscolo 2025,D3,Low,Low,Low,Algorithm and assessor agree
+S155 Vendruscolo 2025,D4,Low,Low,Low,Algorithm and assessor agree
+S155 Vendruscolo 2025,D5,Some concerns,Some concerns,Some concerns,Algorithm and assessor agree
+S156 Wirth 2024,D1,Low,Low,Low,Algorithm and assessor agree
+S156 Wirth 2024,D2,Low,Low,Low,Algorithm and assessor agree
+S156 Wirth 2024,D3,Low,Low,Low,Algorithm and assessor agree
+S156 Wirth 2024,D4,Low,Low,Low,Algorithm and assessor agree
+S156 Wirth 2024,D5,Low,Low,Low,Algorithm and assessor agree
+S157 Yuan 2024,D1,Low,Low,Low,Algorithm and assessor agree
+S157 Yuan 2024,D2,Low,Low,Low,Algorithm and assessor agree
+S157 Yuan 2024,D3,Low,Some concerns,Some concerns,Assessor override retained: differential attrition was documented despite multiple imputation
+S157 Yuan 2024,D4,Low,Low,Low,Algorithm and assessor agree
+S157 Yuan 2024,D5,Low,Low,Low,Algorithm and assessor agree
+S158 Zbinden-Foncea 2023,D1,Some concerns,Some concerns,Some concerns,Algorithm and assessor agree
+S158 Zbinden-Foncea 2023,D2,Low,Low,Low,Algorithm and assessor agree
+S158 Zbinden-Foncea 2023,D3,Low,Low,Low,Algorithm and assessor agree
+S158 Zbinden-Foncea 2023,D4,Low,Low,Low,Algorithm and assessor agree
+S158 Zbinden-Foncea 2023,D5,Some concerns,Some concerns,Some concerns,Algorithm and assessor agree
+S159 Cribb 2006,D1,Low,Low,Low,Algorithm and assessor agree
+S159 Cribb 2006,D2,Low,Low,Low,Algorithm and assessor agree
+S159 Cribb 2006,D3,Low,Low,Low,Algorithm and assessor agree
+S159 Cribb 2006,D4,Low,Low,Low,Algorithm and assessor agree
+S159 Cribb 2006,D5,Some concerns,Some concerns,Some concerns,Algorithm and assessor agree
+S160 Fabre 2017,D1,Low,Low,Low,Algorithm and assessor agree
+S160 Fabre 2017,D2,Low,Low,Low,Algorithm and assessor agree
+S160 Fabre 2017,D3,Low,Low,Low,Algorithm and assessor agree
+S160 Fabre 2017,D4,Low,Low,Low,Algorithm and assessor agree
+S160 Fabre 2017,D5,Some concerns,Some concerns,Some concerns,Algorithm and assessor agree
+S161 Jacinto 2022,D1,Low,Low,Low,Algorithm and assessor agree
+S161 Jacinto 2022,D2,Low,Low,Low,Algorithm and assessor agree
+S161 Jacinto 2022,D3,Low,Low,Low,Algorithm and assessor agree
+S161 Jacinto 2022,D4,Low,Low,Low,Algorithm and assessor agree
+S161 Jacinto 2022,D5,Some concerns,Some concerns,Some concerns,Algorithm and assessor agree
+S162 Sugihara 2018,D1,Some concerns,Some concerns,Some concerns,Algorithm and assessor agree
+S162 Sugihara 2018,D2,Low,Low,Low,Algorithm and assessor agree
+S162 Sugihara 2018,D3,Low,Low,Low,Algorithm and assessor agree
+S162 Sugihara 2018,D4,Low,Low,Low,Algorithm and assessor agree
+S162 Sugihara 2018,D5,Some concerns,Some concerns,Some concerns,Algorithm and assessor agree
+S163 Bagheri 2026,D1,Low,Low,Low,Algorithm and assessor agree
+S163 Bagheri 2026,D2,Low,Low,Low,Algorithm and assessor agree
+S163 Bagheri 2026,D3,Some concerns,Low,Some concerns,Algorithm used: assessor override lacked a sufficient domain-specific justification
+S163 Bagheri 2026,D4,Low,Low,Low,Algorithm and assessor agree
+S163 Bagheri 2026,D5,Some concerns,Some concerns,Some concerns,Algorithm and assessor agree
+S164 Ceglia 2026,D1,Low,Low,Low,Algorithm and assessor agree
+S164 Ceglia 2026,D2,Low,Low,Low,Algorithm and assessor agree
+S164 Ceglia 2026,D3,Low,Low,Low,Algorithm and assessor agree
+S164 Ceglia 2026,D4,Low,Low,Low,Algorithm and assessor agree
+S164 Ceglia 2026,D5,Low,Low,Low,Algorithm and assessor agree
+S165 Huijing 2026,D1,Low,Low,Low,Algorithm and assessor agree
+S165 Huijing 2026,D2,Low,Low,Low,Algorithm and assessor agree
+S165 Huijing 2026,D3,Low,Low,Low,Algorithm and assessor agree
+S165 Huijing 2026,D4,Low,Low,Low,Algorithm and assessor agree
+S165 Huijing 2026,D5,Low,Low,Low,Algorithm and assessor agree
+S166 Kang 2025,D1,Low,Low,Low,Algorithm and assessor agree
+S166 Kang 2025,D2,Low,Low,Low,Algorithm and assessor agree
+S166 Kang 2025,D3,Low,Low,Low,Algorithm and assessor agree
+S166 Kang 2025,D4,Low,Low,Low,Algorithm and assessor agree
+S166 Kang 2025,D5,Low,Low,Low,Algorithm and assessor agree
+S167 Liu 2026,D1,Low,Low,Low,Algorithm and assessor agree
+S167 Liu 2026,D2,Low,Low,Low,Algorithm and assessor agree
+S167 Liu 2026,D3,Low,Low,Low,Algorithm and assessor agree
+S167 Liu 2026,D4,High,High,High,Algorithm and assessor agree
+S167 Liu 2026,D5,Low,Low,Low,Algorithm and assessor agree
+S168 Moura-Maia 2026,D1,Low,Low,Low,Algorithm and assessor agree
+S168 Moura-Maia 2026,D2,Low,Low,Low,Algorithm and assessor agree
+S168 Moura-Maia 2026,D3,Low,Low,Low,Algorithm and assessor agree
+S168 Moura-Maia 2026,D4,High,High,High,Algorithm and assessor agree
+S168 Moura-Maia 2026,D5,Low,Low,Low,Algorithm and assessor agree
+S169 Patel 2025,D1,Low,Low,Low,Algorithm and assessor agree
+S169 Patel 2025,D2,Low,Low,Low,Algorithm and assessor agree
+S169 Patel 2025,D3,Low,Low,Low,Algorithm and assessor agree
+S169 Patel 2025,D4,Low,Low,Low,Algorithm and assessor agree
+S169 Patel 2025,D5,Low,Low,Low,Algorithm and assessor agree
+S170 Seyhan 2026,D1,Low,Low,Low,Algorithm and assessor agree
+S170 Seyhan 2026,D2,Low,Low,Low,Algorithm and assessor agree
+S170 Seyhan 2026,D3,Low,Low,Low,Algorithm and assessor agree
+S170 Seyhan 2026,D4,High,High,High,Algorithm and assessor agree
+S170 Seyhan 2026,D5,Low,Low,Low,Algorithm and assessor agree
+S171 Svensson 2026,D1,Low,Low,Low,Algorithm and assessor agree
+S171 Svensson 2026,D2,Low,Low,Low,Algorithm and assessor agree
+S171 Svensson 2026,D3,Low,Low,Low,Algorithm and assessor agree
+S171 Svensson 2026,D4,Low,Low,Low,Algorithm and assessor agree
+S171 Svensson 2026,D5,Some concerns,Some concerns,Some concerns,Algorithm and assessor agree
+S172 Vaithanomsat 2025,D1,Low,Low,Low,Algorithm and assessor agree
+S172 Vaithanomsat 2025,D2,Low,Low,Low,Algorithm and assessor agree
+S172 Vaithanomsat 2025,D3,Low,Low,Low,Algorithm and assessor agree
+S172 Vaithanomsat 2025,D4,Low,Low,Low,Algorithm and assessor agree
+S172 Vaithanomsat 2025,D5,Low,Low,Low,Algorithm and assessor agree

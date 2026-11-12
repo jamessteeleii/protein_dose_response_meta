@@ -1,0 +1,9 @@
+check,passed,detail
+accepted_primary_fits,TRUE,104 accepted fit records; 104 files present
+study_varying_candidate_fits,TRUE,48 of 48 required fit files present
+final_corrected_loo,TRUE,Final corrected LOO must be complete and stacking-ready
+primary_reporting,TRUE,Full primary model-average reporting must pass all checks
+primary_analysis_data,TRUE,All four primary outcome datasets must be available
+rob2_results,TRUE,rob2_final_judgments.csv
+publication_bias_results,TRUE,Four outcome families with paired BRMA/RoBMA estimates are required
+grade_decision_sheet,TRUE,grade_domain_judgments.csv

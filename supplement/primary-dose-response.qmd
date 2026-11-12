@@ -1,0 +1,37 @@
+---
+title: "Primary dose–response figures with observed effect sizes"
+subtitle: "Relative total protein intake (g/kg/day)"
+author:
+  - James Steele
+  - Everson Araujo Nunes
+  - Myles Moore
+  - Matthew Lees
+  - Lauren Roxburgh
+  - Andrea Viloria Medina
+  - Stuart Phillips
+format:
+  html:
+    theme: [cosmo, no-web-font.scss]
+    toc: true
+    embed-resources: true
+---
+
+These figures accompany the primary relative-intake results in the manuscript. In the top panels, faint points show the original observed standardised mean changes, and filled points with dark outlines show the corresponding arm-conditional posterior means. Each thin vertical line connects an observed effect size to its corresponding mean at the same protein intake. Multiple observations can share an arm profile and its conditional mean. Larger filled points indicate greater posterior precision. The black curves show the model-averaged population means and the shaded bands their 95% posterior intervals.
+
+The lower panels show model-averaged pairwise contrasts of proposed minus current intake within the observed ranges for each resistance-training condition. Cells above the diagonal compare an increase in intake and cells below it compare a decrease. Dashed contours enclose contrasts meeting the 95% posterior-probability criterion for practical equivalence.
+
+## Whole-body lean/fat-free mass
+
+![Primary relative-intake results for whole-body lean/fat-free mass. Included methods estimate different body compartments.](../manuscript/generated/figures/primary-dose-response/whole_body-observed.png){#fig-primary-whole-body-observed}
+
+## Measures of muscle size or mass
+
+![Primary relative-intake results for measures of muscle size or mass, including direct imaging and biopsy measurements and regional body-composition proxies such as appendicular DXA/BIA measures.](../manuscript/generated/figures/primary-dose-response/hypertrophy-observed.png){#fig-primary-muscle-observed}
+
+## Strength
+
+![Primary relative-intake results for strength.](../manuscript/generated/figures/primary-dose-response/strength-observed.png){#fig-primary-strength-observed}
+
+## Physical function
+
+![Primary relative-intake results for physical function.](../manuscript/generated/figures/primary-dose-response/function-observed.png){#fig-primary-function-observed}

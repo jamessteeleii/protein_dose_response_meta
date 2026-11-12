@@ -1,0 +1,19 @@
+family,outcome,model_index,model_name,interaction,stacking_weight
+total,strength,1,Intercept only model [total g/day] [RT only; reported training status],none,9.677854767965308e-5
+total,strength,2,Linear model [total g/day] [RT only; reported training status],none,0.008333955196069033
+total,strength,4,Thin plate spline model [total g/day] [RT only; reported training status],none,0.0049164954281359745
+total,strength,5,Intercept only model (+ moderators) [total g/day] [RT only; reported training status],none,0.1225685682193213
+total,strength,6,Linear model (+ moderators) [total g/day] [RT only; reported training status],none,4.675194172730328e-5
+total,strength,8,Thin plate spline model (+ moderators) [total g/day] [RT only; reported training status],none,0.30064297438318954
+total,strength,9,Linear model (+ random slopes) [total g/day] [RT only; reported training status],none,3.1674132369281625e-7
+total,strength,11,Thin plate spline model (+ random smooths) [total g/day] [RT only; reported training status],none,0.20208142496713452
+total,strength,12,Linear model (+ moderators & random slopes) [total g/day] [RT only; reported training status],none,3.5436475633373695e-6
+total,strength,14,Thin plate spline model (+ moderators & random smooths) [total g/day] [RT only; reported training status],none,0.01088912694681197
+total,strength,15,Linear model (+ RT interaction) [total g/day] [RT only; reported training status],training,0.0037272155551334937
+total,strength,17,Thin plate spline model (+ RT interaction smooth) [total g/day] [RT only; reported training status],training,1.5286601522687698e-8
+total,strength,18,Linear model (+ moderators & RT interaction) [total g/day] [RT only; reported training status],training,0.34664577325560597
+total,strength,20,Thin plate spline model (+ moderators & RT interaction) [total g/day] [RT only; reported training status],training,1.3823926508275348e-6
+total,strength,21,Linear model (+ random slopes & RT interaction) [total g/day] [RT only; reported training status],training,2.054003446512819e-6
+total,strength,23,Thin plate spline model (+ random smooths & RT interaction smooth) [total g/day] [RT only; reported training status],training,4.461874688183524e-7
+total,strength,24,Linear model (+ moderators & random slopes & RT interaction) [total g/day] [RT only; reported training status],training,4.291500342331132e-5
+total,strength,26,Thin plate spline model (+ moderators & random smooths & RT interaction smooth) [total g/day] [RT only; reported training status],training,2.6229671323818593e-7
