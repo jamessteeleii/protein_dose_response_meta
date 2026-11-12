@@ -1,0 +1,170 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="2180" viewBox="0 0 1600 2180" role="img" aria-labelledby="title desc">
+  <title id="title">PRISMA 2020 flow diagram for the updated systematic review</title>
+  <desc id="desc">Flow diagram for the July 2025 and September 2026 searches, from identification to inclusion in the updated review.</desc>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#111"/>
+    </marker>
+    <style>
+      .title { font: 700 34px Arial, sans-serif; fill: #111; }
+      .subtitle { font: 400 20px Arial, sans-serif; fill: #333; }
+      .phase { fill: #e7e7e7; stroke: #111; stroke-width: 2; }
+      .phase-text { font: 700 23px Arial, sans-serif; fill: #111; text-anchor: middle; }
+      .box { fill: #fff; stroke: #111; stroke-width: 2.2; rx: 5; }
+      .box-muted { fill: #f7f7f7; stroke: #111; stroke-width: 2.2; rx: 5; }
+      .box-title { font: 700 22px Arial, sans-serif; fill: #111; text-anchor: middle; }
+      .text { font: 400 20px Arial, sans-serif; fill: #111; text-anchor: middle; }
+      .small { font: 400 17px Arial, sans-serif; fill: #222; text-anchor: middle; }
+      .note { font: 400 16px Arial, sans-serif; fill: #333; }
+      .arrow { stroke: #111; stroke-width: 2.4; fill: none; marker-end: url(#arrow); }
+    </style>
+  </defs>
+
+  <rect width="1600" height="2180" fill="#fff"/>
+  <text class="title" x="800" y="52" text-anchor="middle">PRISMA 2020 flow diagram — updated systematic review</text>
+  <text class="subtitle" x="800" y="86" text-anchor="middle">July 2025 search and September 2026 update</text>
+
+  <!-- Long connectors follow the space beside the screening boxes. -->
+  <path class="arrow" d="M 920 336 V 350 H 630 V 518 H 676 V 548"/>
+  <path class="arrow" d="M 184 192 H 170 V 1322 H 326"/>
+  <path class="arrow" d="M 1320 429 H 1566 V 1322 H 1026"/>
+  <path class="arrow" d="M 326 1346 H 170 V 2053 H 326"/>
+  <path class="arrow" d="M 1540 1625 H 1566 V 1976 H 940 V 1994"/>
+
+  <!-- Previous studies / July 2025 identification -->
+  <rect class="phase" x="28" y="126" width="118" height="432"/>
+  <text class="phase-text" transform="translate(88 342) rotate(-90)">IDENTIFICATION</text>
+
+  <rect class="box-muted" x="184" y="136" width="430" height="112"/>
+  <text class="box-title" x="399" y="166">Historical study records</text>
+  <text class="text" x="399" y="195">Dataset shared by Nunes et al.</text>
+  <text class="text" x="399" y="224">(n = 75*)</text>
+
+  <rect class="box" x="650" y="126" width="670" height="210"/>
+  <text class="box-title" x="985" y="164">Records identified from databases — July 2025</text>
+  <text class="text" x="985" y="200">(n = 12,917)</text>
+  <text class="small" x="985" y="234">CINAHL 1,718 · Embase 4,573</text>
+  <text class="small" x="985" y="264">Web of Science Core Collection 3,552 · MEDLINE 3,074</text>
+  <text class="small" x="985" y="298">Protein search 5,438 · protein + resistance exercise 7,479</text>
+
+  <rect class="box-muted" x="650" y="366" width="670" height="126"/>
+  <text class="box-title" x="985" y="406">Studies identified through other methods</text>
+  <text class="text" x="985" y="442">(n = 4)</text>
+  <text class="small" x="985" y="472">Papers known to the author team and meeting eligibility criteria</text>
+
+  <rect class="box" x="326" y="548" width="700" height="128"/>
+  <text class="box-title" x="676" y="588">Records after EndNote deduplication</text>
+  <text class="text" x="676" y="624">(n = 4,607)</text>
+  <text class="small" x="676" y="653">Duplicates removed in EndNote (n = 8,310)</text>
+
+  <rect class="box-muted" x="1090" y="548" width="450" height="128"/>
+  <text class="box-title" x="1315" y="588">Records excluded</text>
+  <text class="text" x="1315" y="624">(n = 3,999)</text>
+  <text class="small" x="1315" y="653">Keyword-assisted/manual EndNote screening</text>
+  <path class="arrow" d="M 1026 612 L 1090 612"/>
+
+  <!-- July 2025 screening -->
+  <rect class="phase" x="28" y="704" width="118" height="344"/>
+  <text class="phase-text" transform="translate(88 876) rotate(-90)">SCREENING</text>
+
+  <path class="arrow" d="M 676 676 L 676 724"/>
+  <rect class="box" x="326" y="724" width="700" height="152"/>
+  <text class="box-title" x="676" y="764">Records screened in Rayyan</text>
+  <text class="text" x="676" y="800">(n = 572)</text>
+  <text class="small" x="676" y="830">Transferred to Rayyan (n = 608); additional duplicates removed (n = 36)</text>
+  <text class="small" x="676" y="856">Records excluded after title/abstract screening (n = 517)</text>
+
+  <path class="arrow" d="M 676 876 L 676 924"/>
+  <rect class="box" x="326" y="924" width="700" height="112"/>
+  <text class="box-title" x="676" y="964">Reports assessed for eligibility</text>
+  <text class="text" x="676" y="1002">(n = 55, reports not retrieved = 0)</text>
+
+  <rect class="box-muted" x="1090" y="900" width="450" height="162"/>
+  <text class="box-title" x="1315" y="936">Full-text reports excluded (n = 23)</text>
+  <text class="small" x="1315" y="970">Wrong population 9 · study design 6</text>
+  <text class="small" x="1315" y="999">Wrong outcome 5 · intervention 3</text>
+  <text class="small" x="1315" y="1028">Primary reasons reported in aggregate</text>
+  <path class="arrow" d="M 1026 980 L 1090 980"/>
+
+  <!-- July 2025 included -->
+  <rect class="phase" x="28" y="1092" width="118" height="288"/>
+  <text class="phase-text" transform="translate(88 1236) rotate(-90)">INCLUDED</text>
+
+  <path class="arrow" d="M 676 1036 L 676 1112"/>
+  <rect class="box" x="326" y="1112" width="700" height="132"/>
+  <text class="box-title" x="676" y="1152">Reports meeting eligibility criteria (n = 32)</text>
+  <text class="text" x="676" y="1188">New studies from database search (n = 30)</text>
+  <text class="small" x="676" y="1218">Reports linked to studies already represented (n = 2)</text>
+
+  <path class="arrow" d="M 676 1244 L 676 1278"/>
+  <rect class="box-muted" x="326" y="1278" width="700" height="88"/>
+  <text class="box-title" x="676" y="1315">Review-level studies before September 2026 update</text>
+  <text class="text" x="676" y="1348">(n = 109: 75 historical records* + 30 database + 4 other methods)</text>
+
+  <!-- September 2026 identification -->
+  <rect class="phase" x="28" y="1420" width="118" height="230"/>
+  <text class="phase-text" transform="translate(88 1535) rotate(-90)">IDENTIFICATION</text>
+
+  <rect class="box" x="326" y="1420" width="700" height="148"/>
+  <text class="box-title" x="676" y="1460">Records identified from databases — 14 September 2026</text>
+  <text class="text" x="676" y="1496">(n = 4,894)</text>
+  <text class="small" x="676" y="1526">CINAHL 521 · Embase 1,938 · Web of Science 1,528 · MEDLINE 907</text>
+  <text class="small" x="676" y="1552">Protein search 1,976 · protein + resistance exercise 2,918</text>
+
+  <rect class="box-muted" x="1090" y="1420" width="450" height="148"/>
+  <text class="box-title" x="1315" y="1460">Records removed before screening</text>
+  <text class="text" x="1315" y="1496">Internal duplicates (n = 2,722)</text>
+  <text class="text" x="1315" y="1532">Previously identified records (n = 305)</text>
+  <path class="arrow" d="M 1026 1494 L 1090 1494"/>
+
+  <rect class="box-muted" x="1090" y="1580" width="450" height="90"/>
+  <text class="box-title" x="1315" y="1614">Other methods (n = 1)</text>
+  <text class="small" x="1315" y="1646">Bagheri et al. (2026), colleague notification</text>
+
+  <!-- September 2026 screening -->
+  <rect class="phase" x="28" y="1680" width="118" height="288"/>
+  <text class="phase-text" transform="translate(88 1824) rotate(-90)">SCREENING</text>
+
+  <path class="arrow" d="M 676 1568 L 676 1700"/>
+  <rect class="box" x="326" y="1700" width="700" height="106"/>
+  <text class="box-title" x="676" y="1740">New records screened</text>
+  <text class="text" x="676" y="1778">(n = 1,867)</text>
+
+  <rect class="box-muted" x="1090" y="1700" width="450" height="106"/>
+  <text class="box-title" x="1315" y="1740">Records excluded</text>
+  <text class="text" x="1315" y="1778">(n = 1,845)</text>
+  <path class="arrow" d="M 1026 1753 L 1090 1753"/>
+
+  <path class="arrow" d="M 676 1806 L 676 1842"/>
+  <rect class="box" x="326" y="1842" width="700" height="106"/>
+  <text class="box-title" x="676" y="1882">Database reports assessed for eligibility</text>
+  <text class="text" x="676" y="1920">(n = 22, reports not retrieved = 0)</text>
+
+  <rect class="box-muted" x="1090" y="1826" width="450" height="138"/>
+  <text class="box-title" x="1315" y="1860">Reports excluded (n = 12)</text>
+  <text class="small" x="1315" y="1892">Population 4 · publication type 3 · outcome 2</text>
+  <text class="small" x="1315" y="1920">Intervention 1 · intervention/design 1</text>
+  <text class="small" x="1315" y="1948">Unusable data 1</text>
+  <path class="arrow" d="M 1026 1895 L 1090 1895"/>
+
+  <!-- Final inclusion -->
+  <rect class="phase" x="28" y="1990" width="118" height="146"/>
+  <text class="phase-text" transform="translate(88 2063) rotate(-90)">INCLUDED</text>
+
+  <path class="arrow" d="M 676 1948 L 676 1994"/>
+  <rect class="box" x="326" y="1994" width="700" height="118"/>
+  <text class="box-title" x="676" y="2024">Studies included in the updated review (n = 119)</text>
+  <text class="text" x="676" y="2051">109 carried forward + 10 newly eligible studies</text>
+  <text class="small" x="676" y="2076">9 new database studies + 1 colleague referral</text>
+  <text class="small" x="676" y="2100">1 retained database follow-up linked to an existing trial</text>
+
+  <rect class="box-muted" x="1090" y="1988" width="450" height="148"/>
+  <text class="box-title" x="1315" y="2024">September 2026 synthesis status</text>
+  <text class="small" x="1315" y="2050">Ceglia: review only (n = 1)</text>
+  <text class="small" x="1315" y="2072">No analysable randomised-arm data</text>
+  <text class="small" x="1315" y="2094">Seyhan: author-group exclusion (n = 1)</text>
+  <text class="small" x="1315" y="2118">Eligible to contribute quantitative data (n = 8)</text>
+  <path class="arrow" d="M 1026 2052 L 1090 2052"/>
+
+  <text class="note" x="170" y="2162">* The 74 entries in Table S1 of Nunes et al. map to 70 study records. The directly shared dataset contained five more.</text>
+</svg>

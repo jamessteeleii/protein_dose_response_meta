@@ -1,0 +1,2 @@
+family,outcome,model_index,stage,adapt_delta,max_treedepth,rationale,iter_sampling
+relative,function,32,remedy_1,0.999,15,Arm intercept SD Rhat 1.01126 exceeded 1.01 with geometry passing. Double retained iterations while keeping data formula priors seed warmup and sampler controls fixed.,12000

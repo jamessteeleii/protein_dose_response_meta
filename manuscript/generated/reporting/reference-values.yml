@@ -1,0 +1,15 @@
+# Generated from frozen primary reference values. Do not edit.
+habitual_protein_intake: 1.10000000000000009
+rope_half_width: 0.10000000000000001
+lean_soft_tissue_mass_change_kg: 0.53353769331886081
+fat_free_mass_change_kg: 0.6040527263095502
+muscle_thickness_reference_mean_cm: 3.62000000000000011
+muscle_thickness_change_cm: 0.05483711046477126
+squat_change_kg: 5.48166826016052067
+bench_change_kg: 4.27338609113918011
+deadlift_change_kg: 5.66613635599344079
+openpowerlifting_snapshot_date: '2026-08-29'
+openpowerlifting_accessed_date: '2026-09-02'
+openpowerlifting_source_file: openpowerlifting-2026-08-29-04805e21.csv
+openpowerlifting_source_sha256: 9B2AC7AEE514AB6A8454456435F4DAF49F91EFF6A2911B39B2F97CFDD4939996
+

@@ -2520,6 +2520,24 @@ plot_preds_slopes <- function(data, preds, slopes) {
 
 ## Read and prepare new data ----
 
+primary_exclusion_labels <- function() {
+  c(
+    exclusion_missing_mean_change = "missing mean change",
+    exclusion_missing_baseline_sd =
+      "missing baseline standardisation SD",
+    exclusion_missing_sample_size = "missing outcome sample size",
+    exclusion_missing_pre_post_correlation =
+      "missing pre-post correlation",
+    exclusion_effect_size_not_estimable =
+      "effect size not estimable",
+    exclusion_missing_protein_intake = "missing protein intake",
+    exclusion_missing_resistance_exercise_code =
+      "missing resistance exercise code",
+    exclusion_missing_mean_age = "missing mean age",
+    exclusion_missing_duration = "missing duration"
+  )
+}
+
 read_protein_workbook <- function(path){
   
   sheets <- readxl::excel_sheets(path)
@@ -3002,21 +3020,7 @@ prepare_protein_data <- function(protein_data){
       protein_median = median(protein_intake_raw, na.rm = TRUE)
     )
 
-  exclusion_labels <- c(
-    exclusion_missing_mean_change = "missing mean change",
-    exclusion_missing_baseline_sd =
-      "missing baseline standardisation SD",
-    exclusion_missing_sample_size = "missing outcome sample size",
-    exclusion_missing_pre_post_correlation =
-      "missing pre-post correlation",
-    exclusion_effect_size_not_estimable =
-      "effect size not estimable",
-    exclusion_missing_protein_intake = "missing protein intake",
-    exclusion_missing_resistance_exercise_code =
-      "missing resistance exercise code",
-    exclusion_missing_mean_age = "missing mean age",
-    exclusion_missing_duration = "missing duration"
-  )
+  exclusion_labels <- primary_exclusion_labels()
     
   
   contrasts_analysis <- contrasts_analysis |>
@@ -3094,6 +3098,420 @@ prepare_protein_data <- function(protein_data){
   
   return(contrasts_analysis)
 
+}
+
+summarise_systematic_review_data <- function(
+  data,
+  additional_exclusion_labels = NULL
+) {
+  required_columns <- c(
+    "study_no", "arm_no_extracted", "outcome_group", "condition", "n",
+    "time2", "analysis_eligible_primary", "analysis_exclusion_reasons"
+  )
+  missing_columns <- setdiff(required_columns, names(data))
+
+  if (length(missing_columns)) {
+    stop(
+      "Systematic-review summary is missing required columns: ",
+      paste(missing_columns, collapse = ", "),
+      call. = FALSE
+    )
+  }
+
+  outcome_labels <- c(
+    "whole body lean mass" = "Whole-body lean/fat-free mass",
+    "direct muscle size/mass" = "Measures of muscle size or mass",
+    "strength" = "Strength",
+    "function" = "Physical function"
+  )
+  outcome_levels <- names(outcome_labels)
+  condition_levels <- c("control", "placebo", "protein")
+  if (
+    !is.null(additional_exclusion_labels) &&
+      (is.null(names(additional_exclusion_labels)) ||
+        any(names(additional_exclusion_labels) == "") ||
+        anyDuplicated(names(additional_exclusion_labels)))
+  ) {
+    stop("Additional exclusion labels must be a uniquely named vector.",
+         call. = FALSE)
+  }
+  exclusion_labels <- c(
+    primary_exclusion_labels(),
+    additional_exclusion_labels
+  )
+  exclusion_flags <- names(exclusion_labels)
+
+  missing_flags <- setdiff(exclusion_flags, names(data))
+  if (length(missing_flags)) {
+    stop(
+      "Systematic-review summary is missing exclusion flags: ",
+      paste(missing_flags, collapse = ", "),
+      call. = FALSE
+    )
+  }
+
+  eligible <- data |>
+    dplyr::filter(analysis_eligible_primary)
+
+  if (!nrow(eligible)) {
+    stop("No contrasts are eligible for the primary analysis.", call. = FALSE)
+  }
+
+  # A participant is counted once per contributing arm and outcome using the
+  # largest analysed sample size for that arm. This avoids multiplying the
+  # same participants by measurement, unit, or follow-up while retaining an
+  # outcome-specific count when outcome availability differs within an arm.
+  arm_outcome <- eligible |>
+    dplyr::group_by(
+      outcome_group, study_no, arm_no_extracted, condition
+    ) |>
+    dplyr::summarise(
+      participants = max(n, na.rm = TRUE),
+      .groups = "drop"
+    )
+
+  arm_overall <- arm_outcome |>
+    dplyr::group_by(study_no, arm_no_extracted, condition) |>
+    dplyr::summarise(
+      participants = max(participants),
+      .groups = "drop"
+    )
+
+  outcome_core <- eligible |>
+    dplyr::group_by(outcome_group) |>
+    dplyr::summarise(
+      studies = dplyr::n_distinct(study_no),
+      contrasts = dplyr::n(),
+      .groups = "drop"
+    )
+
+  outcome_arm_counts <- arm_outcome |>
+    dplyr::count(outcome_group, condition, name = "arms") |>
+    tidyr::complete(
+      outcome_group = outcome_levels,
+      condition = condition_levels,
+      fill = list(arms = 0L)
+    )
+
+  outcome_participant_counts <- arm_outcome |>
+    dplyr::group_by(outcome_group, condition) |>
+    dplyr::summarise(
+      participants = sum(participants),
+      .groups = "drop"
+    ) |>
+    tidyr::complete(
+      outcome_group = outcome_levels,
+      condition = condition_levels,
+      fill = list(participants = 0)
+    )
+
+  outcome_duration <- eligible |>
+    dplyr::group_by(outcome_group, study_no) |>
+    dplyr::summarise(
+      duration_weeks = max(time2),
+      .groups = "drop"
+    ) |>
+    dplyr::group_by(outcome_group) |>
+    dplyr::summarise(
+      duration_median_weeks = stats::median(duration_weeks),
+      duration_q1_weeks = as.numeric(
+        stats::quantile(duration_weeks, probs = 0.25, names = FALSE)
+      ),
+      duration_q3_weeks = as.numeric(
+        stats::quantile(duration_weeks, probs = 0.75, names = FALSE)
+      ),
+      .groups = "drop"
+    )
+
+  by_outcome <- outcome_core |>
+    dplyr::left_join(
+      outcome_arm_counts |>
+        tidyr::pivot_wider(
+          names_from = condition,
+          values_from = arms,
+          names_prefix = "arms_"
+        ),
+      by = "outcome_group"
+    ) |>
+    dplyr::left_join(
+      outcome_participant_counts |>
+        tidyr::pivot_wider(
+          names_from = condition,
+          values_from = participants,
+          names_prefix = "participants_"
+        ),
+      by = "outcome_group"
+    ) |>
+    dplyr::left_join(outcome_duration, by = "outcome_group") |>
+    dplyr::mutate(
+      outcome = unname(outcome_labels[outcome_group]),
+      arms = arms_control + arms_placebo + arms_protein,
+      participants =
+        participants_control + participants_placebo + participants_protein
+    ) |>
+    dplyr::arrange(match(outcome_group, outcome_levels)) |>
+    dplyr::select(
+      outcome_group, outcome, studies, arms,
+      arms_control, arms_placebo, arms_protein,
+      participants,
+      participants_control, participants_placebo, participants_protein,
+      contrasts,
+      duration_median_weeks, duration_q1_weeks, duration_q3_weeks
+    )
+
+  overall_duration <- eligible |>
+    dplyr::group_by(study_no) |>
+    dplyr::summarise(
+      duration_weeks = max(time2),
+      .groups = "drop"
+    ) |>
+    dplyr::summarise(
+      duration_median_weeks = stats::median(duration_weeks),
+      duration_q1_weeks = as.numeric(
+        stats::quantile(duration_weeks, probs = 0.25, names = FALSE)
+      ),
+      duration_q3_weeks = as.numeric(
+        stats::quantile(duration_weeks, probs = 0.75, names = FALSE)
+      )
+    )
+
+  overall_condition <- arm_overall |>
+    dplyr::group_by(condition) |>
+    dplyr::summarise(
+      arms = dplyr::n(),
+      participants = sum(participants),
+      .groups = "drop"
+    ) |>
+    tidyr::complete(
+      condition = condition_levels,
+      fill = list(arms = 0L, participants = 0)
+    )
+
+  condition_value <- function(variable, condition) {
+    overall_condition[[variable]][
+      match(condition, overall_condition$condition)
+    ]
+  }
+
+  overall <- tibble::tibble(
+    outcome_group = "overall",
+    outcome = "Overall",
+    studies = dplyr::n_distinct(eligible$study_no),
+    arms = nrow(arm_overall),
+    arms_control = condition_value("arms", "control"),
+    arms_placebo = condition_value("arms", "placebo"),
+    arms_protein = condition_value("arms", "protein"),
+    participants = sum(arm_overall$participants),
+    participants_control = condition_value("participants", "control"),
+    participants_placebo = condition_value("participants", "placebo"),
+    participants_protein = condition_value("participants", "protein"),
+    contrasts = nrow(eligible),
+    duration_median_weeks = overall_duration$duration_median_weeks,
+    duration_q1_weeks = overall_duration$duration_q1_weeks,
+    duration_q3_weeks = overall_duration$duration_q3_weeks
+  )
+
+  by_outcome_display <- by_outcome |>
+    dplyr::transmute(
+      Outcome = outcome,
+      Studies = studies,
+      Arms = sprintf(
+        "%s (%s/%s/%s)",
+        arms, arms_control, arms_placebo, arms_protein
+      ),
+      Participants = sprintf(
+        "%s (%s/%s/%s)",
+        participants,
+        participants_control,
+        participants_placebo,
+        participants_protein
+      ),
+      Contrasts = contrasts,
+      `Duration, weeks` = sprintf(
+        "%s [%s, %s]",
+        duration_median_weeks, duration_q1_weeks, duration_q3_weeks
+      )
+    )
+
+  candidate_rows <- data |>
+    dplyr::count(outcome_group, name = "candidate_contrasts")
+
+  excluded_rows <- data |>
+    dplyr::arrange(
+      match(outcome_group, outcome_levels),
+      study_no, arm_no_extracted, measurement_method,
+      unit_of_measurement, time1, time2
+    ) |>
+    dplyr::mutate(
+      contrast_candidate_id = sprintf("C%04d", dplyr::row_number())
+    ) |>
+    dplyr::filter(!analysis_eligible_primary) |>
+    dplyr::select(
+      contrast_candidate_id,
+      dplyr::any_of(c(
+        "study_no", "authors", "year_of_publication", "doi",
+        "arm_no_extracted", "condition", "outcome_group",
+        "measurement_method", "unit_of_measurement", "time1", "time2",
+        "contrast_source", "n", "mean_change", "baseline_sd_pooled", "r",
+        "yi", "vi", "protein_intake_raw", "resistance_exercise_yes_no",
+        "mean_age_years", "analysis_exclusion_count",
+        "analysis_exclusion_reasons", exclusion_flags
+      ))
+    ) |>
+    # metafor may retain one-column matrix attributes on calculated columns.
+    # Flatten them only in the publication-facing audit so CSV output remains
+    # rectangular without changing the analysis object or model inputs.
+    dplyr::mutate(
+      r = as.numeric(r),
+      exclusion_missing_pre_post_correlation =
+        as.logical(exclusion_missing_pre_post_correlation)
+    )
+
+  exclusion_reasons <- excluded_rows |>
+    tidyr::pivot_longer(
+      cols = dplyr::all_of(exclusion_flags),
+      names_to = "reason_flag",
+      values_to = "applies"
+    ) |>
+    dplyr::filter(applies) |>
+    dplyr::mutate(
+      reason = unname(exclusion_labels[reason_flag])
+    )
+
+  exclusion_reason_overall <- exclusion_reasons |>
+    dplyr::count(reason_flag, name = "excluded_contrasts") |>
+    tidyr::complete(
+      reason_flag = exclusion_flags,
+      fill = list(excluded_contrasts = 0L)
+    ) |>
+    dplyr::mutate(
+      reason = unname(exclusion_labels[reason_flag]),
+      percent_of_excluded_contrasts =
+        100 * excluded_contrasts / nrow(excluded_rows)
+    ) |>
+    dplyr::select(
+      reason_flag, reason, excluded_contrasts,
+      percent_of_excluded_contrasts
+    ) |>
+    dplyr::arrange(dplyr::desc(excluded_contrasts), reason)
+
+  exclusion_reason_by_outcome <- exclusion_reasons |>
+    dplyr::count(
+      outcome_group, reason_flag,
+      name = "excluded_contrasts"
+    ) |>
+    tidyr::complete(
+      outcome_group = outcome_levels,
+      reason_flag = exclusion_flags,
+      fill = list(excluded_contrasts = 0L)
+    ) |>
+    dplyr::left_join(
+      excluded_rows |>
+        dplyr::count(outcome_group, name = "all_excluded_contrasts"),
+      by = "outcome_group"
+    ) |>
+    dplyr::mutate(
+      outcome = unname(outcome_labels[outcome_group]),
+      reason = unname(exclusion_labels[reason_flag]),
+      percent_of_excluded_contrasts =
+        100 * excluded_contrasts / all_excluded_contrasts
+    ) |>
+    dplyr::select(
+      outcome_group, reason_flag, reason, excluded_contrasts,
+      all_excluded_contrasts, outcome, percent_of_excluded_contrasts
+    ) |>
+    dplyr::arrange(
+      match(outcome_group, outcome_levels),
+      dplyr::desc(excluded_contrasts), reason
+    )
+
+  flow_by_outcome <- candidate_rows |>
+    dplyr::left_join(
+      eligible |>
+        dplyr::count(outcome_group, name = "included_contrasts"),
+      by = "outcome_group"
+    ) |>
+    dplyr::left_join(
+      excluded_rows |>
+        dplyr::count(outcome_group, name = "excluded_contrasts"),
+      by = "outcome_group"
+    ) |>
+    dplyr::mutate(
+      outcome = unname(outcome_labels[outcome_group]),
+      included_contrasts = tidyr::replace_na(included_contrasts, 0L),
+      excluded_contrasts = tidyr::replace_na(excluded_contrasts, 0L)
+    ) |>
+    dplyr::arrange(match(outcome_group, outcome_levels))
+
+  list(
+    overall = overall,
+    by_outcome = by_outcome,
+    by_outcome_display = by_outcome_display,
+    flow_by_outcome = flow_by_outcome,
+    exclusion_reason_overall = exclusion_reason_overall,
+    exclusion_reason_by_outcome = exclusion_reason_by_outcome,
+    excluded_rows = excluded_rows,
+    definitions = c(
+      "Studies are trials with at least one contrast eligible for the primary analysis.",
+      paste(
+        "Arms are distinct study-arm combinations with at least one eligible",
+        "contrast and are classified as control, placebo, or protein."
+      ),
+      paste(
+        "Participants are counted once per contributing arm using the largest",
+        "analysed sample for that arm; outcome-specific participant counts may",
+        "therefore overlap and should not be summed across outcomes."
+      ),
+      paste(
+        "Contrasts are eligible baseline-to-follow-up outcome rows; multiple",
+        "measurements or follow-ups from one arm are counted separately."
+      ),
+      paste(
+        "Duration is the longest eligible follow-up per study, summarised as",
+        "median [first quartile, third quartile] in weeks."
+      ),
+      paste(
+        "Exclusion reasons are non-mutually-exclusive, so reason-specific",
+        "counts can sum to more than the number of excluded contrasts."
+      )
+    )
+  )
+}
+
+write_systematic_review_audit_files <- function(summary) {
+  output_dir <- here::here("supplement", "data")
+  dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
+
+  output_files <- c(
+    summary = file.path(output_dir, "systematic-review-summary.csv"),
+    flow = file.path(output_dir, "contrast-flow-by-outcome.csv"),
+    exclusion_reasons =
+      file.path(output_dir, "contrast-exclusion-reasons.csv"),
+    exclusion_reasons_by_outcome =
+      file.path(output_dir, "contrast-exclusion-reasons-by-outcome.csv"),
+    excluded_contrasts =
+      file.path(output_dir, "excluded-contrast-audit.csv")
+  )
+
+  readr::write_csv(
+    dplyr::bind_rows(summary$overall, summary$by_outcome),
+    output_files[["summary"]]
+  )
+  readr::write_csv(summary$flow_by_outcome, output_files[["flow"]])
+  readr::write_csv(
+    summary$exclusion_reason_overall,
+    output_files[["exclusion_reasons"]]
+  )
+  readr::write_csv(
+    summary$exclusion_reason_by_outcome,
+    output_files[["exclusion_reasons_by_outcome"]]
+  )
+  readr::write_csv(
+    summary$excluded_rows,
+    output_files[["excluded_contrasts"]]
+  )
+
+  unname(output_files)
 }
 
 ## Fitting old pre-reg brms models ----

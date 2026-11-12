@@ -1,0 +1,323 @@
+---
+title: "Systematic-review data and contrast-exclusion audit"
+subtitle: "An updated systematic review and dose–response meta-analysis of protein intake and whole-body lean/fat-free mass, measures of muscle size or mass, strength, and physical function"
+author:
+  - name: James Steele
+  - name: Everson Araujo Nunes
+  - name: Myles Moore
+  - name: Matthew Lees
+  - name: Lauren Roxburgh
+  - name: Andrea Viloria Medina
+  - name: Stuart Phillips
+date: last-modified
+date-format: long
+format:
+  html:
+    theme: [cosmo, no-web-font.scss]
+    toc: true
+    toc-depth: 3
+    toc-location: body
+    toc-title: Contents
+    smooth-scroll: true
+    embed-resources: true
+    html-math-method: mathml
+    link-external-newwindow: true
+    code-fold: true
+    code-summary: "Show reproducibility code"
+    tbl-cap-location: top
+execute:
+  echo: false
+  warning: false
+  message: false
+---
+
+```{r}
+#| label: setup
+#| include: false
+
+library(dplyr)
+library(readr)
+
+project_root <- if (file.exists("_targets.R")) {
+  normalizePath(".", winslash = "/", mustWork = TRUE)
+} else {
+  normalizePath("..", winslash = "/", mustWork = TRUE)
+}
+
+source(file.path(project_root, "supplement", "report-helpers.R"))
+data_root <- file.path(project_root, "supplement", "data")
+summary_rows <- read_csv(
+  file.path(data_root, "systematic-review-summary.csv"),
+  show_col_types = FALSE
+)
+flow_by_outcome <- read_csv(
+  file.path(data_root, "contrast-flow-by-outcome.csv"),
+  show_col_types = FALSE
+)
+exclusion_reason_overall <- read_csv(
+  file.path(data_root, "contrast-exclusion-reasons.csv"),
+  show_col_types = FALSE
+)
+exclusion_reason_by_outcome <- read_csv(
+  file.path(data_root, "contrast-exclusion-reasons-by-outcome.csv"),
+  show_col_types = FALSE
+)
+
+measurement_root <- file.path(report_bundle_root(), "measurement_prereg_methods_update_2026")
+measurement_data <- read_csv(
+  file.path(measurement_root, "sample_rows.csv.gz"),
+  show_col_types = FALSE
+)
+measurement_selection <- read_csv(
+  file.path(measurement_root, "selection_summary.csv.gz"),
+  show_col_types = FALSE
+)
+measurement_duration <- measurement_data |>
+  mutate(duration_weeks = time2 - time1) |>
+  group_by(study_no) |>
+  summarise(duration_weeks = max(duration_weeks, na.rm = TRUE), .groups = "drop")
+
+arm_counts <- measurement_data |>
+  group_by(arm_no) |>
+  summarise(
+    condition = first(condition),
+    n = max(n, na.rm = TRUE),
+    .groups = "drop"
+  ) |>
+  mutate(group = case_when(
+    grepl("control", condition, ignore.case = TRUE) ~ "control",
+    grepl("placebo", condition, ignore.case = TRUE) ~ "placebo",
+    TRUE ~ "protein"
+  ))
+
+measurement_row <- tibble::tibble(
+  outcome_group = "direct muscle size/mass",
+  outcome = "Measures of muscle size or mass",
+  studies = n_distinct(measurement_data$study_no),
+  arms = n_distinct(measurement_data$arm_no),
+  arms_control = sum(arm_counts$group == "control"),
+  arms_placebo = sum(arm_counts$group == "placebo"),
+  arms_protein = sum(arm_counts$group == "protein"),
+  participants = sum(arm_counts$n),
+  participants_control = sum(arm_counts$n[arm_counts$group == "control"]),
+  participants_placebo = sum(arm_counts$n[arm_counts$group == "placebo"]),
+  participants_protein = sum(arm_counts$n[arm_counts$group == "protein"]),
+  contrasts = nrow(measurement_data),
+  duration_median_weeks = median(measurement_duration$duration_weeks),
+  duration_q1_weeks = quantile(measurement_duration$duration_weeks, 0.25),
+  duration_q3_weeks = quantile(measurement_duration$duration_weeks, 0.75)
+)
+
+overall <- summary_rows |> filter(outcome_group == "overall")
+by_outcome <- summary_rows |>
+  filter(outcome_group != "overall") |>
+  mutate(outcome = report_outcome_group_label(outcome_group))
+
+by_outcome_display <- by_outcome |>
+  transmute(
+    Outcome = outcome,
+    Studies = studies,
+    Arms = sprintf("%s (%s/%s/%s)", arms, arms_control, arms_placebo, arms_protein),
+    Participants = sprintf(
+      "%s (%s/%s/%s)", participants, participants_control,
+      participants_placebo, participants_protein
+    ),
+    Contrasts = contrasts,
+    `Duration, weeks` = sprintf(
+      "%s [%s, %s]", duration_median_weeks,
+      duration_q1_weeks, duration_q3_weeks
+    )
+  )
+
+flow_by_outcome <- flow_by_outcome |>
+  mutate(outcome = report_outcome_group_label(outcome_group))
+
+exclusion_reason_overall <- exclusion_reason_overall |>
+  select(reason_flag, reason, excluded_contrasts, percent_of_excluded_contrasts)
+
+exclusion_reason_by_outcome <- exclusion_reason_by_outcome |>
+  mutate(outcome = report_outcome_group_label(outcome_group))
+
+measurement_comparison <- bind_rows(
+  by_outcome |>
+    filter(outcome_group == "direct muscle size/mass") |>
+    transmute(
+      Analysis = "Primary analysis as fitted",
+      Studies = studies,
+      Arms = arms,
+      Contrasts = contrasts
+    ),
+  measurement_row |>
+    transmute(
+      Analysis = "Pre-registration-as-written measurement sensitivity",
+      Studies = studies,
+      Arms = arms,
+      Contrasts = contrasts
+    )
+)
+
+summary_data <- list(
+  overall = overall,
+  by_outcome_display = by_outcome_display,
+  flow_by_outcome = flow_by_outcome,
+  exclusion_reason_overall = exclusion_reason_overall,
+  exclusion_reason_by_outcome = exclusion_reason_by_outcome,
+  definitions = c(
+    "Studies are trials with at least one contrast eligible for the retained primary analysis.",
+    "Arms are distinct study-arm combinations with at least one eligible contrast and are classified as control, placebo, or protein.",
+    "Participants are counted once per contributing arm using the largest analysed sample for that arm; outcome-specific participant counts overlap.",
+    "Contrasts are eligible baseline-to-follow-up outcome rows; multiple measurements or follow-ups from one arm are counted separately.",
+    "The primary measures-of-muscle-size-or-mass counts describe the dataset actually used in the manuscript's primary models; the narrower pre-registration-as-written measurement analysis is reported separately as a sensitivity analysis.",
+    "Duration is the longest eligible follow-up per study, summarised as median [first quartile, third quartile] in weeks.",
+    "Exclusion reasons are non-mutually-exclusive, so reason-specific counts can sum to more than the number of excluded contrasts."
+  )
+)
+
+update_2026_status <- readr::read_csv(
+  file.path(data_root, "update-2026-study-status.csv"),
+  show_col_types = FALSE
+)
+
+format_count <- function(x) {
+  format(x, big.mark = ",", scientific = FALSE, trim = TRUE)
+}
+```
+
+# Purpose and scope
+
+This supplement reports study, arm, participant, contrast, and duration summaries for the primary analyses and documents exclusions from the extracted candidate contrasts. It also reports how applying the preregistered measurement criteria as written changes the analysis sample for measures of muscle size or mass.
+
+The screening-level exclusions required for the PRISMA flow diagram are separate from the contrast-level exclusions reported here. The latter occur after a trial has entered the extraction dataset and reflect whether a particular outcome contrast contains all information required for the primary analysis.
+
+# Current analysis dataset
+
+The retained primary-analysis interface contains `r format_count(overall$studies)` studies, `r format_count(overall$arms)` study arms, `r format_count(overall$participants)` participants contributing analysable data, and `r format_count(overall$contrasts)` eligible contrasts. Study duration was a median of `r overall$duration_median_weeks` weeks (IQR `r overall$duration_q1_weeks` to `r overall$duration_q3_weeks`).
+
+```{r}
+#| label: tbl-systematic-review-summary
+#| tbl-cap: "Current primary-analysis dataset by outcome. Values in parentheses for arms and participants are control/placebo/protein; duration is median [first quartile, third quartile]."
+
+knitr::kable(
+  summary_data$by_outcome_display,
+  align = c("l", "r", "r", "r", "r", "r")
+)
+```
+
+Outcome-specific participant counts overlap because the same study arm can contribute data to more than one outcome. They should not be summed to obtain the overall number of participants.
+
+## Muscle-measurement sensitivity sample
+
+The primary muscle models included trunk and skinfold-derived rows that were subsequently found to fall outside the exact measurement wording in the registration. The completed pre-registration-as-written sensitivity excludes those 12 rows while retaining imaging, biopsy, appendicular DXA, and appendicular BIA measurements. This sensitivity does not retroactively change the primary dataset counts above.
+
+```{r}
+#| label: tbl-measurement-sensitivity-sample
+#| tbl-cap: "Measures-of-muscle-size-or-mass sample in the fitted primary and pre-registration-as-written sensitivity analyses."
+
+knitr::kable(measurement_comparison, align = c("l", "r", "r", "r"))
+```
+
+# 2026 review update extraction audit
+
+This section covers the nine new trials identified by the September database search and Bagheri et al. (2026), identified through a colleague. The [PRISMA supplement](prisma-reporting.html#selection-flow-and-arithmetic-audit) documents the identification routes and links the Ioannidou follow-up report to its existing trial record. The analysis pipeline combines the canonical and update workbooks before applying the analysis-eligibility rules and author-group decisions.
+
+The update workbook contains 10 study records, 29 arm records, 324 arm-by-timepoint rows, and 149 reported contrast rows. Eight studies are candidates for the updated quantitative synthesis. Ceglia et al. is retained as a study-level and intended-arm record but has no extractable randomized-arm outcome or contrast data. Seyhan et al. is fully retained for provenance but is designated for exclusion from quantitative synthesis by author-group decision because of unresolved data-integrity concerns.
+
+```{r}
+#| label: tbl-update-2026-study-status
+#| tbl-cap: "Study-level extraction status for the 2026 review update."
+
+update_2026_status |>
+  dplyr::transmute(
+    Study = study_no,
+    Citation = paste0(authors, " (", year, ")"),
+    Arms = arms,
+    `Timepoint rows` = timepoint_rows,
+    `Reported contrast rows` = contrast_rows,
+    Status = analysis_status,
+    `Audit note` = audit_note
+  ) |>
+  knitr::kable(align = c("r", "l", "r", "r", "r", "l", "l"))
+```
+
+The final integrity sweep found no duplicate study-arm, timepoint, or reported-contrast keys; no orphan study or arm records; no invalid sample sizes, negative SDs, or out-of-range correlations; and no spreadsheet formula errors. All 149 reported contrast keys match their corresponding arm-timepoint keys. Thirteen further baseline-to-follow-up contrasts are intentionally generated from complete timepoint rows during preparation (two for Liu et al., seven for Svensson et al., and four for Vaithanomsat et al.). Seyhan et al. rows are retained in the contrast-exclusion audit under the explicit reason “excluded by author-group decision”; Ceglia et al. contributes to the review-level study record but has no contrast rows and therefore cannot enter contrast-based analysis counts.
+
+For Huijing et al., several source-reported longitudinal changes are not identical to arithmetic follow-up-minus-baseline differences calculated from the rounded marginal means. The reported longitudinal changes and their reported uncertainty were retained because they are the direct estimands supplied by the study. For Kang et al., the existing function-outcome preparation rule was rechecked: outcomes recorded in seconds are multiplied by −1 downstream so that improvement has the same positive direction as the other function outcomes.
+
+The update-study table is also available as a machine-readable file. [2026 update study status](data/update-2026-study-status.csv).
+
+# Counting rules
+
+```{r}
+#| results: asis
+
+cat(paste0("- ", summary_data$definitions, collapse = "\n"))
+```
+
+# Contrast flow
+
+```{r}
+#| label: tbl-contrast-flow
+#| tbl-cap: "Flow from candidate contrasts to the complete-case primary-analysis dataset."
+
+flow_display <- summary_data$flow_by_outcome |>
+  dplyr::transmute(
+    Outcome = outcome,
+    `Candidate contrasts` = candidate_contrasts,
+    `Included contrasts` = included_contrasts,
+    `Excluded contrasts` = excluded_contrasts
+  )
+
+knitr::kable(flow_display, align = c("l", "r", "r", "r"))
+```
+
+# Reasons for contrast exclusion
+
+```{r}
+#| label: tbl-exclusion-reasons
+#| tbl-cap: "Reasons candidate contrasts were excluded from the primary analysis. Reasons are non-mutually-exclusive."
+
+reason_display <- summary_data$exclusion_reason_overall |>
+  dplyr::transmute(
+    Reason = reason,
+    `Excluded contrasts` = excluded_contrasts,
+    `Percentage of all excluded contrasts` = sprintf(
+      "%.1f%%", percent_of_excluded_contrasts
+    )
+  )
+
+knitr::kable(reason_display, align = c("l", "r", "r"))
+```
+
+Because every applicable reason is retained, a single contrast may contribute to more than one row in this table. The reason-specific counts and percentages should therefore not be summed.
+
+```{r}
+#| label: tbl-exclusion-reasons-outcome
+#| tbl-cap: "Reasons for contrast exclusion by outcome. Reasons are non-mutually-exclusive."
+
+reason_outcome_display <- summary_data$exclusion_reason_by_outcome |>
+  dplyr::transmute(
+    Outcome = outcome,
+    Reason = reason,
+    `Excluded contrasts` = excluded_contrasts,
+    `All excluded contrasts for outcome` = all_excluded_contrasts,
+    Percentage = sprintf("%.1f%%", percent_of_excluded_contrasts)
+  )
+
+knitr::kable(
+  reason_outcome_display,
+  align = c("l", "l", "r", "r", "r")
+)
+```
+
+# Downloadable audit files
+
+The following machine-readable files are generated with this page:
+
+- [Systematic-review summary](data/systematic-review-summary.csv)
+- [Contrast flow by outcome](data/contrast-flow-by-outcome.csv)
+- [Exclusion reasons overall](data/contrast-exclusion-reasons.csv)
+- [Exclusion reasons by outcome](data/contrast-exclusion-reasons-by-outcome.csv)
+- [Row-level audit of every excluded contrast](data/excluded-contrast-audit.csv)
+- [Registered-method muscle selection audit](../manuscript/generated/reporting/bundles/measurement_prereg_methods_update_2026/selection_audit.csv.gz)
+
+The general row-level audit includes the extracted study, arm, outcome, measurement, follow-up, available analysis fields, combined exclusion description, and each individual exclusion flag. The separate registered-method selection audit identifies the 12 primary-analysis muscle rows omitted from the pre-registration-as-written sensitivity because their measurement method fell outside the registered scope. Together, the files trace both the primary counts and the supplementary restriction to their source contrasts.

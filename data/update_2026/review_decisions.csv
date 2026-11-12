@@ -1,0 +1,11 @@
+study_no,authors,quantitative_status,include_quantitative,reason,decision_source
+163,Bagheri et al.,include,TRUE,Eligible randomized arms and outcomes extracted,Author-group eligibility approach
+164,Ceglia et al.,review_only,FALSE,Study retained in review counts but randomized-arm outcome data are insufficient for quantitative synthesis,Author-group decision
+165,Huijing et al.,include,TRUE,Eligible randomized arms and outcomes extracted,Author-group eligibility approach
+166,Kang et al.,include,TRUE,Eligible randomized arms and outcomes extracted,Author-group eligibility approach
+167,Liu et al.,include,TRUE,Eligible randomized arms and outcomes extracted,Author-group eligibility approach
+168,Moura-Maia et al.,include,TRUE,Eligible randomized arms and outcomes extracted,Author-group eligibility approach
+169,Patel et al.,include,TRUE,Eligible randomized arms and outcomes extracted,Author-group eligibility approach
+170,Seyhan et al.,exclude_integrity_concern,FALSE,Excluded from quantitative synthesis pending resolution of published concerns about the study data,Author-group decision
+171,Svensson et al.,include,TRUE,Eligible randomized arms and outcomes extracted,Author-group eligibility approach
+172,Vaithanomsat et al.,include,TRUE,Eligible randomized arms and outcomes extracted,Author-group eligibility approach

@@ -1,0 +1,743 @@
+---
+title: "GRADE certainty appraisal"
+subtitle: "Relative protein-intake dose-response contrasts in healthy adults"
+author:
+  - name: James Steele
+  - name: Everson Araujo Nunes
+  - name: Myles Moore
+  - name: Matthew Lees
+  - name: Lauren Roxburgh
+  - name: Andrea Viloria Medina
+  - name: Stuart Phillips
+date: last-modified
+date-format: long
+bibliography: ../manuscript/references.bib
+format:
+  html:
+    theme: [cosmo, no-web-font.scss]
+    toc: true
+    toc-depth: 3
+    toc-location: body
+    toc-title: Contents
+    page-layout: full
+    smooth-scroll: true
+    embed-resources: true
+    html-math-method: mathml
+    link-external-newwindow: true
+    code-fold: true
+    code-summary: "Show reproducibility code"
+    tbl-cap-location: top
+execute:
+  echo: false
+  warning: false
+  message: false
+---
+
+```{css}
+.grade-scroll {
+  overflow-x: auto;
+  width: 100%;
+  margin: 1rem 0 1.5rem 0;
+  border: 1px solid #d5dce1;
+}
+.grade-table {
+  border-collapse: separate;
+  border-spacing: 0;
+  width: 100%;
+  min-width: 1050px;
+  font-size: 0.82rem;
+  line-height: 1.25;
+}
+.grade-table th {
+  background: #3487a7;
+  color: white;
+  border-right: 2px solid white;
+  border-bottom: 2px solid white;
+  padding: 0.55rem 0.45rem;
+  text-align: center;
+  vertical-align: bottom;
+  font-weight: 600;
+}
+.grade-table td {
+  padding: 0.55rem 0.45rem;
+  border-right: 2px solid white;
+  border-bottom: 2px solid white;
+  background: #f2f2f2;
+  text-align: center;
+  vertical-align: top;
+}
+.grade-table td.effect { background: #fff0cf; }
+.grade-table td.certainty { min-width: 112px; }
+.grade-table td.left { text-align: left; }
+.grade-table details { margin-top: 0.22rem; text-align: left; }
+.grade-table summary { cursor: pointer; color: #245777; }
+.grade-table tr.group-row td {
+  background: white;
+  color: #1d3340;
+  font-weight: 700;
+  font-size: 0.9rem;
+  text-align: left;
+  border-bottom: 1px solid #b8c7cf;
+  padding-top: 0.9rem;
+}
+.grade-table tr.family-row td {
+  background: #dcecf3;
+  color: #244957;
+  font-weight: 650;
+  text-align: left;
+  padding: 0.4rem 0.55rem;
+}
+.grade-table .subtle {
+  display: block;
+  color: #52616a;
+  font-size: 0.71rem;
+  margin-top: 0.22rem;
+}
+.certainty-symbols {
+  color: #1683af;
+  font-size: 1.05rem;
+  letter-spacing: -0.09rem;
+  white-space: nowrap;
+}
+.method-note {
+  border-left: 5px solid #3487a7;
+  background: #eef7fa;
+  padding: 0.8rem 1rem;
+  margin: 1rem 0;
+}
+```
+
+```{r}
+#| label: setup
+#| include: false
+
+library(dplyr)
+library(readr)
+library(tidyr)
+library(ggplot2)
+
+project_root <- if (file.exists("_targets.R")) {
+  normalizePath(".", winslash = "/", mustWork = TRUE)
+} else {
+  normalizePath("..", winslash = "/", mustWork = TRUE)
+}
+
+result_root_override <- Sys.getenv(
+  "PROTEIN_GRADE_RESULT_ROOT",
+  unset = ""
+)
+synthetic_preview <- nzchar(result_root_override)
+result_root <- if (nzchar(result_root_override)) {
+  normalizePath(
+    result_root_override,
+    winslash = "/",
+    mustWork = TRUE
+  )
+} else {
+  file.path(project_root, "manuscript", "generated", "reporting", "grade")
+}
+
+profile <- readr::read_csv(
+  file.path(result_root, "evidence_profile.csv"),
+  show_col_types = FALSE
+)
+population <- readr::read_csv(
+  file.path(result_root, "population_effects.csv"),
+  show_col_types = FALSE
+)
+inconsistency <- readr::read_csv(
+  file.path(result_root, "inconsistency_summary.csv"),
+  show_col_types = FALSE
+)
+inconsistency_studies <- readr::read_csv(
+  file.path(result_root, "inconsistency_study_summary.csv.gz"),
+  show_col_types = FALSE
+)
+inconsistency_loo <- readr::read_csv(
+  file.path(result_root, "inconsistency_leave_one_out.csv.gz"),
+  show_col_types = FALSE
+)
+support <- readr::read_csv(
+  file.path(result_root, "empirical_support.csv"),
+  show_col_types = FALSE
+)
+rob2 <- readr::read_csv(
+  file.path(result_root, "rob2_summary.csv"),
+  show_col_types = FALSE
+)
+publication_bias <- readr::read_csv(
+  file.path(result_root, "publication_bias_summary.csv"),
+  show_col_types = FALSE
+)
+weights <- readr::read_csv(
+  file.path(
+    result_root,
+    "inconsistency_restricted_stacking_weights.csv"
+  ),
+  show_col_types = FALSE
+)
+preflight <- readr::read_csv(
+  file.path(result_root, "preflight.csv"),
+  show_col_types = FALSE
+)
+
+source(file.path(project_root, "supplement", "report-helpers.R"))
+outcome_labels <- report_outcome_labels
+profile$outcome_label <- unname(outcome_labels[profile$outcome])
+if (!synthetic_preview && any(is.na(profile$certainty) | profile$certainty == "Pending")) {
+  stop("The evidence profile contains incomplete certainty judgments.")
+}
+
+escape_html <- function(x) {
+  x <- ifelse(is.na(x) | !nzchar(as.character(x)), "—", as.character(x))
+  x <- gsub("&", "&amp;", x, fixed = TRUE)
+  x <- gsub("<", "&lt;", x, fixed = TRUE)
+  x <- gsub(">", "&gt;", x, fixed = TRUE)
+  x <- gsub('"', "&quot;", x, fixed = TRUE)
+  x
+}
+
+format_effect <- function(estimate, lower, upper) {
+  sprintf("SMD %.2f<br><span class='subtle'>(%.2f to %.2f)</span>",
+          estimate, lower, upper)
+}
+
+format_probability <- function(x) {
+  ifelse(is.na(x), "—", sprintf("%.1f%%", 100 * x))
+}
+
+format_domain <- function(label, rationale = NA_character_, diagnostic = NULL) {
+  text <- escape_html(label)
+  details <- character()
+  if (!is.null(diagnostic) && nzchar(diagnostic)) {
+    details <- c(details, escape_html(diagnostic))
+  }
+  if (!is.na(rationale) && nzchar(rationale)) {
+    details <- c(details, escape_html(rationale))
+  }
+  if (length(details)) {
+    paste0(
+      text, "<details><summary>Basis</summary><span class='subtle'>",
+      paste(details, collapse = "<br>"), "</span></details>"
+    )
+  } else {
+    text
+  }
+}
+
+make_grade_table <- function(data) {
+  outcome_order <- names(outcome_labels)
+  data <- data |>
+    arrange(
+      factor(outcome, levels = outcome_order),
+      resistance_exercise_code,
+      contrast_family_order,
+      protein_intake_proposed
+    )
+  html <- c(
+    "<div class='grade-scroll'><table class='grade-table'>",
+    "<thead>",
+    paste0(
+      "<tr><th rowspan='2'>Contrast</th>",
+      "<th colspan='7'>Certainty assessment</th>",
+      "<th colspan='4'>Summary of findings</th></tr>"
+    ),
+    paste0(
+      "<tr><th>Evidence base</th><th>Study design</th>",
+      "<th>Risk of bias</th><th>Inconsistency</th>",
+      "<th>Indirectness</th><th>Imprecision</th>",
+      "<th>Publication bias / other</th><th>Effect (95% CrI)</th>",
+      "<th>Decision probabilities</th><th>Certainty</th>",
+      "<th>Importance</th></tr>"
+    ),
+    "</thead><tbody>"
+  )
+  group_keys <- data |>
+    distinct(outcome, rt_condition)
+  for (group_index in seq_len(nrow(group_keys))) {
+    outcome_name <- group_keys$outcome[[group_index]]
+    rt_name <- group_keys$rt_condition[[group_index]]
+    rows <- data |>
+      filter(outcome == outcome_name, rt_condition == rt_name)
+    html <- c(
+      html,
+      sprintf(
+        "<tr class='group-row'><td colspan='12'>%s — %s</td></tr>",
+        escape_html(outcome_labels[[outcome_name]]),
+        escape_html(rt_name)
+      )
+    )
+    family_keys <- rows |>
+      distinct(contrast_family_order, contrast_family) |>
+      arrange(contrast_family_order)
+    for (family_index in seq_len(nrow(family_keys))) {
+      family_name <- family_keys$contrast_family[[family_index]]
+      family_rows <- rows |>
+        filter(contrast_family == family_name)
+      html <- c(
+        html,
+        sprintf(
+          "<tr class='family-row'><td colspan='12'>%s</td></tr>",
+          escape_html(family_name)
+        )
+      )
+      for (row_index in seq_len(nrow(family_rows))) {
+        row <- family_rows[row_index, ]
+      evidence <- sprintf(
+        paste0(
+          "%d studies; %s participants<span class='subtle'>%d arms; ",
+          "%d studies strictly span both dose endpoints</span>"
+        ),
+        row$studies,
+        format(row$participants, big.mark = ",", scientific = FALSE),
+        row$arms,
+        row$studies_spanning_contrast
+      )
+      rob_diagnostic <- sprintf(
+        "RoB 2: %d low / %d some concerns / %d high",
+        row$low, row$some_concerns, row$high
+      )
+      inconsistency_diagnostic <- sprintf(
+        "DI %.1f%%; ASI %.1f%%; %s",
+        row$DI, row$ASI, row$inconsistency_suggestion
+      )
+      imprecision_diagnostic <- sprintf(
+        "Automated threshold flag: %s",
+        row$imprecision_suggestion
+      )
+      publication_diagnostic <- sprintf(
+        "Unadjusted %.2f; RoBMA-adjusted %.2f",
+        row$estimate_brma, row$estimate_robma
+      )
+      probabilities <- sprintf(
+        "Gain at higher intake %s<br>Equivalent %s<br>Loss at higher intake %s",
+        format_probability(row$probability_benefit),
+        format_probability(row$probability_equivalence),
+        format_probability(row$probability_detriment)
+      )
+      certainty <- sprintf(
+        "<span class='certainty-symbols'>%s</span><br>%s",
+        escape_html(row$certainty_symbols),
+        escape_html(row$certainty)
+      )
+      support_note <- if (isTRUE(row$supported)) {
+        "Within displayed outcome/RT range"
+      } else {
+        paste("Model-based extrapolation:", row$support_status)
+      }
+      effect <- paste0(
+        format_effect(row$estimate, row$lower_95, row$upper_95),
+        "<span class='subtle'>", escape_html(support_note), "</span>"
+      )
+      html <- c(
+        html,
+        "<tr>",
+        sprintf("<td class='left'>%s</td>", escape_html(row$contrast_label)),
+        sprintf("<td>%s</td>", evidence),
+        sprintf("<td>%s</td>", escape_html(row$study_design)),
+        sprintf("<td>%s</td>", format_domain(
+          row$risk_of_bias, row$risk_of_bias_rationale, rob_diagnostic
+        )),
+        sprintf("<td>%s</td>", format_domain(
+          row$inconsistency,
+          row$inconsistency_rationale,
+          inconsistency_diagnostic
+        )),
+        sprintf("<td>%s</td>", format_domain(
+          row$indirectness, row$indirectness_rationale,
+          sprintf("%d/%d studies strictly span both endpoints; observed %.2f–%.2f",
+                  row$studies_spanning_contrast, row$studies,
+                  row$observed_min_empirical, row$observed_max_empirical)
+        )),
+        sprintf("<td>%s</td>", format_domain(
+          row$imprecision, row$imprecision_rationale,
+          imprecision_diagnostic
+        )),
+        sprintf("<td>%s</td>", format_domain(
+          row$publication_bias,
+          row$publication_bias_rationale,
+          publication_diagnostic
+        )),
+        sprintf("<td class='effect'>%s</td>", effect),
+        sprintf("<td>%s</td>", probabilities),
+        sprintf("<td class='certainty'>%s</td>", certainty),
+        sprintf("<td>%s</td>", escape_html(row$importance)),
+        "</tr>"
+      )
+      }
+    }
+  }
+  paste(c(html, "</tbody></table></div>"), collapse = "\n")
+}
+```
+
+# Scope
+
+This GRADE appraisal is restricted to the preregistered primary analyses of
+body-mass-relative protein intake. It does not include the exploratory absolute
+intake or supplementation models. Two fixed-reference contrast families are
+reported for RT:
+
+- 1.2, 1.6, 2.0, and 2.4 versus 0.8 g/kg/day; and
+- 2.0 upward in 0.4-g/kg/day increments versus 1.6 g/kg/day, stopping at
+  4.4 for whole-body lean/fat-free mass, 2.4 for measures of muscle size or mass,
+  and 3.2 for strength and physical function.
+
+The 1.6-reference ceilings are the highest 0.4-g/kg/day increments within the
+pooled observed range for each outcome. For No RT, proposed intakes are
+restricted to the outcome-specific observed maximum. On the planned
+0.4-g/kg/day grid, each outcome therefore contributes only 1.2 and 1.6 versus
+0.8 g/kg/day in the No-RT stratum; all proposed intakes of 2.0 g/kg/day or
+higher exceed the No-RT maxima of approximately 1.80–1.82 g/kg/day and are not
+reported.
+
+The unit of appraisal is an outcome, resistance-training condition, and dose
+contrast. Population effects come from the complete primary 26-model stacking
+ensemble. The inconsistency analysis uses the same primary evidence but
+re-stacks the 12 candidate models per outcome that permit study-specific dose
+slopes or smooths.
+
+```{r}
+#| label: grade-status
+#| results: asis
+
+if (isTRUE(synthetic_preview)) {
+  cat(
+    paste0(
+      "<div class='method-note'><strong>Synthetic layout preview.</strong> ",
+      "All numerical values and judgments in this rendered file are ",
+      "illustrative and must not be interpreted as study results.</div>"
+    )
+  )
+}
+```
+
+# Evidence profile
+
+The table follows the structure of a GRADE Summary of Findings table while
+adapting the participant columns to a continuous dose-response analysis. The
+same participants can inform several dose contrasts and cannot be partitioned
+into fixed “higher” and “habitual” groups for every model-derived comparison.
+Select **Basis** within a domain cell to read the rationale and any accompanying diagnostic.
+
+```{r}
+#| label: tbl-grade-profile
+#| results: asis
+
+cat(make_grade_table(profile))
+```
+
+# Population effects and imprecision
+
+The effect is the model-averaged difference in standardised mean change at the
+proposed intake versus the stated 0.8- or 1.6-g/kg/day reference. Positive
+values favour the proposed higher intake. The preregistered smallest effect
+size of interest is ±0.10 SMD.
+
+The automated imprecision flag asks whether the 95% posterior interval remains
+within one decision region, crosses one SESOI boundary, or crosses both the
+lower and upper SESOI boundaries. It is evidence for—rather than a replacement
+for—the final GRADE judgment.
+
+```{r}
+#| label: tbl-population-effects
+#| tbl-cap: "Primary population-average contrasts and threshold-based imprecision diagnostics."
+
+profile |>
+  transmute(
+    Outcome = outcome_label,
+    Condition = rt_condition,
+    Family = contrast_family,
+    Contrast = contrast_label,
+    `SMD estimate` = round(estimate, 3),
+    `Lower 95% CrI` = round(lower_95, 3),
+    `Upper 95% CrI` = round(upper_95, 3),
+    `P(gain at higher intake)` = round(probability_benefit, 3),
+    `P(equivalence)` = round(probability_equivalence, 3),
+    `P(loss at higher intake)` = round(probability_detriment, 3),
+    Conclusion = dplyr::recode(
+      posterior_conclusion,
+      "meaningful benefit" = "meaningful gain at higher intake",
+      "meaningful detriment" = "meaningful loss at higher intake"
+    ),
+    `Automated imprecision flag` = imprecision_suggestion,
+    `Observed-range support` = support_status
+  ) |>
+  knitr::kable(align = c("l", "l", "l", "l", rep("r", 6), "l", "l", "l"))
+```
+
+# Inconsistency
+
+For study $j$, inconsistency is assessed for the latent study-specific
+contrast
+
+$$
+\Delta_j(d,r)=f_j(d)-f_j(r), \qquad r \in \{0.8,1.6\}.
+$$
+
+Posterior draws were generated with the same study, arm, and outcome
+identifiers at both dose endpoints. Consequently, study-, arm-, and
+outcome-level random intercepts cancel; only study-specific variation in the
+dose association contributes to the contrast. Sampling error was not added to
+these latent expected effects.
+
+The Decision Inconsistency index (DI) and Across-Studies Inconsistency index
+(ASI) follow Sousa-Pinto et al. [-@sousaPintoQuantitativeAssessment2025].
+DI describes dispersion across the three SESOI decision categories. ASI
+describes whether decision-category distributions systematically differ by
+study. Values of DI ≥50% or ASI ≥25% prompted closer examination of unexplained
+inconsistency before the domain judgment was recorded.
+
+```{r}
+#| label: tbl-inconsistency
+#| tbl-cap: "Decision-threshold inconsistency diagnostics for study-specific dose contrasts."
+
+inconsistency |>
+  mutate(
+    Outcome = unname(outcome_labels[outcome]),
+    Condition = if_else(resistance_exercise_code == 0, "RT", "No RT"),
+    Family = contrast_family,
+    Contrast = sprintf(
+      "%.1f versus %.1f",
+      protein_intake_proposed,
+      protein_intake_reference
+    )
+  ) |>
+  transmute(
+    Outcome,
+    Condition,
+    Family,
+    Contrast,
+    `Contributing studies` = studies,
+    `Studies strictly spanning both endpoints` =
+      directly_spanning_studies,
+    `DI (%)` = round(DI, 1),
+    `ASI (%)` = round(ASI, 1),
+    `Strictly spanning studies DI (%)` = round(direct_support_DI, 1),
+    `Strictly spanning studies ASI (%)` = round(direct_support_ASI, 1),
+    `Median study SD` = round(study_sd_median, 3),
+    Suggestion = inconsistency_suggestion
+  ) |>
+  knitr::kable(
+    align = c("l", "l", "l", "l", rep("r", 7), "l")
+  )
+```
+
+```{r}
+#| label: fig-inconsistency-profile
+#| fig-cap: "DI and ASI profiles as proposed protein intake increases from the fixed 0.8- and 1.6-g/kg/day references. Horizontal dashed lines show the published values suggested as prompts for important unexplained inconsistency."
+#| fig-width: 11
+#| fig-height: 8
+
+inconsistency |>
+  mutate(
+    Outcome = factor(
+      unname(outcome_labels[outcome]),
+      levels = unname(outcome_labels)
+    ),
+    Condition = if_else(resistance_exercise_code == 0, "RT", "No RT"),
+    Reference = sprintf("%.1f reference", protein_intake_reference)
+  ) |>
+  select(
+    Outcome, Condition, Reference,
+    protein_intake_proposed, DI, ASI
+  ) |>
+  pivot_longer(c(DI, ASI), names_to = "Index", values_to = "Percent") |>
+  ggplot(aes(
+    x = protein_intake_proposed,
+    y = Percent,
+    colour = Index,
+    linetype = Reference,
+    group = interaction(Index, Reference)
+  )) +
+  geom_hline(
+    data = tibble(Index = c("DI", "ASI"), threshold = c(50, 25)),
+    aes(yintercept = threshold, colour = Index),
+    linetype = "dashed",
+    linewidth = 0.45,
+    show.legend = FALSE,
+    inherit.aes = FALSE
+  ) +
+  geom_line(linewidth = 0.8) +
+  geom_point(size = 2) +
+  facet_grid(Outcome ~ Condition) +
+  scale_x_continuous(breaks = seq(1.2, 4.4, by = 0.4)) +
+  scale_colour_manual(values = c(DI = "#9c4a36", ASI = "#26789a")) +
+  coord_cartesian(ylim = c(0, 100)) +
+  labs(
+    x = "Proposed protein intake (g/kg/day)",
+    y = "Index (%)",
+    colour = NULL,
+    linetype = "Contrast family"
+  ) +
+  theme_minimal(base_size = 10) +
+  theme(legend.position = "top")
+```
+
+## Influence and empirical support
+
+```{r}
+#| label: tbl-inconsistency-influence
+#| tbl-cap: "Ranges of DI and ASI after omitting each study in turn."
+
+inconsistency_loo |>
+  group_by(
+    outcome, resistance_exercise_code,
+    contrast_family,
+    protein_intake_reference, protein_intake_proposed
+  ) |>
+  summarise(
+    min_DI = min(DI),
+    max_DI = max(DI),
+    min_ASI = min(ASI),
+    max_ASI = max(ASI),
+    .groups = "drop"
+  ) |>
+  mutate(
+    Outcome = unname(outcome_labels[outcome]),
+    Condition = if_else(resistance_exercise_code == 0, "RT", "No RT"),
+    Family = contrast_family,
+    Contrast = sprintf(
+      "%.1f versus %.1f",
+      protein_intake_proposed,
+      protein_intake_reference
+    )
+  ) |>
+  transmute(
+    Outcome,
+    Condition,
+    Family,
+    Contrast,
+    `LOO DI range (%)` = sprintf("%.1f–%.1f", min_DI, max_DI),
+    `LOO ASI range (%)` = sprintf("%.1f–%.1f", min_ASI, max_ASI)
+  ) |>
+  knitr::kable(align = c("l", "l", "l", "l", "r", "r"))
+```
+
+Study-specific predictions at target doses outside a study’s observed dose
+range are partially pooled model-based estimates. The primary DI/ASI analysis
+includes all contributing studies. A strict direct-support sensitivity is
+therefore also shown when at least two studies have a within-study
+achieved-intake range that brackets both dose endpoints. Each study is counted
+once regardless of its number of arms; no tolerance is applied to this strict
+spanning definition. Absence of strictly spanning studies is not interpreted
+as evidence of consistency.
+
+The complete study-level estimates and support flags are provided in
+`inconsistency_study_summary.csv.gz` alongside this report’s analytic bundle.
+
+# Risk of bias
+
+The [risk-of-bias supplement](risk-of-bias.html) reports RoB 2 judgments for one
+prespecified index result per trial. These judgments inform the risk-of-bias
+assessment for the broader dose-response evidence.
+
+```{r}
+#| label: tbl-rob2-grade
+#| tbl-cap: "RoB 2 judgments among studies contributing to each outcome and resistance-training condition."
+
+rob2 |>
+  mutate(
+    Outcome = unname(outcome_labels[outcome]),
+    Condition = if_else(resistance_exercise_code == 0, "RT", "No RT")
+  ) |>
+  transmute(
+    Outcome,
+    Condition,
+    `Contributing studies` = contributing_studies,
+    Assessed = assessed_studies,
+    Low = low,
+    `Some concerns` = some_concerns,
+    High = high,
+    `Unassessed study numbers` = na_if(
+      as.character(unassessed_study_numbers),
+      ""
+    )
+  ) |>
+  knitr::kable(align = c("l", "l", rep("r", 5), "l"))
+```
+
+# Publication bias
+
+Publication-bias evidence is outcome-level and is applied consistently across
+RT strata and target contrasts unless reviewers record a justified exception.
+The [publication-bias supplement](publication-bias.html) reports comparisons of
+matched unadjusted Bayesian random-effects and publication-bias-adjusted robust
+Bayesian model-averaged analyses.
+
+```{r}
+#| label: tbl-publication-bias-grade
+#| tbl-cap: "Outcome-level publication-bias model summaries used in the GRADE appraisal."
+
+publication_bias |>
+  mutate(Outcome = unname(outcome_labels[outcome])) |>
+  transmute(
+    Outcome,
+    `Independent publication units` = publication_units,
+    `Unadjusted estimate` = round(estimate_brma, 3),
+    `Unadjusted 95% interval` = sprintf(
+      "%.3f to %.3f", lower_95_brma, upper_95_brma
+    ),
+    `RoBMA-adjusted estimate` = round(estimate_robma, 3),
+    `RoBMA 95% interval` = sprintf(
+      "%.3f to %.3f", lower_95_robma, upper_95_robma
+    ),
+    `Adjusted minus unadjusted` = round(adjusted_minus_unadjusted, 3)
+  ) |>
+  knitr::kable(align = c("l", "r", "r", "r", "r", "r", "r"))
+```
+
+# Indirectness
+
+Indirectness is judged separately for each contrast. Relevant considerations
+include whether both target doses fall within the outcome/RT-specific observed
+range, how many unique studies have a within-study achieved-intake range that
+strictly brackets both endpoints, reliance on overlapping shorter dose
+intervals, applicability of the populations and outcomes, and the fact that
+the primary estimand concerns achieved rather than precisely assigned protein
+intake. These diagnostics do not themselves dictate a downgrade.
+
+# From domain judgments to overall certainty
+
+Overall certainty combines the recorded domain judgments in
+`data/GRADE/grade_domain_judgments.csv`. The evidence profile reports the
+rationales alongside the analytical diagnostics.
+
+No automatic upgrade is applied for a dose-response gradient. Any proposed
+upgrade must be explicitly recorded and justified after considering analytic
+credibility, residual confounding, ecological bias, and consistency of the
+gradient.
+
+# Model contribution and audit trail
+
+```{r}
+#| label: tbl-inconsistency-weights
+#| tbl-cap: "Restricted stacking weights for study-varying dose-effect candidates."
+
+weights |>
+  mutate(Outcome = unname(outcome_labels[outcome])) |>
+  transmute(
+    Outcome,
+    `Model index` = model_index,
+    Model = model_name,
+    `Restricted stacking weight` = round(restricted_stacking_weight, 4),
+    `LOO source` = loo_source
+  ) |>
+  filter(`Restricted stacking weight` > 0) |>
+  knitr::kable(align = c("l", "r", "l", "r", "l"))
+```
+
+All analytic inputs passed the pipeline preflight:
+
+```{r}
+#| label: tbl-grade-preflight
+
+preflight |>
+  transmute(Check = check, Passed = passed, Detail = detail) |>
+  knitr::kable(align = c("l", "c", "l"))
+```
+
+The durable analysis bundle includes population contrasts, empirical-support
+counts, study-specific latent effects, DI/ASI results, leave-one-study-out
+analyses, RoB 2 summaries, publication-bias summaries, a snapshot of reviewer
+decisions, the completed evidence profile, and checksums for all files.

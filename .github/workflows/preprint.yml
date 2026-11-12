@@ -1,0 +1,77 @@
+name: Preprint package
+
+on:
+  pull_request:
+  push:
+    branches: [master]
+  workflow_dispatch:
+    inputs:
+      deploy_pages:
+        description: Publish the checked manuscript and supplements to GitHub Pages
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - uses: r-lib/actions/setup-r@v2
+        with:
+          r-version: "4.4.3"
+          use-public-rspm: true
+      - uses: quarto-dev/quarto-actions/setup@v2
+        with:
+          version: "1.9.38"
+      - name: Install render prerequisites
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libcurl4-openssl-dev libssl-dev libxml2-dev libfontconfig1-dev libfreetype6-dev libharfbuzz-dev libfribidi-dev fonts-lmodern
+          quarto install tinytex --no-prompt
+          python -m pip install -r scripts/requirements-release.txt
+      - name: Restore pinned rendering packages
+        run: |
+          Rscript -e 'renv::restore(packages = c("digest", "dplyr", "ggplot2", "here", "kableExtra", "knitr", "patchwork", "purrr", "readr", "rmarkdown", "tibble", "tidyr", "yaml"), prompt = FALSE)'
+          Rscript -e 'cat("R_LIBS=", paste(.libPaths(), collapse = .Platform$path.sep), "\n", sep = "", file = Sys.getenv("GITHUB_ENV"), append = TRUE)'
+      - name: Parse analysis and reporting sources
+        run: |
+          Rscript --vanilla -e 'files <- c(Sys.glob("_targets*.R"), list.files(c("R", "sensitivity", "scripts", "supplement"), "[.]R$", recursive = TRUE, full.names = TRUE)); invisible(lapply(files, parse))'
+      - name: Verify bundled input checksums
+        run: Rscript scripts/verify_release_inputs.R
+      - name: Render and validate the release package
+        run: python scripts/release_bundle.py outputs/preprint --render
+      - uses: actions/upload-artifact@v6
+        with:
+          name: checked-preprint
+          path: outputs/preprint.zip
+          if-no-files-found: error
+      - name: Prepare GitHub Pages deployment
+        if: github.event_name == 'workflow_dispatch' && inputs.deploy_pages && github.ref == 'refs/heads/master'
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: outputs/preprint
+
+  deploy:
+    if: github.event_name == 'workflow_dispatch' && inputs.deploy_pages && github.ref == 'refs/heads/master'
+    needs: package
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    concurrency:
+      group: github-pages
+      cancel-in-progress: false
+    steps:
+      - name: Publish the checked package
+        id: deployment
+        uses: actions/deploy-pages@v4

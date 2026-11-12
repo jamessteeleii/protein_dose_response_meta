@@ -20,3 +20,27 @@ $endif$
 \def\KeywordList{$for(keywords)$$keywords$$sep$, $endfor$}
 
 \date{$date$}
+
+% Compact first-page layout for the article class and authblk author list.
+\makeatletter
+\renewcommand{\@maketitle}{%
+  \begingroup
+  \centering
+  {\Large \@title\par}%
+  \smallskip
+  {\@author\par}%
+  \smallskip
+  {\small \@date\par}%
+  \endgroup
+  \smallskip
+}
+\makeatother
+
+\renewenvironment{abstract}{%
+  \enlargethispage{0.45in}%
+  \small
+  \setlength{\baselineskip}{9.6pt}%
+  \noindent\textbf{\abstractname}\par\smallskip
+  \noindent\ignorespaces
+}{\par\medskip}
+\AfterEndEnvironment{abstract}{\clearpage}

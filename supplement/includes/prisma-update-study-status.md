@@ -1,0 +1,15 @@
+**Study-level status of the September 2026 extraction tranche.**
+
+| Study | Citation | DOI | Arms | Timepoint rows | Contrast rows | Analysis status | Audit note |
+| ---: | :--- | :--- | ---: | ---: | ---: | :--- | :--- |
+| 163 | Bagheri et al. (2026) | 10.1080/15502783.2026.2720742 | 6 | 60 | 30 | Candidate for updated quantitative synthesis | All three resistance-training and all three concurrent-training arms retained for consistency with the existing eligibility approach. |
+| 164 | Ceglia et al. (2026) | 10.1016/j.ajcnut.2026.101257 | 2 |  0 |  0 | Review-level record only | Study and intended arm records retained; insufficient randomized-arm outcome data for quantitative synthesis. |
+| 165 | Huijing et al. (2026) | 10.1002/fsn3.71552 | 3 | 48 | 24 | Candidate for updated quantitative synthesis | Reported longitudinal change estimates retained where they differ from arithmetic differences between rounded marginal means. |
+| 166 | Kang et al. (2025) | 10.1016/j.jnha.2025.100508 | 2 | 32 | 16 | Candidate for updated quantitative synthesis | Second-based function outcomes use the established downstream direction transformation so that improvement is positive. |
+| 167 | Liu et al. (2026) | 10.7717/peerj.20778 | 2 | 36 | 16 | Candidate for updated quantitative synthesis | Two additional trunk contrasts are generated from complete baseline and follow-up rows during preparation. |
+| 168 | Moura-Maia et al. (2026) | 10.1080/27697061.2026.2615981 | 2 |  8 |  4 | Candidate for updated quantitative synthesis | Handgrip and sit-to-stand retained; unsupported intervals removed; CONSORT supplementary counts treated as canonical; male proportion retained as descriptive estimate. |
+| 169 | Patel et al. (2025) | 10.2147/OAJCT.S546033 | 2 | 24 | 12 | Candidate for updated quantitative synthesis | Thirty-day follow-up represented exactly as 30/7 weeks in both timepoint and contrast keys. |
+| 170 | Seyhan et al. (2026) | 10.1186/s13102-026-01846-y | 4 | 24 | 12 | Exclude from quantitative synthesis | Extracted values and calculations retained for provenance; author-group decision to exclude pending resolution of data-integrity concerns. |
+| 171 | Svensson et al. (2026) | 10.3390/nu18142307 | 2 | 28 |  7 | Candidate for updated quantitative synthesis | Seven additional baseline-to-follow-up contrasts for arm 2 are generated from complete timepoint rows during preparation. |
+| 172 | Vaithanomsat et al. (2025) | 10.1002/fsn3.70984 | 4 | 64 | 28 | Candidate for updated quantitative synthesis | Exercise and non-exercise arms retained; graph-derived medians and ranges converted with the Wan range method rather than a quartile method. Four trunk contrasts are generated from complete timepoint rows. |
+

@@ -1,0 +1,8 @@
+
+Bayesian Random-Effects Model (k = 81)
+
+Estimates
+     Mean    SD 0.025   0.5 0.975 error(MCMC) error(MCMC)/SD   ESS R-hat
+mu  0.059 0.013 0.035 0.059 0.086       7e-05          0.006 31806 1.000
+tau 0.048 0.013 0.025 0.047 0.077       1e-04          0.007 18648 1.001
+

@@ -1,0 +1,353 @@
+---
+title: "Publication-bias assessment"
+subtitle: "Within-study protein-dose contrasts, robust Bayesian meta-analysis, and zplot diagnostics"
+author:
+  - name: James Steele
+  - name: Everson Araujo Nunes
+  - name: Myles Moore
+  - name: Matthew Lees
+  - name: Lauren Roxburgh
+  - name: Andrea Viloria Medina
+  - name: Stuart Phillips
+date: last-modified
+date-format: long
+bibliography: ../manuscript/references.bib
+format:
+  html:
+    theme: [cosmo, no-web-font.scss]
+    toc: true
+    toc-depth: 3
+    toc-location: body
+    toc-title: Contents
+    smooth-scroll: true
+    embed-resources: true
+    html-math-method: mathml
+    link-external-newwindow: true
+    code-fold: true
+    code-summary: "Show reproducibility code"
+    tbl-cap-location: top
+execute:
+  echo: false
+  warning: false
+  message: false
+---
+
+```{r}
+#| label: setup
+#| include: false
+
+library(dplyr)
+library(readr)
+
+project_root <- if (file.exists("_targets.R")) {
+  normalizePath(".", winslash = "/", mustWork = TRUE)
+} else {
+  normalizePath("..", winslash = "/", mustWork = TRUE)
+}
+
+source(file.path(project_root, "supplement", "report-helpers.R"))
+source(file.path(project_root, "R", "publication_bias.R"))
+source(file.path(project_root, "R", "publication_bias_models.R"))
+reporting_root <- file.path(report_input_root(), "publication-bias")
+download_root <- file.path(project_root, "supplement", "data", "publication-bias")
+figure_root <- "../manuscript/generated/reporting/publication-bias/"
+
+high_low_summary <- readr::read_csv(
+  file.path(reporting_root, "high_low_outcome_summary.csv"),
+  show_col_types = FALSE
+)
+all_contrasts <- readr::read_csv(
+  file.path(download_root, "all_pair_contrasts.csv"),
+  show_col_types = FALSE
+)
+high_low <- readr::read_csv(
+  file.path(download_root, "high_low_index_contrasts.csv"),
+  show_col_types = FALSE
+)
+nominal <- readr::read_csv(
+  file.path(download_root, "nominal_index_contrasts.csv"),
+  show_col_types = FALSE
+)
+fit_manifest <- readr::read_csv(
+  file.path(reporting_root, "fit_manifest.csv"),
+  show_col_types = FALSE
+)
+outcome_model_estimates <- readr::read_csv(
+  file.path(download_root, "outcome_model_estimates.csv"),
+  show_col_types = FALSE
+)
+
+analysis_labels <- c(
+  primary_whole_body = "Whole-body lean/fat-free mass",
+  primary_direct_muscle = "Measures of muscle size or mass",
+  primary_strength = "Strength",
+  primary_function = "Physical function",
+  secondary_omnibus = "Secondary omnibus analysis"
+)
+
+format_count <- function(x) {
+  format(x, big.mark = ",", scientific = FALSE, trim = TRUE)
+}
+
+print_text_file <- function(path) {
+  output <- readLines(path, warn = FALSE)
+  for (group in c("whole body lean mass", "direct muscle size/mass")) {
+    output <- gsub(group, report_outcome_group_labels[[group]], output, fixed = TRUE)
+  }
+  cat("\n```text\n")
+  cat(paste(output, collapse = "\n"))
+  cat("\n```\n")
+}
+```
+
+# Purpose and interpretation
+
+This supplement reports the publication-bias assessment used to inform the GRADE certainty judgement for each outcome family. It has three complementary purposes:
+
+1. to display every eligible within-study protein-dose contrast without implying that all derived comparisons are statistically independent;
+2. to estimate publication-bias evidence using one study-balanced contrast per study and outcome; and
+3. to compare the observed distribution of $z$-statistics with posterior-predictive distributions from matched publication-bias-unadjusted and publication-bias-adjusted models.
+
+The analysis is diagnostic and does not mechanically determine a GRADE downgrade. Judgements consider the strength of evidence for selection, model adequacy, the magnitude of any adjusted-versus-unadjusted change, search comprehensiveness, and whether the substantive interpretation changes.
+
+# Contrast construction
+
+Within every study, outcome family, measurement, unit, follow-up, and resistance-training condition, all eligible arm pairs containing at least one protein condition were formed. These included both protein-versus-control/placebo and active-protein-dose-versus-active-protein-dose comparisons. Effects were oriented as the higher achieved protein-intake arm minus the lower achieved-intake arm, after harmonising outcome direction so positive values consistently indicated a more favourable outcome at the higher intake.
+
+For a contrast between arms $h$ and $l$,
+
+$$
+y_{hl}=y_h-y_l, \qquad
+\mathrm{SE}_{hl}=\sqrt{v_h+v_l}.
+$$
+
+The full set contained `r format_count(nrow(all_contrasts))` derived contrasts from `r format_count(dplyr::n_distinct(all_contrasts$study_no))` studies. Because comparisons sharing an arm are correlated and three-arm pairwise contrasts can be algebraically redundant, this complete set was used descriptively rather than treated as independent input to the publication-bias models.
+
+## Study-balanced primary contrasts
+
+One contrast was selected per study and outcome using the following deterministic hierarchy:
+
+1. largest separation in achieved protein intake;
+2. latest follow-up;
+3. largest combined sample size; and
+4. fixed measurement, unit, arm, and effect-identifier tie-breakers.
+
+```{r}
+#| label: tbl-high-low-summary
+#| tbl-cap: "Study-balanced highest-versus-lowest achieved-intake contrasts by outcome."
+
+high_low_summary |>
+  transmute(
+    Outcome = report_outcome_group_label(outcome_group),
+    Studies = independent_studies,
+    `Eligible contrasts` = candidate_contrasts,
+    `Protein vs comparator` = protein_comparator,
+    `Active dose vs active dose` = active_dose,
+    `Median intake difference (g/kg/day)` =
+      round(median_dose_difference, 2),
+    `Median combined sample` = round(median_total_n),
+    `Nominally significant` = statistically_significant
+  ) |>
+  knitr::kable(
+    align = c("l", "r", "r", "r", "r", "r", "r", "r")
+  )
+```
+
+The nominal protein-versus-comparator index set (`r format_count(nrow(nominal))` study–outcome contrasts) was retained as a transparent alternative construction. It is not combined with the highest-versus-lowest set because doing so would count some studies repeatedly.
+
+# Funnel plots
+
+```{r}
+#| label: fig-all-contrast-funnels
+#| fig-cap: "Contour-enhanced funnel plots. Faint points show all eligible pairwise contrasts and outlined points identify the single highest-versus-lowest achieved-intake contrast selected per study and outcome. The number of plotted estimates must not be interpreted as the number of independent publication units."
+#| out-width: "100%"
+#| fig-width: 11
+#| fig-height: 9
+
+make_publication_bias_all_contrast_plot(
+  all_contrasts, list(index_contrasts = high_low), outcome_model_estimates
+)
+```
+
+For comparison, the following plots use the nominal protein-versus-comparator index contrasts only.
+
+```{r}
+#| label: fig-nominal-contrast-funnels
+#| fig-cap: "Contour-enhanced funnel plots based on one nominal protein-versus-comparator contrast per study and outcome."
+#| out-width: "100%"
+#| fig-width: 11
+#| fig-height: 9
+
+make_publication_bias_funnel_plot(list(index_contrasts = nominal))
+```
+
+The shaded regions and boundaries describe two-sided tests against the null. Funnel asymmetry can arise from publication or selective outcome reporting, but also from genuine heterogeneity associated with dose, population, intervention characteristics, outcome measurement, or study precision.
+
+# Model specification
+
+Each primary outcome was analysed separately using the corresponding study-balanced contrasts. We fitted:
+
+- an intercept-only Bayesian random-effects model using `RoBMA::brma()`; and
+- the matched robust Bayesian model-averaged analysis using `RoBMA::RoBMA()`.
+
+The RoBMA ensemble averages across the presence or absence of an effect, heterogeneity, and publication-bias mechanisms comprising weight-function selection models and PET/PEESE adjustments [@bartosRobustBayesianMeta2023]. Its publication-bias inclusion Bayes factor compares the evidence for models with versus without a bias component.
+
+A secondary omnibus meta-regression combined the selected study–outcome contrasts, clustered estimates by study, and adjusted the mean structure for outcome family, standardised achieved-intake separation, contrast type, and resistance-training status. This analysis evaluates evidence compatible with a shared selection mechanism and is supporting rather than outcome-determinative.
+
+```{r}
+#| label: tbl-model-specifications
+#| tbl-cap: "Publication-bias model pairs."
+
+fit_manifest |>
+  distinct(
+    analysis_id, analysis_role, outcome_group,
+    cluster_by_study, moderator_formula,
+    expected_rows, expected_studies
+  ) |>
+  mutate(
+    Analysis = unname(analysis_labels[analysis_id]),
+    Outcome = if_else(
+      is.na(outcome_group), "All outcomes", report_outcome_group_label(outcome_group)
+    ),
+    Clustered = if_else(cluster_by_study, "Study", "Not required"),
+    Moderators = coalesce(moderator_formula, "Intercept only")
+  ) |>
+  select(
+    Analysis, Outcome, `Analysis rows` = expected_rows,
+    Studies = expected_studies, Clustered, Moderators
+  ) |>
+  knitr::kable(align = c("l", "l", "r", "r", "l", "l"))
+```
+
+The multilevel RoBMA framework models one clustering level above estimates [@bartosRoBMARobustBayesian2026]. The implementation does not accept a general sampling variance–covariance matrix, as described in the package's [feature-coverage documentation](https://fbartos.github.io/RoBMA/articles/v03-feature-coverage.html). This limitation motivates using the selected study-level contrasts for inference.
+
+# Outcome-specific results
+
+```{r}
+#| label: tbl-outcome-model-estimates
+#| tbl-cap: "Pooled estimates from matched publication-bias-unadjusted and publication-bias-adjusted models."
+
+outcome_model_estimates |>
+  mutate(
+    Outcome = report_outcome_group_label(outcome_group),
+    Estimate = sprintf("%.3f", estimate),
+    `95% credible interval` = sprintf(
+      "[%.3f, %.3f]", lower_95, upper_95
+    )
+  ) |>
+  select(
+    Outcome, Model = model_label, Estimate, `95% credible interval`
+  ) |>
+  knitr::kable(align = c("l", "l", "r", "l"))
+```
+
+The grey bars in each zplot are the observed estimate-level $z$-statistics. Lines show the posterior-predictive distribution under the conventional model, the RoBMA distribution under the fitted selection process, and the RoBMA extrapolation with selection removed. We examined discontinuities around $z=0$, $\pm 1.64$, and $\pm 1.96$ as model-fit diagnostics [@bartosZCurvePlot2025].
+
+```{r}
+#| label: outcome-results
+#| results: asis
+
+primary_ids <- names(analysis_labels)[grepl("^primary_", names(analysis_labels))]
+for (analysis_id in primary_ids) {
+  cat("\n## ", analysis_labels[[analysis_id]], "\n\n", sep = "")
+  image_path <- file.path(
+    figure_root, paste0(analysis_id, "-zplot.png")
+  )
+  cat(
+    paste0(
+      "![Posterior-predictive zplot for ",
+      analysis_labels[[analysis_id]], "](",
+      figure_root,
+      basename(image_path),
+      "){width=100%}\n\n"
+    )
+  )
+
+  cat("### Publication-bias-adjusted RoBMA summary\n")
+  print_text_file(file.path(
+    reporting_root,
+    paste0(analysis_id, "-robma_summary.txt")
+  ))
+  cat("\n### RoBMA component weights\n")
+  print_text_file(file.path(
+    reporting_root,
+    paste0(analysis_id, "-robma_models.txt")
+  ))
+  cat("\n### Zplot summary metrics\n")
+  print_text_file(file.path(
+    reporting_root,
+    paste0(analysis_id, "-robma_zplot.txt")
+  ))
+  cat("\n### Publication-bias-unadjusted model\n")
+  print_text_file(file.path(
+    reporting_root,
+    paste0(analysis_id, "-brma_summary.txt")
+  ))
+}
+```
+
+# Secondary omnibus analysis
+
+The omnibus analysis increases information about a potentially shared selection mechanism, but assumes that the moderator-adjusted selection process is sufficiently similar across outcome families. It does not replace the outcome-specific evidence used for GRADE.
+
+```{r}
+#| label: omnibus-results
+#| results: asis
+
+analysis_id <- "secondary_omnibus"
+image_path <- file.path(
+  figure_root, paste0(analysis_id, "-zplot.png")
+)
+cat(
+  paste0(
+    "![Posterior-predictive zplot for the secondary omnibus analysis](",
+    figure_root,
+    basename(image_path),
+    "){width=100%}\n\n"
+  )
+)
+cat("## Publication-bias-adjusted RoBMA summary\n")
+print_text_file(file.path(
+  reporting_root, paste0(analysis_id, "-robma_summary.txt")
+))
+cat("\n## RoBMA component weights\n")
+print_text_file(file.path(
+  reporting_root, paste0(analysis_id, "-robma_models.txt")
+))
+cat("\n## Zplot summary metrics\n")
+print_text_file(file.path(
+  reporting_root, paste0(analysis_id, "-robma_zplot.txt")
+))
+cat("\n## Publication-bias-unadjusted model\n")
+print_text_file(file.path(
+  reporting_root, paste0(analysis_id, "-brma_summary.txt")
+))
+```
+
+# Use in GRADE
+
+Publication bias is judged separately for each outcome family. No automatic Bayes-factor threshold determines downgrading. The judgement considers:
+
+- the RoBMA inclusion Bayes factor and posterior probability for publication bias;
+- whether posterior support favours a weight-function or PET/PEESE mechanism;
+- whether the adjusted model reproduces the observed z-statistic distribution better than the unadjusted model;
+- the difference between adjusted and unadjusted effect estimates and whether this changes the substantive conclusion;
+- robustness to the nominal protein-versus-comparator construction;
+- the comprehensiveness of the search and any known missing studies, outcomes, or results; and
+- the limitations arising from shared-arm and repeated-outcome dependence.
+
+RoBMA zplot summaries provide the observed discovery rate, expected discovery rate, Sorić false-discovery risk, and estimated number of missing estimates [@bartosZCurvePlot2025]. These quantities describe model implications and are not counts of independent discoveries when multiple outcomes arise from the same study.
+
+# Downloadable data
+
+- [All eligible pairwise contrasts](data/publication-bias/all_pair_contrasts.csv)
+- [High-versus-low selection audit](data/publication-bias/high_low_candidate_audit.csv)
+- [Selected high-versus-low contrasts](data/publication-bias/high_low_index_contrasts.csv)
+- [High-versus-low outcome summary](data/publication-bias/high_low_outcome_summary.csv)
+- [Nominal protein-versus-comparator contrasts](data/publication-bias/nominal_index_contrasts.csv)
+- [Nominal contrast outcome summary](data/publication-bias/nominal_outcome_summary.csv)
+- [Outcome-level unadjusted and RoBMA-adjusted pooled estimates](data/publication-bias/outcome_model_estimates.csv)
+
+# Reproducibility and scope
+
+The data preparation, model fitting, figure production, zplot summaries, and this HTML document are pipeline targets. The RoBMA branch is intentionally opt-in so it cannot begin while the primary and sensitivity model families are being refitted. All primary conclusions about publication bias remain outcome-specific. The all-contrast display and clustered omnibus model are supplementary checks and are not treated as substitutes for a multivariate model with a known sampling covariance structure.

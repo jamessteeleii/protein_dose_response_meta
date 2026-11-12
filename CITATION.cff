@@ -1,0 +1,22 @@
+cff-version: 1.2.0
+message: "Please cite the manuscript and the version of the repository you used."
+title: "Protein intake and changes in whole-body lean/fat-free mass, measures of muscle size or mass, strength, and physical function in healthy adults"
+type: software
+authors:
+  - family-names: Steele
+    given-names: James
+    orcid: https://orcid.org/0000-0002-8003-0757
+  - family-names: Nunes
+    given-names: Everson Araujo
+  - family-names: Moore
+    given-names: Myles
+  - family-names: Lees
+    given-names: Matthew
+  - family-names: Roxburgh
+    given-names: Lauren
+  - family-names: Viloria Medina
+    given-names: Andrea
+  - family-names: Phillips
+    given-names: Stuart
+license: CC-BY-NC-SA-4.0
+repository-code: https://github.com/jamessteeleii/protein_dose_response_meta

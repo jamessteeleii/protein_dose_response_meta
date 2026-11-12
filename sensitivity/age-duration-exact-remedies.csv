@@ -1,0 +1,3 @@
+family,outcome,model_index,observation,stage,iter_sampling,initial_sha256,rationale
+relative,function,44,193,remedy_1,12000,29650eda4594e46452822cddd8b58a3b2c385370ef1df585ccec0890ee4a299f,Rhat 1.010826 exceeded 1.01 with geometry and ESS passing. Double retained iterations with unchanged formula data priors warmup seed and sampler controls.
+relative,function,56,193,remedy_1,12000,88c1e0292f1a1cfc906afaf3996cc3a494197f645434d50c76613dd3296832b7,Rhat 1.015271 exceeded 1.01 with geometry and ESS passing. Double retained iterations with unchanged formula data priors warmup seed and sampler controls.

@@ -1,0 +1,2 @@
+family,outcome,model_index,stage,adapt_delta,max_treedepth,rationale
+total,strength,24,remedy_1,0.999,15,One divergent transition in the recovered fit; increase adapt_delta from 0.995 to 0.999 while retaining the accepted formula priors data and sampling schedule.

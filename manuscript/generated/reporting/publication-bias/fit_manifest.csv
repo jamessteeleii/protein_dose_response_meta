@@ -1,0 +1,11 @@
+analysis_id,analysis_role,outcome_group,cluster_by_study,moderator_formula,expected_rows,expected_studies,model_type,fit_id,seed_offset,fit_size_bytes
+primary_direct_muscle,Primary outcome-specific,direct muscle size/mass,FALSE,NA,51,51,brma,primary_direct_muscle__brma,1,589392
+primary_direct_muscle,Primary outcome-specific,direct muscle size/mass,FALSE,NA,51,51,robma,primary_direct_muscle__robma,2,405892
+primary_function,Primary outcome-specific,function,FALSE,NA,32,32,brma,primary_function__brma,3,580348
+primary_function,Primary outcome-specific,function,FALSE,NA,32,32,robma,primary_function__robma,4,667724
+primary_strength,Primary outcome-specific,strength,FALSE,NA,86,86,brma,primary_strength__brma,5,581968
+primary_strength,Primary outcome-specific,strength,FALSE,NA,86,86,robma,primary_strength__robma,6,650600
+primary_whole_body,Primary outcome-specific,whole body lean mass,FALSE,NA,81,81,brma,primary_whole_body__brma,7,579512
+primary_whole_body,Primary outcome-specific,whole body lean mass,FALSE,NA,81,81,robma,primary_whole_body__robma,8,797716
+secondary_omnibus,Secondary clustered omnibus meta-regression,NA,TRUE,~ outcome_group + dose_difference_z + comparison_type + resistance_exercise_label,250,94,brma,secondary_omnibus__brma,9,61006936
+secondary_omnibus,Secondary clustered omnibus meta-regression,NA,TRUE,~ outcome_group + dose_difference_z + comparison_type + resistance_exercise_label,250,94,robma,secondary_omnibus__robma,10,57846556

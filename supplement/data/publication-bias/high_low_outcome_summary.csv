@@ -1,0 +1,5 @@
+outcome_label,outcome_group,independent_studies,selected_contrasts,candidate_contrasts,protein_comparator,active_dose,median_dose_difference,median_total_n,statistically_significant
+Measures of muscle size or mass,direct muscle size/mass,51,51,337,46,5,0.3849999999999998,31,4
+Physical function,function,32,32,229,27,5,0.3495953446537192,49,6
+Strength,strength,86,86,635,75,11,0.38749999999999984,29,8
+Whole-body lean/fat-free mass,whole body lean mass,81,81,226,71,10,0.3999999999999999,29,13

@@ -1,0 +1,42 @@
+outcome,resistance_exercise_code,resistance_exercise,rt_condition,contrast_order,contrast_family,protein_intake_reference,protein_intake_proposed,estimate,lower_95,upper_95,probability_benefit,probability_equivalence,probability_detriment,posterior_conclusion,imprecision_suggestion,supported,support_status,observed_min,observed_max
+whole_body,0,YES,RT,1,Fixed 0.8 reference,0.8,1.2,0.03352450443690555,0,0.07987643078755212,0.0125,0.98725,2.5e-4,practical equivalence,not serious,TRUE,Observed range,0.6905113893498265,4.4
+whole_body,0,YES,RT,2,Fixed 0.8 reference,0.8,1.6,0.0694793829524546,0,0.16309084327669837,0.157,0.842,0.001,uncertain,serious,TRUE,Observed range,0.6905113893498265,4.4
+whole_body,0,YES,RT,3,Fixed 0.8 reference,0.8,2,0.11499599575948673,0,0.2597438958205503,0.66025,0.3375,0.00225,uncertain,serious,TRUE,Observed range,0.6905113893498265,4.4
+whole_body,0,YES,RT,4,Fixed 0.8 reference,0.8,2.4,0.1597801514133788,0,0.36580412447245325,0.843,0.15375,0.00325,uncertain,serious,TRUE,Observed range,0.6905113893498265,4.4
+whole_body,0,YES,RT,5,Fixed 1.6 reference,1.6,2,0.04551661280703214,0,0.11106329787373764,0.04225,0.95775,0,practical equivalence,serious,TRUE,Observed range,0.6905113893498265,4.4
+whole_body,0,YES,RT,6,Fixed 1.6 reference,1.6,2.4,0.09030076846092423,0,0.2275781050521272,0.35925,0.64025,5e-4,uncertain,serious,TRUE,Observed range,0.6905113893498265,4.4
+whole_body,0,YES,RT,7,Fixed 1.6 reference,1.6,2.8,0.1307980800255055,0,0.3389259176210491,0.66675,0.33175,0.0015,uncertain,serious,TRUE,Observed range,0.6905113893498265,4.4
+whole_body,0,YES,RT,8,Fixed 1.6 reference,1.6,3.2,0.1652318139196779,0,0.44910133804990454,0.7925,0.2035,0.004,uncertain,serious,TRUE,Observed range,0.6905113893498265,4.4
+whole_body,0,YES,RT,9,Fixed 1.6 reference,1.6,3.6,0.19346895761756935,0,0.561345292958706,0.81075,0.18175,0.0075,uncertain,serious,TRUE,Observed range,0.6905113893498265,4.4
+whole_body,0,YES,RT,10,Fixed 1.6 reference,1.6,4,0.21720190671896022,0,0.6650904896688623,0.77375,0.2155,0.01075,uncertain,serious,TRUE,Observed range,0.6905113893498265,4.4
+whole_body,0,YES,RT,11,Fixed 1.6 reference,1.6,4.4,0.23867837947360482,-0.05874627303531782,0.7705056346047899,0.73125,0.25125,0.0175,uncertain,serious,TRUE,Observed range,0.6905113893498265,4.4
+whole_body,1,NO,No RT,1,Fixed 0.8 reference,0.8,1.2,0.038335901507910906,0,0.09429629199022704,0.01775,0.982,2.5e-4,practical equivalence,not serious,TRUE,Observed range,0.7,1.8
+whole_body,1,NO,No RT,2,Fixed 0.8 reference,0.8,1.6,0.0791021770944653,0,0.18862186499078032,0.26,0.739,0.001,uncertain,serious,TRUE,Observed range,0.7,1.8
+hypertrophy,0,YES,RT,1,Fixed 0.8 reference,0.8,1.2,0.04883007309289327,-0.004706141558566539,0.12999113533678158,0.0665,0.9325,0.001,uncertain,serious,TRUE,Observed range,0.6981981981981982,2.7760385465259025
+hypertrophy,0,YES,RT,2,Fixed 0.8 reference,0.8,1.6,0.09105654984883398,-0.0022963739227106366,0.2068423158001939,0.40325,0.5955,0.00125,uncertain,serious,TRUE,Observed range,0.6981981981981982,2.7760385465259025
+hypertrophy,0,YES,RT,3,Fixed 0.8 reference,0.8,2,0.1311137516497441,0,0.27876492312806533,0.6865,0.31225,0.00125,uncertain,serious,TRUE,Observed range,0.6981981981981982,2.7760385465259025
+hypertrophy,0,YES,RT,4,Fixed 0.8 reference,0.8,2.4,0.17408146552190013,-0.0029725237727997646,0.3806259183316578,0.795,0.2015,0.0035,uncertain,serious,TRUE,Observed range,0.6981981981981982,2.7760385465259025
+hypertrophy,0,YES,RT,5,Fixed 1.6 reference,1.6,2,0.04005720180091011,-0.013351149764021993,0.10033398809553762,0.02525,0.973,0.00175,practical equivalence,serious,TRUE,Observed range,0.6981981981981982,2.7760385465259025
+hypertrophy,0,YES,RT,6,Fixed 1.6 reference,1.6,2.4,0.08302491567306616,-0.038827920803748035,0.22222674724478952,0.34675,0.64375,0.0095,uncertain,serious,TRUE,Observed range,0.6981981981981982,2.7760385465259025
+hypertrophy,1,NO,No RT,1,Fixed 0.8 reference,0.8,1.2,0.09709900599940759,0,0.1918159744223828,0.48625,0.5125,0.00125,uncertain,serious,TRUE,Observed range,0.7,1.8183864915572232
+hypertrophy,1,NO,No RT,2,Fixed 0.8 reference,0.8,1.6,0.18762785429484533,0.01310176444037124,0.3797072105658334,0.78175,0.217,0.00125,uncertain,serious,TRUE,Observed range,0.7,1.8183864915572232
+strength,0,YES,RT,1,Fixed 0.8 reference,0.8,1.2,0.06034901433654767,-0.007536360587796243,0.14362062080198726,0.12775,0.86975,0.0025,uncertain,serious,TRUE,Observed range,0.6905113893498265,3.4
+strength,0,YES,RT,2,Fixed 0.8 reference,0.8,1.6,0.11909970016377446,0,0.2653682163100779,0.5815,0.414,0.0045,uncertain,serious,TRUE,Observed range,0.6905113893498265,3.4
+strength,0,YES,RT,3,Fixed 0.8 reference,0.8,2,0.1486784089850235,0,0.3172858665554909,0.77725,0.21625,0.0065,uncertain,serious,TRUE,Observed range,0.6905113893498265,3.4
+strength,0,YES,RT,4,Fixed 0.8 reference,0.8,2.4,0.175976458506036,0,0.359074117308101,0.84625,0.14825,0.0055,uncertain,serious,TRUE,Observed range,0.6905113893498265,3.4
+strength,0,YES,RT,5,Fixed 1.6 reference,1.6,2,0.029578708821249054,-0.023873926349278513,0.09196253974815223,0.01975,0.97975,5e-4,practical equivalence,not serious,TRUE,Observed range,0.6905113893498265,3.4
+strength,0,YES,RT,6,Fixed 1.6 reference,1.6,2.4,0.05687675834226153,-0.051018146759447346,0.1724336549018525,0.1885,0.80375,0.00775,uncertain,serious,TRUE,Observed range,0.6905113893498265,3.4
+strength,0,YES,RT,7,Fixed 1.6 reference,1.6,2.8,0.08265667015332413,-0.09000209243164622,0.25691541780168287,0.43375,0.54775,0.0185,uncertain,serious,TRUE,Observed range,0.6905113893498265,3.4
+strength,0,YES,RT,8,Fixed 1.6 reference,1.6,3.2,0.10766659147819739,-0.13311548064432008,0.3643619288499711,0.554,0.407,0.039,uncertain,very serious,TRUE,Observed range,0.6905113893498265,3.4
+strength,1,NO,No RT,1,Fixed 0.8 reference,0.8,1.2,0.06973292823187417,-0.01089025377500162,0.16519338765464478,0.20175,0.79575,0.0025,uncertain,serious,TRUE,Observed range,0.7,1.8183864915572232
+strength,1,NO,No RT,2,Fixed 0.8 reference,0.8,1.6,0.13786752795442747,-0.004383751802311914,0.31467406978075363,0.68,0.3155,0.0045,uncertain,serious,TRUE,Observed range,0.7,1.8183864915572232
+function,0,YES,RT,1,Fixed 0.8 reference,0.8,1.2,0.08184565243889098,-0.031235908273776748,0.18903681003852824,0.39625,0.60275,0.001,uncertain,serious,FALSE,Extrapolated beyond outcome/RT observed range,0.85,3.4
+function,0,YES,RT,2,Fixed 0.8 reference,0.8,1.6,0.15748248340728474,-0.060960796212837835,0.36076511381137033,0.71025,0.28025,0.0095,uncertain,serious,FALSE,Extrapolated beyond outcome/RT observed range,0.85,3.4
+function,0,YES,RT,3,Fixed 0.8 reference,0.8,2,0.11822327555458931,-0.09986393087899151,0.36838941586340307,0.558,0.417,0.025,uncertain,serious,FALSE,Extrapolated beyond outcome/RT observed range,0.85,3.4
+function,0,YES,RT,4,Fixed 0.8 reference,0.8,2.4,0.07401632737669271,-0.22238888853942207,0.4349922286875613,0.399,0.47575,0.12525,uncertain,very serious,FALSE,Extrapolated beyond outcome/RT observed range,0.85,3.4
+function,0,YES,RT,5,Fixed 1.6 reference,1.6,2,-0.03925920785269542,-0.18914525515304617,0.11049815295108134,0.033,0.7445,0.2225,uncertain,very serious,TRUE,Observed range,0.85,3.4
+function,0,YES,RT,6,Fixed 1.6 reference,1.6,2.4,-0.08346615603059201,-0.37835869323247046,0.21205846706954912,0.11575,0.42775,0.4565,uncertain,very serious,TRUE,Observed range,0.85,3.4
+function,0,YES,RT,7,Fixed 1.6 reference,1.6,2.8,-0.12990131555788506,-0.5674357654591385,0.32328176486009674,0.15375,0.29775,0.5485,uncertain,very serious,TRUE,Observed range,0.85,3.4
+function,0,YES,RT,8,Fixed 1.6 reference,1.6,3.2,-0.17759730603537516,-0.7716743533845949,0.44197877193417184,0.1805,0.2255,0.594,uncertain,very serious,TRUE,Observed range,0.85,3.4
+function,1,NO,No RT,1,Fixed 0.8 reference,0.8,1.2,0.09777206179480209,0,0.19766165565104582,0.4865,0.51275,7.5e-4,uncertain,serious,FALSE,Extrapolated beyond outcome/RT observed range,0.88,1.8183864915572232
+function,1,NO,No RT,2,Fixed 0.8 reference,0.8,1.6,0.18933530211910696,0,0.37809356462657107,0.829,0.1695,0.0015,uncertain,serious,FALSE,Extrapolated beyond outcome/RT observed range,0.88,1.8183864915572232

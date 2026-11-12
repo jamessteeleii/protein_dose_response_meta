@@ -1,0 +1,49 @@
+outcome,model_index,model_name,restricted_stacking_weight,loo_source
+whole_body,9,Linear model (+ random slopes),0.6312467715240322,integrated_psis
+whole_body,10,Linear spline (1.6g/kg/day) model (+ random slopes),0.11884649300800224,integrated_psis
+whole_body,11,Thin plate spline model (+ random smooths),0.00795712222271211,integrated_psis
+whole_body,12,Linear model (+ moderators & random slopes),3.342903922122871e-5,integrated_psis
+whole_body,13,Linear spline (1.6g/kg/day) model (+ moderators & random slopes),0.1288196005722349,integrated_psis
+whole_body,14,Thin plate spline model (+ moderators & random smooths),3.9964516184312815e-6,integrated_psis
+whole_body,21,Linear model (+ random slopes & RT interaction),5.849489322184523e-5,integrated_psis
+whole_body,22,Linear spline (1.6g/kg/day) model (+ random slopes & RT interaction),0.112565778917355,integrated_psis
+whole_body,23,Thin plate spline model (+ random smooths & RT interaction smooth),1.840451533183356e-4,integrated_psis
+whole_body,24,Linear model (+ moderators & random slopes & RT interaction),4.1580267046697017e-5,integrated_psis
+whole_body,25,Linear spline (1.6g/kg/day) model (+ moderators & random slopes & RT interaction),2.4266582592806523e-4,integrated_psis
+whole_body,26,Thin plate spline model (+ moderators & random smooths & RT interaction smooth),2.2125308918319323e-8,integrated_psis
+hypertrophy,9,Linear model (+ random slopes),3.9457058429672125e-6,integrated_psis
+hypertrophy,10,Linear spline (1.6g/kg/day) model (+ random slopes),1.4600891394913858e-7,integrated_psis
+hypertrophy,11,Thin plate spline model (+ random smooths),0.07661717419148593,integrated_psis
+hypertrophy,12,Linear model (+ moderators & random slopes),0.17833831161801916,integrated_psis
+hypertrophy,13,Linear spline (1.6g/kg/day) model (+ moderators & random slopes),8.401874499742401e-7,exact_correction
+hypertrophy,14,Thin plate spline model (+ moderators & random smooths),3.440004236859186e-7,integrated_psis
+hypertrophy,21,Linear model (+ random slopes & RT interaction),0.2946382483066976,integrated_psis
+hypertrophy,22,Linear spline (1.6g/kg/day) model (+ random slopes & RT interaction),3.7255018673653313e-7,integrated_psis
+hypertrophy,23,Thin plate spline model (+ random smooths & RT interaction smooth),8.574264093206388e-9,integrated_psis
+hypertrophy,24,Linear model (+ moderators & random slopes & RT interaction),0.4504005687909768,integrated_psis
+hypertrophy,25,Linear spline (1.6g/kg/day) model (+ moderators & random slopes & RT interaction),5.1958706503438565e-9,integrated_psis
+hypertrophy,26,Thin plate spline model (+ moderators & random smooths & RT interaction smooth),3.4869868437148455e-8,integrated_psis
+strength,9,Linear model (+ random slopes),0.00315489535827239,integrated_psis
+strength,10,Linear spline (1.6g/kg/day) model (+ random slopes),1.6101503537326366e-6,integrated_psis
+strength,11,Thin plate spline model (+ random smooths),0.254863247236439,integrated_psis
+strength,12,Linear model (+ moderators & random slopes),0.26924597187940097,integrated_psis
+strength,13,Linear spline (1.6g/kg/day) model (+ moderators & random slopes),0.4469564725135838,integrated_psis
+strength,14,Thin plate spline model (+ moderators & random smooths),1.0741988551586446e-4,integrated_psis
+strength,21,Linear model (+ random slopes & RT interaction),7.423251922753575e-5,integrated_psis
+strength,22,Linear spline (1.6g/kg/day) model (+ random slopes & RT interaction),5.5650607162574765e-6,integrated_psis
+strength,23,Thin plate spline model (+ random smooths & RT interaction smooth),1.976724257304883e-7,integrated_psis
+strength,24,Linear model (+ moderators & random slopes & RT interaction),0.0255872341783909,integrated_psis
+strength,25,Linear spline (1.6g/kg/day) model (+ moderators & random slopes & RT interaction),2.539073612618239e-6,integrated_psis
+strength,26,Thin plate spline model (+ moderators & random smooths & RT interaction smooth),6.144720612333288e-7,integrated_psis
+function,9,Linear model (+ random slopes),4.761470029360673e-6,integrated_psis
+function,10,Linear spline (1.6g/kg/day) model (+ random slopes),0.29206723217670993,integrated_psis
+function,11,Thin plate spline model (+ random smooths),0.07285919330847598,integrated_psis
+function,12,Linear model (+ moderators & random slopes),5.997339726844947e-6,integrated_psis
+function,13,Linear spline (1.6g/kg/day) model (+ moderators & random slopes),0.6350234419742268,integrated_psis
+function,14,Thin plate spline model (+ moderators & random smooths),1.6746934383398414e-7,integrated_psis
+function,21,Linear model (+ random slopes & RT interaction),1.7196221816444693e-7,integrated_psis
+function,22,Linear spline (1.6g/kg/day) model (+ random slopes & RT interaction),7.272047699770256e-6,integrated_psis
+function,23,Thin plate spline model (+ random smooths & RT interaction smooth),4.604706061557578e-6,integrated_psis
+function,24,Linear model (+ moderators & random slopes & RT interaction),2.4871807120055692e-5,integrated_psis
+function,25,Linear spline (1.6g/kg/day) model (+ moderators & random slopes & RT interaction),2.28173813149512e-6,integrated_psis
+function,26,Thin plate spline model (+ moderators & random smooths & RT interaction smooth),4.00025623736866e-9,integrated_psis

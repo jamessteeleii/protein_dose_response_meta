@@ -494,7 +494,7 @@ compute_primary_heatmap_contrasts <- function(
       )
       probability_meaningful_gain <- colMeans(differences > sesoi)
       probability_negligible <- colMeans(
-        differences > -sesoi & differences < sesoi
+        differences >= -sesoi & differences <= sesoi
       )
       probability_meaningful_loss <- colMeans(differences < -sesoi)
 
@@ -567,6 +567,78 @@ compute_primary_heatmap_contrasts <- function(
   output
 }
 
+summarise_primary_local_equivalence <- function(
+    contrast_data,
+    outcome,
+    probability_threshold = 0.95
+) {
+  required_columns <- c(
+    "rt_condition",
+    "protein_intake_current",
+    "protein_intake_proposed",
+    "probability_practical_equivalence",
+    "supported"
+  )
+  missing_columns <- setdiff(required_columns, names(contrast_data))
+  if (length(missing_columns) > 0L) {
+    stop(
+      "Local-equivalence summary is missing required columns: ",
+      paste(missing_columns, collapse = ", "),
+      call. = FALSE
+    )
+  }
+
+  local_intervals <- contrast_data |>
+    dplyr::filter(.data$supported) |>
+    dplyr::group_by(.data$rt_condition, .data$protein_intake_current) |>
+    dplyr::summarise(
+      equivalent_min = min(
+        .data$protein_intake_proposed[
+          .data$probability_practical_equivalence >= probability_threshold
+        ],
+        na.rm = TRUE
+      ),
+      equivalent_max = max(
+        .data$protein_intake_proposed[
+          .data$probability_practical_equivalence >= probability_threshold
+        ],
+        na.rm = TRUE
+      ),
+      .groups = "drop"
+    ) |>
+    dplyr::mutate(
+      lower_reach = .data$protein_intake_current - .data$equivalent_min,
+      upper_reach = .data$equivalent_max - .data$protein_intake_current,
+      total_span = .data$equivalent_max - .data$equivalent_min
+    )
+
+  local_intervals |>
+    dplyr::group_by(.data$rt_condition) |>
+    dplyr::summarise(
+      equivalent_radius = stats::median(
+        c(.data$lower_reach, .data$upper_reach)
+      ),
+      equivalent_radius_q10 = stats::quantile(
+        c(.data$lower_reach, .data$upper_reach),
+        probs = 0.10,
+        names = FALSE
+      ),
+      equivalent_radius_q90 = stats::quantile(
+        c(.data$lower_reach, .data$upper_reach),
+        probs = 0.90,
+        names = FALSE
+      ),
+      median_total_span = stats::median(.data$total_span),
+      supported_current_intakes = dplyr::n(),
+      .groups = "drop"
+    ) |>
+    dplyr::mutate(
+      outcome = outcome,
+      probability_threshold = probability_threshold,
+      .before = 1L
+    )
+}
+
 plot_primary_heatmap_contrasts <- function(
     x,
     title,
@@ -594,9 +666,9 @@ plot_primary_heatmap_contrasts <- function(
     limits
   }
   contour_names <- c(
-    "Meaningful benefit",
+    "Outcome gain from increasing intake",
     "Practical equivalence",
-    "Meaningful detriment"
+    "Outcome loss from decreasing intake"
   )
   contour_specs <- tibble::tibble(
     probability = c(
@@ -637,7 +709,8 @@ plot_primary_heatmap_contrasts <- function(
   caption_text <- stringr::str_wrap(
     paste0(
       "ROPE = Region of Practical Equivalence (-0.1 to +0.1). ",
-      "The solid diagonal is zero contrast (proposed = current). ",
+      "The solid diagonal is zero contrast (proposed = current); cells above ",
+      "it increase intake and cells below it decrease intake. ",
       "Each panel is limited to the observed protein-intake range for ",
       "that RT condition. ",
       classification_note
@@ -667,7 +740,11 @@ plot_primary_heatmap_contrasts <- function(
       ggplot2::vars(rt_condition),
       nrow = 1,
       scales = "free",
-      drop = FALSE
+      drop = FALSE,
+      labeller = ggplot2::as_labeller(c(
+        "No RT" = "Resistance Training: No",
+        "RT" = "Resistance Training: Yes"
+      ))
     ) +
     ggplot2::scale_fill_gradient2(
       low = "#D55E00",
@@ -677,7 +754,7 @@ plot_primary_heatmap_contrasts <- function(
       limits = c(-fill_limit, fill_limit),
       oob = scales::squish,
       na.value = "#E6E6E6",
-      name = "Estimated contrast\n(proposed - current)",
+      name = "Estimated outcome contrast\n(proposed - current)",
       guide = ggplot2::guide_colourbar(
         order = 1,
         direction = "horizontal",
@@ -759,7 +836,7 @@ plot_primary_heatmap_contrasts <- function(
     present_contours <- contour_names[boundary_present]
     contour_labels <- stats::setNames(
       c(
-        sprintf("Benefit (> +%.2f)", sesoi),
+        sprintf("Outcome gain from increased intake (> +%.2f)", sesoi),
         paste0(
           "At least 95% posterior within the\n",
           sprintf(
@@ -768,7 +845,7 @@ plot_primary_heatmap_contrasts <- function(
             sesoi
           )
         ),
-        sprintf("Detriment (< -%.2f)", sesoi)
+        sprintf("Outcome loss from decreased intake (< -%.2f)", sesoi)
       ),
       contour_names
     )
@@ -776,9 +853,9 @@ plot_primary_heatmap_contrasts <- function(
       plot <- plot +
         ggplot2::scale_linetype_manual(
           values = c(
-            "Meaningful benefit" = "dashed",
+            "Outcome gain from increasing intake" = "dashed",
             "Practical equivalence" = "longdash",
-            "Meaningful detriment" = "dotted"
+            "Outcome loss from decreasing intake" = "dotted"
           ),
           limits = present_contours,
           breaks = present_contours,
@@ -860,7 +937,11 @@ plot_primary_predictions_panel <- function(data, predictions) {
     ) +
     ggh4x::facet_nested(
       . ~ rt_condition,
-      scales = "free_x"
+      scales = "free_x",
+      labeller = ggplot2::as_labeller(c(
+        "No RT" = "Resistance Training: No",
+        "RT" = "Resistance Training: Yes"
+      ))
     ) +
     ggh4x::facetted_pos_scales(
       x = list(
@@ -889,6 +970,194 @@ plot_primary_predictions_panel <- function(data, predictions) {
     )
 }
 
+plot_primary_arm_predictions_panel <- function(
+    data,
+    predictions,
+    arm_predictions,
+    include_observed_effects = TRUE
+) {
+  required_arm_columns <- c(
+    "observation", "prediction_id", "estimate", "conditional_size"
+  )
+  missing_arm_columns <- setdiff(required_arm_columns, names(arm_predictions))
+  if (
+    length(missing_arm_columns) ||
+      length(include_observed_effects) != 1L ||
+      !is.logical(include_observed_effects) ||
+      is.na(include_observed_effects) ||
+      nrow(arm_predictions) != nrow(data) ||
+      !identical(
+        as.integer(arm_predictions$observation),
+        seq_len(nrow(data))
+      )
+  ) {
+    stop(
+      "Arm-conditional predictions do not align with the observed effects.",
+      call. = FALSE
+    )
+  }
+
+  max_no_rt <- max(
+    data$protein_intake_raw[data$resistance_exercise_code == 1],
+    na.rm = TRUE
+  )
+  prediction_data <- predictions |>
+    dplyr::mutate(
+      rt_condition = factor(
+        ifelse(resistance_exercise_code == 0, "RT", "No RT"),
+        levels = c("No RT", "RT")
+      )
+    ) |>
+    dplyr::filter(rt_condition == "RT" | protein_intake <= max_no_rt)
+  point_data <- data |>
+    dplyr::mutate(
+      observation = dplyr::row_number(),
+      rt_condition = factor(
+        ifelse(resistance_exercise_code == 0, "RT", "No RT"),
+        levels = c("No RT", "RT")
+      )
+    ) |>
+    dplyr::left_join(
+      arm_predictions |>
+        dplyr::select(
+          observation,
+          prediction_id,
+          arm_estimate = estimate,
+          conditional_size
+        ),
+      by = "observation"
+    )
+  arm_point_data <- point_data |>
+    dplyr::distinct(prediction_id, .keep_all = TRUE)
+  observed_effect_layers <- if (isTRUE(include_observed_effects)) {
+    list(
+      ggplot2::geom_segment(
+        data = point_data,
+        ggplot2::aes(
+          x = protein_intake_raw,
+          xend = protein_intake_raw,
+          y = yi,
+          yend = arm_estimate
+        ),
+        inherit.aes = FALSE,
+        colour = "grey35",
+        alpha = 0.18,
+        linewidth = 0.25
+      ),
+      ggplot2::geom_point(
+        data = point_data,
+        ggplot2::aes(
+          x = protein_intake_raw,
+          y = yi,
+          size = size,
+          colour = condition
+        ),
+        inherit.aes = FALSE,
+        alpha = 0.16
+      )
+    )
+  } else {
+    list()
+  }
+
+  ggplot2::ggplot(
+    prediction_data,
+    ggplot2::aes(x = protein_intake, y = estimate)
+  ) +
+    ggplot2::geom_hline(
+      yintercept = 0,
+      linetype = "dotted",
+      alpha = 0.75
+    ) +
+    observed_effect_layers +
+    ggplot2::geom_point(
+      data = arm_point_data,
+      ggplot2::aes(
+        x = protein_intake_raw,
+        y = arm_estimate,
+        size = conditional_size,
+        fill = condition
+      ),
+      inherit.aes = FALSE,
+      shape = 21,
+      colour = "grey15",
+      stroke = 0.3,
+      alpha = 0.95
+    ) +
+    ggplot2::geom_ribbon(
+      ggplot2::aes(ymin = conf.low, ymax = conf.high),
+      alpha = 0.5,
+      colour = "black",
+      linewidth = 0.25
+    ) +
+    ggplot2::geom_line(
+      linewidth = 0.8,
+      colour = "black"
+    ) +
+    ggplot2::scale_colour_manual(
+      name = "Condition",
+      values = c("#0072B2", "darkorange", "darkgreen")
+    ) +
+    ggplot2::scale_fill_manual(
+      name = "Condition",
+      values = c("#0072B2", "darkorange", "darkgreen")
+    ) +
+    ggplot2::scale_y_continuous(
+      breaks = scales::breaks_width(width = 0.5, offset = 0)
+    ) +
+    ggh4x::facet_nested(
+      . ~ rt_condition,
+      scales = "free_x",
+      labeller = ggplot2::as_labeller(c(
+        "No RT" = "Resistance Training: No",
+        "RT" = "Resistance Training: Yes"
+      ))
+    ) +
+    ggh4x::facetted_pos_scales(
+      x = list(
+        rt_condition == "No RT" ~ ggplot2::scale_x_continuous(
+          breaks = scales::breaks_width(0.2)
+        ),
+        rt_condition == "RT" ~ ggplot2::scale_x_continuous(
+          breaks = scales::breaks_width(0.4)
+        )
+      )
+    ) +
+    ggplot2::labs(
+      x = "Protein Intake (g/kg/day)",
+      y = "Standardised Mean Change",
+      title = "Predicted effects",
+      subtitle = paste0(
+        "Population curve (95% posterior quantile interval) and ",
+        "arm-conditional means; point size shows relative precision"
+      )
+    ) +
+    ggplot2::guides(
+      size = "none",
+      fill = if (isTRUE(include_observed_effects)) {
+        "none"
+      } else {
+        ggplot2::guide_legend(
+          override.aes = list(alpha = 1, size = 3)
+        )
+      },
+      colour = if (isTRUE(include_observed_effects)) {
+        ggplot2::guide_legend(
+          override.aes = list(alpha = 1, size = 3)
+        )
+      } else {
+        "none"
+      }
+    ) +
+    ggplot2::theme_classic() +
+    ggplot2::theme(
+      plot.title = ggplot2::element_text(size = 12),
+      plot.subtitle = ggplot2::element_text(size = 9),
+      axis.title = ggplot2::element_text(size = 10),
+      strip.text = ggplot2::element_text(face = "bold")
+    )
+}
+
 plot_primary_predictions_heatmap <- function(
     data,
     predictions,
@@ -912,5 +1181,40 @@ plot_primary_predictions_heatmap <- function(
     ggplot2::theme(
       legend.position = "bottom",
       legend.box = "horizontal"
+    )
+}
+
+plot_primary_arm_predictions_heatmap <- function(
+    data,
+    predictions,
+    arm_predictions,
+    heatmap_contrasts,
+    title,
+    include_observed_effects = TRUE
+) {
+  prediction_plot <- plot_primary_arm_predictions_panel(
+    data = data,
+    predictions = predictions,
+    arm_predictions = arm_predictions,
+    include_observed_effects = include_observed_effects
+  )
+  heatmap_plot <- plot_primary_heatmap_contrasts(
+    heatmap_contrasts,
+    title = "Pairwise model-averaged contrasts"
+  )
+  shared_theme <- ggplot2::theme(
+    legend.position = "bottom",
+    legend.box = "horizontal"
+  )
+  prediction_plot <- prediction_plot + shared_theme
+  heatmap_plot <- heatmap_plot + shared_theme
+
+  (prediction_plot / heatmap_plot) +
+    patchwork::plot_layout(
+      heights = c(1, 1.35)
+    ) +
+    patchwork::plot_annotation(
+      title = paste("Dose-response association of protein intake with", title),
+      subtitle = "Bayesian model averaging with LOO-CV stacking weights"
     )
 }

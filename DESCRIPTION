@@ -1,0 +1,55 @@
+Package: proteinDoseResponseMeta
+Type: Project
+Title: Protein Dose-Response Meta-Analysis
+Version: 0.0.0.9000
+Description: Declares the direct R package dependencies required to reproduce
+    the analysis pipeline, verification reports, and manuscript outputs.
+License: CC BY-NC-SA 4.0
+Encoding: UTF-8
+Depends:
+    R (>= 4.4.3)
+Imports:
+    bayestestR,
+    brms,
+    broom,
+    cmdstanr,
+    digest,
+    dplyr,
+    fs,
+    future,
+    ggh4x,
+    ggplot2,
+    grateful,
+    here,
+    janitor,
+    kableExtra,
+    knitr,
+    loo,
+    lspline,
+    marginaleffects,
+    matrixStats,
+    metafor,
+    mgcv,
+    patchwork,
+    posterior,
+    psych,
+    purrr,
+    qs,
+    readr,
+    readxl,
+    renv,
+    rjags,
+    rlang,
+    rmarkdown,
+    RoBMA,
+    robvis,
+    rstan,
+    scales,
+    stringr,
+    targets,
+    tibble,
+    tidybayes,
+    tidyr,
+    tidyselect,
+    tidyverse,
+    yaml

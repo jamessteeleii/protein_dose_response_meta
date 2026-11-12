@@ -1,0 +1,27 @@
+family,outcome,model_index,model_name,interaction,stacking_weight
+relative,function,1,Intercept only model [RT only; reported training status],none,0.13306071609348027
+relative,function,2,Linear model [RT only; reported training status],none,2.0121634245058986e-7
+relative,function,3,Linear spline (1.6g/kg/day) model [RT only; reported training status],none,0.37286360031392773
+relative,function,4,Thin plate spline model [RT only; reported training status],none,0.20662900613957955
+relative,function,5,Intercept only model (+ moderators) [RT only; reported training status],none,2.879565002355812e-7
+relative,function,6,Linear model (+ moderators) [RT only; reported training status],none,3.810821441165258e-6
+relative,function,7,Linear spline (1.6g/kg/day) model (+ moderators) [RT only; reported training status],none,3.604115297217582e-7
+relative,function,8,Thin plate spline model (+ moderators) [RT only; reported training status],none,1.6806737291071966e-6
+relative,function,9,Linear model (+ random slopes) [RT only; reported training status],none,0.014479402188186446
+relative,function,10,Linear spline (1.6g/kg/day) model (+ random slopes) [RT only; reported training status],none,0.08814149911115624
+relative,function,11,Thin plate spline model (+ random smooths) [RT only; reported training status],none,0.003514302975662378
+relative,function,12,Linear model (+ moderators & random slopes) [RT only; reported training status],none,9.993361863389598e-8
+relative,function,13,Linear spline (1.6g/kg/day) model (+ moderators & random slopes) [RT only; reported training status],none,2.3421244145918214e-7
+relative,function,14,Thin plate spline model (+ moderators & random smooths) [RT only; reported training status],none,0.060221979653533285
+relative,function,15,Linear model (+ RT interaction) [RT only; reported training status],training,2.1944458809538478e-7
+relative,function,16,Linear spline (1.6g/kg/day) model (+ RT interaction) [RT only; reported training status],training,2.491248067294517e-8
+relative,function,17,Thin plate spline model (+ RT interaction smooth) [RT only; reported training status],training,8.827167373474623e-7
+relative,function,18,Linear model (+ moderators & RT interaction) [RT only; reported training status],training,1.0061294006150909e-6
+relative,function,19,Linear spline (1.6g/kg/day) model (+ moderators & RT interaction) [RT only; reported training status],training,1.7452661254978983e-6
+relative,function,20,Thin plate spline model (+ moderators & RT interaction) [RT only; reported training status],training,1.989919263260459e-6
+relative,function,21,Linear model (+ random slopes & RT interaction) [RT only; reported training status],training,0.12107236524649427
+relative,function,22,Linear spline (1.6g/kg/day) model (+ random slopes & RT interaction) [RT only; reported training status],training,8.938380979664953e-8
+relative,function,23,Thin plate spline model (+ random smooths & RT interaction smooth) [RT only; reported training status],training,3.2564960728008445e-6
+relative,function,24,Linear model (+ moderators & random slopes & RT interaction) [RT only; reported training status],training,4.904975739337077e-7
+relative,function,25,Linear spline (1.6g/kg/day) model (+ moderators & random slopes & RT interaction) [RT only; reported training status],training,5.652925606837163e-7
+relative,function,26,Thin plate spline model (+ moderators & random smooths & RT interaction smooth) [RT only; reported training status],training,1.8299376436381465e-7

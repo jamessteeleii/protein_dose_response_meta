@@ -1,0 +1,27 @@
+family,outcome,model_index,model_name,interaction,stacking_weight
+relative,whole_body,1,Intercept only model [RT only; reported training status],none,0.07040177661859001
+relative,whole_body,2,Linear model [RT only; reported training status],none,4.4176941085023383e-4
+relative,whole_body,3,Linear spline (1.6g/kg/day) model [RT only; reported training status],none,1.505630708790202e-5
+relative,whole_body,4,Thin plate spline model [RT only; reported training status],none,0.3188419264437689
+relative,whole_body,5,Intercept only model (+ moderators) [RT only; reported training status],none,0.0065002094854229794
+relative,whole_body,6,Linear model (+ moderators) [RT only; reported training status],none,0.006174338859885176
+relative,whole_body,7,Linear spline (1.6g/kg/day) model (+ moderators) [RT only; reported training status],none,1.4714936450017272e-6
+relative,whole_body,8,Thin plate spline model (+ moderators) [RT only; reported training status],none,2.0379910314071893e-4
+relative,whole_body,9,Linear model (+ random slopes) [RT only; reported training status],none,0.04791701158986367
+relative,whole_body,10,Linear spline (1.6g/kg/day) model (+ random slopes) [RT only; reported training status],none,2.2249358056630233e-6
+relative,whole_body,11,Thin plate spline model (+ random smooths) [RT only; reported training status],none,0.09146352804052989
+relative,whole_body,12,Linear model (+ moderators & random slopes) [RT only; reported training status],none,2.55188352685744e-7
+relative,whole_body,13,Linear spline (1.6g/kg/day) model (+ moderators & random slopes) [RT only; reported training status],none,0.17518135657549813
+relative,whole_body,14,Thin plate spline model (+ moderators & random smooths) [RT only; reported training status],none,0.09678884671269106
+relative,whole_body,15,Linear model (+ RT interaction) [RT only; reported training status],training,4.0308472698419715e-7
+relative,whole_body,16,Linear spline (1.6g/kg/day) model (+ RT interaction) [RT only; reported training status],training,0.15106965754179827
+relative,whole_body,17,Thin plate spline model (+ RT interaction smooth) [RT only; reported training status],training,2.6209506997460077e-6
+relative,whole_body,18,Linear model (+ moderators & RT interaction) [RT only; reported training status],training,3.257035824295512e-8
+relative,whole_body,19,Linear spline (1.6g/kg/day) model (+ moderators & RT interaction) [RT only; reported training status],training,4.501061192607539e-4
+relative,whole_body,20,Thin plate spline model (+ moderators & RT interaction) [RT only; reported training status],training,9.451308848931497e-7
+relative,whole_body,21,Linear model (+ random slopes & RT interaction) [RT only; reported training status],training,6.604672327225525e-6
+relative,whole_body,22,Linear spline (1.6g/kg/day) model (+ random slopes & RT interaction) [RT only; reported training status],training,0.034532343638170315
+relative,whole_body,23,Thin plate spline model (+ random smooths & RT interaction smooth) [RT only; reported training status],training,3.4390869146774555e-7
+relative,whole_body,24,Linear model (+ moderators & random slopes & RT interaction) [RT only; reported training status],training,1.1393615512661803e-7
+relative,whole_body,25,Linear spline (1.6g/kg/day) model (+ moderators & random slopes & RT interaction) [RT only; reported training status],training,3.133046455980452e-6
+relative,whole_body,26,Thin plate spline model (+ moderators & random smooths & RT interaction smooth) [RT only; reported training status],training,1.2463533893836143e-7

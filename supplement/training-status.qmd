@@ -1,0 +1,139 @@
+---
+title: "Protein Dose–Response by Reported Training Status in Resistance-Training Studies"
+subtitle: "Exploratory trained-versus-untrained comparisons across three protein-dose definitions"
+author:
+  - name: James Steele
+  - name: Everson Araujo Nunes
+  - name: Myles Moore
+  - name: Matthew Lees
+  - name: Lauren Roxburgh
+  - name: Andrea Viloria Medina
+  - name: Stuart Phillips
+date: last-modified
+date-format: long
+format:
+  html:
+    theme: [cosmo, no-web-font.scss]
+    toc: true
+    toc-depth: 3
+    toc-location: body
+    toc-title: Contents
+    smooth-scroll: true
+    embed-resources: true
+    html-math-method: mathml
+    link-external-newwindow: true
+execute:
+  echo: false
+  warning: false
+  message: false
+---
+
+```{r}
+#| label: setup
+#| include: false
+
+library(dplyr)
+library(ggplot2)
+source(if (file.exists("supplement/report-helpers.R")) "supplement/report-helpers.R" else "report-helpers.R")
+source(file.path(report_project_root(), "supplement", "interaction-report.R"))
+
+scopes <- interaction_report_grid("training-status") |>
+  mutate(
+    support = lapply(path, interaction_csv, file = "status_support.csv"),
+    moderation = lapply(path, interaction_csv, file = "training_interaction_contrasts.csv"),
+    weights = lapply(path, interaction_csv, file = "stacking_weights.csv")
+  )
+```
+
+# Scope and Analysis Hierarchy
+
+This exploratory supplementary analysis restricts the frozen primary datasets
+to resistance-training arms reporting trained or untrained participants.
+Active and unreported classifications are excluded without reclassification.
+Every candidate is refitted on the same restricted sample within each exposure
+and outcome. Reported status replaces the original RT main effect and RT dose
+interactions. Dose functions and study/arm/outcome structures follow the primary
+family; age, duration and body mass remain in the corresponding adjusted models.
+
+Fresh predictive stacking weights are estimated within each exposure/outcome
+after sampling diagnostics and corrected observation-level LOO pass. Predictions
+exclude random effects. Protein contrasts are paired within each posterior draw,
+and moderation is the trained minus untrained difference in those contrasts.
+The 0.1 baseline-SD threshold is descriptive when applied to moderation.
+
+Status is a study-reported classification with heterogeneous definitions. These
+between-study associations do not identify individual or causal training-history
+effects. Physical function has only one or two trained studies and is reported
+descriptively. A small estimated interaction does not establish absence of
+moderation by actual training history. Dose-range support screens are descriptive
+and do not establish joint age/duration/dose support.
+
+# Empirical Support and Model Averaging
+
+All 12 exposure–outcome ensembles met the diagnostic and reporting criteria. A moderation contrast passed the dose-range screen when at least three studies contributed to each status group and both doses lay inside the observed range for both groups.
+
+```{r}
+#| label: tbl-training-status-support
+#| tbl-cap: "Study support and candidate counts for the reported training-status analyses. Supported contrasts are counted across both prediction profiles."
+
+scopes |>
+  transmute(
+    Exposure = unname(interaction_exposures[exposure]),
+    Outcome = unname(report_outcome_labels[outcome]),
+    `Trained studies` = vapply(support, function(x) sum(x$studies[x$training_status == "trained"]), numeric(1)),
+    `Untrained studies` = vapply(support, function(x) sum(x$studies[x$training_status == "untrained"]), numeric(1)),
+    Candidates = vapply(weights, nrow, integer(1)),
+    `Supported moderation contrasts` = vapply(moderation, function(x) sum(x$supported), integer(1))
+  ) |>
+  knitr::kable()
+```
+
+# Dose–Response Results
+
+Curves show outcome contrasts against the reference dose for the corresponding exposure. Shading shows 95% posterior intervals. The vertical dashed line marks the reference dose. Some plotted doses extend outside shared support, as documented in the linked tables.
+
+```{r}
+#| label: training-status-curves
+#| results: asis
+#| fig-width: 10
+#| fig-height: 4
+#| out-width: "100%"
+
+for (exposure in names(interaction_exposures)) {
+  cat("\n## ", interaction_exposures[[exposure]], "\n\n", sep = "")
+  for (i in which(scopes$exposure == exposure)) {
+    cat("\n### ", report_outcome_labels[[scopes$outcome[[i]]]], "\n\n", sep = "")
+    path <- scopes$path[[i]]
+    reference_dose <- unique(scopes$moderation[[i]]$current_dose)
+    stopifnot(length(reference_dose) == 1L)
+    print(training_status_curves(
+      interaction_csv(path, "protein_contrasts.csv"),
+      interaction_csv(path, "profiles.csv"),
+      exposure,
+      reference_dose
+    ))
+    interaction_links(scopes$relative_path[[i]], c(
+      "Predictions" = "dose_response.csv",
+      "Protein contrasts" = "protein_contrasts.csv",
+      "Paired moderation contrasts" = "training_interaction_contrasts.csv",
+      "Status support" = "status_support.csv",
+      "Stacking weights" = "stacking_weights.csv"
+    ))
+  }
+}
+```
+
+# Interpretation
+
+No locally supported trained-minus-untrained difference in a protein contrast
+met the 95% posterior-probability criterion for meaningful moderation in any
+outcome or exposure family. Many supported contrasts were practically
+equivalent; others remained uncertain, most notably for strength. Physical
+function had no locally supported trained-versus-untrained contrast and remains
+descriptive because only one or two trained studies contributed.
+
+The completed analyses therefore do not provide clear evidence that the
+protein dose-response differs meaningfully between study-reported trained and
+untrained samples. This is not evidence that individual training history has
+no modifying effect: status definitions were heterogeneous, status was mostly
+a between-study characteristic, and trained-study support was sparse.

@@ -1,0 +1,27 @@
+---
+title: "Analysis software and citations"
+output-file: grateful-report.html
+bibliography: grateful-refs.bib
+nocite: '@*'
+format:
+  html:
+    theme: [cosmo, no-web-font.scss]
+    toc: true
+    embed-resources: true
+execute:
+  echo: false
+---
+
+## R packages used
+
+The versions below were recorded in the analysis software report. The
+repository's lockfile records the environment for restoring the project.
+
+```{r}
+knitr::kable(read.csv("../manuscript/generated/reporting/software-versions.csv"))
+```
+
+## Package citations
+
+::: {#refs}
+:::
