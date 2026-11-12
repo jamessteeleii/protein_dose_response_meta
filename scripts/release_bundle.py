@@ -20,7 +20,8 @@ from pypdf.generic import NameObject, TextStringObject
 
 
 PAGES_URL = "https://jamessteeleii.github.io/protein_dose_response_meta/"
-REVIEW_URL = "http://127.0.0.1:8765/"
+REVIEW_PORT = 8766
+REVIEW_URL = f"http://127.0.0.1:{REVIEW_PORT}/"
 MANUSCRIPT = Path("manuscript/manuscript.pdf")
 SUPPLEMENTS = (
     ("prisma-reporting", "prisma-reporting", "PRISMA reporting and study characteristics"),
@@ -241,10 +242,12 @@ def package(root, destination, review, commit, tag):
             'from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer\n'
             'from pathlib import Path\n'
             'import webbrowser\n\n'
+            'class ReviewServer(ThreadingHTTPServer):\n'
+            '    allow_reuse_address = False\n\n'
             'handler = partial(SimpleHTTPRequestHandler, directory=str(Path(__file__).resolve().parent))\n'
-            'with ThreadingHTTPServer(("127.0.0.1", 8765), handler) as server:\n'
-            '    print("Serving the review copy on http://127.0.0.1:8765/. Close this window when finished.")\n'
-            '    webbrowser.open("http://127.0.0.1:8765/")\n'
+            f'with ReviewServer(("127.0.0.1", {REVIEW_PORT}), handler) as server:\n'
+            f'    print("Serving the review copy on {REVIEW_URL}. Close this window when finished.")\n'
+            f'    webbrowser.open("{REVIEW_URL}")\n'
             '    server.serve_forever()\n',
             encoding="ascii",
         )
