@@ -42,11 +42,11 @@ SUPPLEMENTS = (
 
 
 class DocumentLinks(HTMLParser):
-    def __init__(self, path):
+    def __init__(self, source):
         super().__init__()
         self.anchors = set()
         self.links = set()
-        self.feed(path.read_text(encoding="utf-8"))
+        self.feed(source)
 
     def handle_starttag(self, tag, attributes):
         attrs = dict(attributes)
@@ -59,7 +59,7 @@ class DocumentLinks(HTMLParser):
             self.links.add(attrs[key])
 
 
-def target_of(root, origin, link):
+def target_of(root, origin, link, index):
     if link.startswith((PAGES_URL, REVIEW_URL)):
         prefix = PAGES_URL if link.startswith(PAGES_URL) else REVIEW_URL
         origin = root / "index.html"
@@ -71,7 +71,7 @@ def target_of(root, origin, link):
         return None
     path = unquote(url.path)
     target = (origin.parent / PurePosixPath(path)).resolve() if path else origin
-    if not target.is_relative_to(root) or not target.is_file():
+    if not target.is_relative_to(root) or (target != index and not target.is_file()):
         raise ValueError(f"Missing or invalid link in {origin.name}: {link}")
     return target, unquote(url.fragment)
 
@@ -85,17 +85,16 @@ def pdf_links(document):
                 yield action
 
 
-def collect_files(root):
+def collect_files(root, index_html):
     manuscript = root / MANUSCRIPT
-    documents = {
-        root / "supplement" / f"{output}.html":
-        DocumentLinks(root / "supplement" / f"{output}.html")
-        for _, output, _ in SUPPLEMENTS
-    }
-    files = {manuscript, *documents}
+    index = root / "index.html"
+    supplements = {root / "supplement" / f"{output}.html" for _, output, _ in SUPPLEMENTS}
+    documents = {path: DocumentLinks(path.read_text(encoding="utf-8")) for path in supplements}
+    documents[index] = DocumentLinks(index_html)
+    files = {manuscript, *supplements}
 
     def check(origin, link):
-        match = target_of(root, origin, link)
+        match = target_of(root, origin, link, index)
         if match is None:
             return
         target, anchor = match
@@ -110,21 +109,22 @@ def collect_files(root):
             or target == manuscript
         ):
             raise ValueError(f"Link outside publication inputs in {origin.name}: {link}")
-        files.add(target)
+        if target != index:
+            files.add(target)
 
     for origin, document in documents.items():
         for link in sorted(document.links):
             check(origin, link)
     pdf = PdfReader(manuscript)
     links = set(str(action["/URI"]) for action in pdf_links(pdf))
-    supplement_links = {link for link in links if link.startswith(PAGES_URL + "supplement/")}
-    if not supplement_links:
-        raise ValueError("The manuscript PDF contains no supplement URLs")
+    if PAGES_URL not in links:
+        raise ValueError("The manuscript PDF is missing the supplementary landing page URL")
+    supplement_links = {link for link in links if link.startswith(PAGES_URL)}
     for link in sorted(links):
         if link.startswith((PAGES_URL, "file:", REVIEW_URL)):
             check(manuscript, link)
     print(f"Validated {len(pdf.pages)} PDF pages, {len(supplement_links)} distinct "
-          f"manuscript supplement URLs, and {len(files) - len(documents) - 1} linked assets.")
+          f"manuscript supplement URLs, and {len(files) - len(supplements) - 1} linked assets.")
     return files
 
 
@@ -157,12 +157,12 @@ def render(root):
         subprocess.run(command, cwd=root, check=True)
 
 
-def write_index(destination):
+def landing_page():
     rows = "\n".join(
         f'<li><a href="supplement/{output}.html">{html.escape(title)}</a></li>'
         for _, output, title in SUPPLEMENTS
     )
-    (destination / "index.html").write_text(
+    return (
         '<!doctype html>\n<html lang="en"><meta charset="utf-8">\n'
         '<meta name="viewport" content="width=device-width, initial-scale=1">\n'
         '<title>Protein dose–response meta-analysis</title>\n'
@@ -171,8 +171,7 @@ def write_index(destination):
         'a{color:#075b85}</style>\n'
         '<h1>Protein dose–response meta-analysis</h1>\n'
         '<p><a href="manuscript/manuscript.pdf">Manuscript PDF</a></p>\n'
-        f'<h2>Supplementary materials</h2>\n<ol>\n{rows}\n</ol>\n</html>\n',
-        encoding="utf-8",
+        f'<h2>Supplementary materials</h2>\n<ol>\n{rows}\n</ol>\n</html>\n'
     )
 
 
@@ -193,7 +192,7 @@ def rewrite_review_pdf(path):
     return count
 
 
-def write_manifest(destination, commit, source_root):
+def write_manifest(destination, commit, tag, source_root):
     entries = []
     for path in sorted(destination.rglob("*")):
         if path.is_file():
@@ -212,7 +211,8 @@ def write_manifest(destination, commit, source_root):
         [str(Path(os.environ["QUARTO_R"]) / "Rscript") if "QUARTO_R" in os.environ else "Rscript",
          "--vanilla", "-e", "cat(R.version.string)"], text=True
     ).strip()
-    manifest = {"git_commit": commit, "build_date_utc": datetime.now(timezone.utc).isoformat(),
+    manifest = {"git_commit": commit, "tag": tag,
+                "build_date_utc": datetime.now(timezone.utc).isoformat(),
                 "quarto": tools, "r": r_version,
                 "source_checksums": checksums, "files": entries}
     (destination / "manifest.json").write_text(
@@ -220,15 +220,16 @@ def write_manifest(destination, commit, source_root):
     )
 
 
-def package(root, destination, review, commit):
-    files = collect_files(root)
+def package(root, destination, review, commit, tag):
+    index_html = landing_page()
+    files = collect_files(root, index_html)
     check_public_assets(files)
     destination.mkdir(parents=True, exist_ok=False)
     for path in sorted(files):
         target = destination / path.relative_to(root)
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(path, target)
-    write_index(destination)
+    (destination / "index.html").write_text(index_html, encoding="utf-8")
     if review:
         count = rewrite_review_pdf(destination / MANUSCRIPT)
         for path in destination.glob("supplement/*.html"):
@@ -254,7 +255,7 @@ def package(root, destination, review, commit):
             encoding="ascii",
         )
         print(f"Verified {count} PDF link annotations for local review.")
-    write_manifest(destination, commit, root)
+    write_manifest(destination, commit, tag, root)
     archive = destination.with_suffix(".zip")
     with zipfile.ZipFile(archive, mode="x", compression=zipfile.ZIP_DEFLATED) as bundle:
         for path in sorted(destination.rglob("*")):
@@ -270,11 +271,12 @@ def main():
     parser.add_argument("--render", action="store_true")
     parser.add_argument("--review", action="store_true")
     parser.add_argument("--commit", default=os.environ.get("GITHUB_SHA"))
+    parser.add_argument("--tag", help="Stage tag for the release manifest")
     args = parser.parse_args()
     root = args.root.resolve()
     if args.render:
         render(root)
-    package(root, args.destination.resolve(), args.review, args.commit)
+    package(root, args.destination.resolve(), args.review, args.commit, args.tag)
 
 
 if __name__ == "__main__":
