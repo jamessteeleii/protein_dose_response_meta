@@ -1,0 +1,36 @@
+search_wave,stage,count,calculation_or_note,reconciliation_status
+July 2025,Records identified from databases,12917,"5,438 protein + 7,479 protein-plus-resistance-exercise records",Verified
+July 2025,Duplicates removed in EndNote,8310,"12,917 - 8,310 = 4,607",Verified
+July 2025,Records remaining after EndNote deduplication,4607,"Includes records subjected to keyword-assisted/manual eligibility screening",Verified
+July 2025,Records excluded during EndNote keyword-assisted/manual screening,3999,"4,607 - 3,999 = 608 transferred to Rayyan",Verified
+July 2025,Records transferred to Rayyan,608,"",Verified
+July 2025,Additional duplicates removed in Rayyan,36,"608 - 36 = 572",Verified
+July 2025,Records screened by title/abstract in Rayyan,572,"",Verified
+July 2025,Records excluded in Rayyan,517,"572 - 517 = 55",Verified
+July 2025,Reports not retrieved,0,"To the review team's knowledge all reports sought were retrieved",Author confirmation
+July 2025,Reports assessed for eligibility,55,"All reports sought were assessed",Verified
+July 2025,Full-text reports excluded,23,"Primary-category summary supplied as population 9; design 6; outcome 5; intervention 3",Verified total; individual primary categories unavailable
+July 2025,Reports meeting eligibility criteria,32,"Two reports corresponded to studies represented in the previous review",Verified
+July 2025,New studies identified by database search,30,"32 eligible reports - 2 reports linked to previously represented studies",Verified
+July 2025,Studies in previous review,74,"Nunes et al. review",Supplied
+July 2025,Historical study records in the current register,75,"The 74 numbered entries in Nunes et al. Table S1 map to 70 current study IDs. The dataset shared directly by Nunes et al. also contained five records absent from Table S1.",Crosswalk verified and source confirmed by author
+July 2025,Studies identified through other methods,4,"Study IDs 159–162: Cribb, Fabre, Jacinto, and Sugihara Junior",Author confirmation
+July 2025,Review-level studies before September 2026 update,109,"75 historical records + 30 database-search studies + 4 known studies",Verified against frozen study workbook
+September 2026,Records identified from databases,4894,"1,976 protein + 2,918 protein-plus-resistance-exercise records",Verified
+September 2026,Internal duplicates removed in EndNote,2722,"4,894 - 2,722 = 2,172",Verified
+September 2026,Records remaining after internal deduplication,2172,"",Verified
+September 2026,Records already identified in 2025 search removed,305,"2,172 - 305 = 1,867",Verified
+September 2026,New records screened,1867,"",Verified
+September 2026,Records excluded at title screening,1845,"1,867 - 1,845 = 22",Verified
+September 2026,Reports not retrieved,0,"To the review team's knowledge all reports sought were retrieved",Author confirmation
+September 2026,Reports assessed for eligibility,22,"All reports sought were assessed",Verified
+September 2026,Reports excluded after eligibility assessment,12,"Reference table records: population 4; publication type 3; outcome 2; intervention 1; intervention/study design 1; unusable outcome data 1",Verified against supplied reference table
+September 2026,Database reports retained after eligibility assessment,10,"22 assessed - 12 excluded",Reconciled with author-supplied report list
+September 2026,Database reports linked to an already included trial,1,"Ioannidou and Waldecker (2026) is a follow-up to Ioannidou et al. (2024), study ID 137",Verified against study register and follow-up publication
+September 2026,New studies identified by database search,9,"10 retained database reports - 1 follow-up report linked to study ID 137",Reconciled with author-supplied report list
+September 2026,New studies identified through other methods,1,"Bagheri et al. (2026), study ID 163, identified by colleague notification",Author confirmation
+September 2026,New studies meeting review eligibility,10,"9 new database-search studies + 1 study identified through other methods",Verified against update workbook
+September 2026,Review-only study without analysable randomized-arm outcome data,1,"Ceglia et al.; retained in review counts but cannot enter quantitative synthesis",Verified against review_decisions.csv
+September 2026,Study excluded from quantitative synthesis by author-group decision,1,"Seyhan et al.; retained at review level and in extraction records",Verified against review_decisions.csv
+September 2026,Studies eligible to contribute to updated quantitative synthesis,8,"10 review-level studies - Ceglia - Seyhan",Verified against review_decisions.csv
+September 2026,Total studies included in current review,119,"109 frozen review-level study records + 9 new database-search studies + 1 new study identified through other methods",Verified against both study workbooks
