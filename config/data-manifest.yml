@@ -1,0 +1,53 @@
+# Input identities recorded 2026-11-12. See REPRODUCIBILITY.md for access.
+schema_version: 1
+bundled:
+  - path: data/external/benito_study_data_18f3fc7.csv
+    description: "Pinned Benito study data (revision 18f3fc7)"
+    text_lf: true
+    sha256: 474b23e015e510ff87692e751de28b87209609cb2bc297ab34e769358e7e4c02
+  - path: data/external/steele_rt_extracted_data_289a48f.csv
+    description: "Pinned resistance training study extract (revision 289a48f)"
+    text_lf: true
+    sha256: 2ae9ef09c7343fcb32272a2feca942de61c23f08d6e7b9c38e8179f4a474fcd8
+  - path: data/external/openpowerlifting_strength_reference_2026-08-29.csv
+    description: "Derived strength reference (snapshot 2026-08-29)"
+    text_lf: true
+    sha256: 17cd10e09a7f973b43e991b70bb398e21d9e98fa9820fdf1563472dd63e57385
+  - path: data/nunes_lean_mass_data.csv
+    description: "Nunes et al. reference synthesis data"
+    text_lf: true
+    sha256: 2ab89353ab6d920d5f1bd98b5bb488927c75531bf8fe871e6b2cb26402123e04
+  - path: data/nunes_study_characteristics.csv
+    description: "Nunes et al. reference study characteristics"
+    text_lf: true
+    sha256: 62c4b7f49d85bda5ec90fa92795f19db4933c933880266df697f56bc3261e03f
+  - path: data/update_2026/review_decisions.csv
+    description: "Curated 2026 eligibility and analysis decisions"
+    text_lf: true
+    sha256: 6a6b066ca6fb25b853acd2e71955bd647c8b28f4a89ae2cb6b5979ca7f0fbbde
+  - path: data/GRADE/grade_domain_judgments.csv
+    description: "Reviewed 2026 GRADE domain decisions"
+    text_lf: true
+    sha256: 30aa4ecb710ad402043c671983d068c0f1af12ecd00f1127b06d5e5b63477ce6
+archived:
+  - path: data/protein_meta_data_all.xlsx
+    description: "Canonical extraction workbook"
+    sha256: 79b9ca399b09af20a31e50bdda0ea3e49b33b2682bfbfcdc30148185976371b4
+  - path: data/update_2026/protein_meta_data_update_2026.xlsx
+    description: "September 2026 search-update extraction workbook"
+    sha256: be64f35601b23896087d1cd3932b4cee7087f164827a472cdb4b1138684a7344
+  - path: data/RoB2/ROB2_IRPG_beta_v9.xlsm
+    description: "Historical RoB 2 assessment workbook"
+    sha256: 897b2df3ee7025090d393c9cdd10a8fb5637f7bf3abd1f1b212925fa44977e85
+  - path: data/RoB2/ROB2_MM_update2026.xlsm
+    description: "Updated RoB 2 assessment workbook"
+    sha256: 8384818ff8b4090c957216518b75acc7dc4d2a170f51a6b35c9cb9224c1127d2
+  - path: results/verification/primary/analysis_data.csv.gz
+    description: "Frozen pre-update primary analysis sample used by update checks"
+    sha256: f842fd36149ccc4755a6beb164a6e8b7455eebd5bfa592730c106c387d90dd54
+  - path: outputs/rob2_final_20260930/rob2_final_judgments.csv
+    description: "Final RoB 2 assessment input used by GRADE"
+    sha256: 66436ba457344b4e61e0e9792611116554ff1f3c5813faba53149a03d1157837
+  - path: data/protein_manipulation_strategy_audit.csv
+    description: "Original strategy evidence audit with source excerpts"
+    sha256: b3986e13304641088bcad4f8285f70bf6ee52324c37fad8bf095d8ddc2ebd075

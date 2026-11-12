@@ -1,0 +1,5 @@
+"target","outcome","archive_file","bytes","sha256","target_timestamp","archived_utc"
+"model_fit_final_whole_body","whole_body","model_archive/primary/whole_body.qs",13512363423,"7372eb9869cb0ba30a2686bcd5ce9a2092411eef725b5caf19ebdd45ab977d01","2026-09-01 07:52:41 UTC","2026-09-21T09:05:39Z"
+"model_fit_final_hypertrophy","hypertrophy","model_archive/primary/hypertrophy.qs",12833784103,"79d0d149e39ab8f0765ab2c3fe6af5f12054a2429047ed83d795c2f68dc038ca","2026-09-01 08:32:48 UTC","2026-09-21T09:07:29Z"
+"model_fit_final_strength","strength","model_archive/primary/strength.qs",23154852353,"ec5c0796c99fec9c8861728f650032f6bdfeb012860efe666f739443a11ad764","2026-09-01 08:40:22 UTC","2026-09-21T09:10:46Z"
+"model_fit_final_function","function","model_archive/primary/function.qs",8732219560,"81cc163083dfd0d6eb76906eed6fa547b35b91310b253b687e855b9a5641b0c2","2026-09-01 09:08:18 UTC","2026-09-21T09:12:01Z"
