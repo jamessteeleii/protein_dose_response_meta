@@ -1,0 +1,2 @@
+outcome,model_index,iter_warmup,iter_sampling,rationale
+hypertrophy,11,2000,12000,Preserve the accepted common_sample_remedy_1 schedule documented in the original total-primary preflight: doubled sampling after low tail ESS.
