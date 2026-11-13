@@ -38,7 +38,7 @@ jobs:
           python -m pip install -r scripts/requirements-release.txt
       - name: Restore pinned rendering and data-check packages
         run: |
-          Rscript -e 'renv::restore(packages = c("digest", "dplyr", "ggplot2", "here", "janitor", "kableExtra", "knitr", "metafor", "patchwork", "purrr", "readr", "readxl", "rmarkdown", "stringr", "tibble", "tidyr", "yaml"), prompt = FALSE)'
+          Rscript -e 'renv::restore(packages = c("digest", "dplyr", "ggplot2", "here", "janitor", "kableExtra", "knitr", "metafor", "patchwork", "psych", "purrr", "readr", "readxl", "rmarkdown", "stringr", "tibble", "tidyr", "yaml"), prompt = FALSE)'
           Rscript -e 'cat("R_LIBS=", paste(.libPaths(), collapse = .Platform$path.sep), "\n", sep = "", file = Sys.getenv("GITHUB_ENV"), append = TRUE)'
       - name: Parse analysis and reporting sources
         run: |
