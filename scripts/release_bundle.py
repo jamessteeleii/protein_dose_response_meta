@@ -23,6 +23,10 @@ PAGES_URL = "https://jamessteeleii.github.io/protein_dose_response_meta/"
 REVIEW_PORT = 8766
 REVIEW_URL = f"http://127.0.0.1:{REVIEW_PORT}/"
 MANUSCRIPT = Path("manuscript/manuscript.pdf")
+WORKBOOKS = (
+    ("data/protein_meta_data_all.xlsx", "Download canonical extraction workbook (.xlsx)"),
+    ("data/update_2026/protein_meta_data_update_2026.xlsx", "Download 2026 search-update workbook (.xlsx)"),
+)
 SUPPLEMENTS = (
     ("prisma-reporting", "prisma-reporting", "PRISMA reporting and study characteristics"),
     ("systematic-review-data-audit", "systematic-review-data-audit", "Systematic review data audit"),
@@ -93,6 +97,7 @@ def collect_files(root, index_html):
     documents = {path: DocumentLinks(path.read_text(encoding="utf-8")) for path in supplements}
     documents[index] = DocumentLinks(index_html)
     files = {manuscript, *supplements}
+    workbooks = {root / path for path, _ in WORKBOOKS}
 
     def check(origin, link):
         match = target_of(root, origin, link, index)
@@ -108,6 +113,7 @@ def collect_files(root, index_html):
             target.is_relative_to(root / "supplement" / "data")
             or target.is_relative_to(root / "supplement" / "figures")
             or target == manuscript
+            or target in workbooks
         ):
             raise ValueError(f"Link outside publication inputs in {origin.name}: {link}")
         if target != index:
@@ -159,6 +165,10 @@ def render(root):
 
 
 def landing_page():
+    downloads = "\n".join(
+        f'<li><a href="{path}" download>{title}</a></li>'
+        for path, title in WORKBOOKS
+    )
     rows = "\n".join(
         f'<li><a href="supplement/{output}.html">{html.escape(title)}</a></li>'
         for _, output, title in SUPPLEMENTS
@@ -172,6 +182,9 @@ def landing_page():
         'a{color:#075b85}</style>\n'
         '<h1>Protein dose–response meta-analysis</h1>\n'
         '<p><a href="manuscript/manuscript.pdf">Manuscript PDF</a></p>\n'
+        '<h2>Extraction data</h2>\n'
+        '<p>Open either workbook in a spreadsheet app. Use both for the updated review.</p>\n'
+        f'<ul>\n{downloads}\n</ul>\n'
         f'<h2>Supplementary materials</h2>\n<ol>\n{rows}\n</ol>\n</html>\n'
     )
 

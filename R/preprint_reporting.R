@@ -137,18 +137,8 @@ write_preprint_report_inputs <- function(root = ".") {
   copy_files(file.path(update, "sensitivity", "comparisons"), "relative-comparison",
              "reference_increment_overlay_data.csv.gz")
 
-  rob <- file.path(root, "outputs", "rob2_final_20260930")
-  copy_files(rob, "rob2", c("rob2_domain_summary.csv", "rob2_proportions.pdf",
-                           "rob2_proportions.png", "rob2_traffic_light.png"))
-  fields <- c("study_label", "index_outcome_family", "index_result",
-              paste0("D", 1:5, "_final"), "overall_final")
-  write_csv(file.path(rob, "rob2_final_judgments.csv"), "rob2/rob2_final_judgments.csv",
-            function(data) dplyr::select(data, dplyr::all_of(fields)))
-  fields <- c("study_label", "domain", "algorithm_judgment", "assessor_original",
-              "final_judgment", "decision_rule")
-  write_csv(file.path(rob, "rob2_domain_audit.csv"), "rob2/rob2_domain_audit.csv",
-            function(data) dplyr::select(data, dplyr::all_of(fields)))
-
+  # The reviewed RoB 2 publication files are already bundled under rob2/.
+  # GRADE consumes the study-number keyed judgments in data/GRADE/.
   grade <- file.path(update, "grade")
   copy_files(grade, "grade", c(
     "evidence_profile.csv", "population_effects.csv", "inconsistency_summary.csv",

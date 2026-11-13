@@ -180,10 +180,9 @@ versions:
    `cmdstanr::check_cmdstan_toolchain()`.
 5. Use Quarto 1.7 or later and a TeX installation providing XeLaTeX for PDF
    rendering. RStudio's bundled Quarto is acceptable when detected.
-6. Restore the archived canonical and updated-search workbooks unchanged. The
-   updated workbook is appended in memory; neither raw workbook is modified.
-   Follow `data/update_2026/README.md` and `data/external/README.md` for input
-   provenance and refresh rules.
+6. Use the frozen workbooks and reviewed CSVs bundled under `data/`.
+   The updated workbook is appended in memory. See the
+   [data guide](data/README.md) for file identities and provenance.
 7. Use a normal local clone with long-path support and sufficient temporary
    space. Machine-local cache and temporary roots may be set using the safe
    placeholders in `.Renviron.example`; never commit the real `.Renviron`.
@@ -195,46 +194,85 @@ observations do not invalidate the completed stored analyses, but they mean
 the current shell is not evidence of a clean reproducibility environment.
 Select and verify the required R 4.4.3 toolchain explicitly.
 
-## Archived analysis inputs
+## Start from a clean clone
 
-The public release tree contains portable reporting files and curated inputs.
-The original extraction and RoB workbooks, strategy evidence audit and full
-frozen verification bundles remain in the research archive. Contact the
-corresponding author for access and restore files at their recorded
-project-relative paths before analytical
-work. The filenames and checksums of key inputs are recorded in
-`config/data-manifest.yml`. Verify the restored copies before running a stage:
+Clone this repository into a local project directory. Use the R 4.4.3
+executable for every command. The project startup file bootstraps the pinned
+`renv` version. Install the system prerequisites above and the JAGS
+installation required by RoBMA before restoring the package library.
 
 ```sh
-Rscript scripts/verify_release_inputs.R --archived
+git clone https://github.com/jamessteeleii/protein_dose_response_meta.git
+cd protein_dose_response_meta
+Rscript -e 'renv::restore(); renv::status()'
+Rscript scripts/verify_release_inputs.R
+Rscript scripts/check_analysis_inputs.R
 ```
 
-`config/verification-manifest-index.csv` identifies the frozen bundle manifests
-by SHA-256. Each full bundle's own manifest records its member checksums.
-The three analysis workflows also need their archived accepted fits or the
-documented recovery steps for any phase that consumes posterior objects.
-The published reports can be rendered without those materials. Their portable
-study-level effects exclude correspondence fields, and their public RoB
-domain audit retains decisions without the original assessor notes.
+The checks read the public workbooks, prepare the four primary outcome
+datasets, compare the effect sizes, variances, and key model inputs with
+the published data, and validate the strategy and RoB 2 inputs without sampling.
+The expected eligible contrast counts are 283 whole-body, 425 direct muscle,
+794 strength, and 362 physical function.
+
+For the first pipeline checkpoint, start R in the project root and run:
+
+```r
+Sys.setenv(PROTEIN_MODEL_WORKERS = "1")
+for (script in c("_targets.R", "_targets_age_duration.R", "_targets_training_status.R")) {
+  targets::tar_validate(script = script)
+}
+targets::tar_make(c(
+  update_2026_workbook_checks,
+  update_2026_combined_primary_preparation_audit_files,
+  update_2026_strategy_audit_review_files
+))
+```
+
+The first results are written under `results/update_2026/primary_refit/`
+and `results/update_2026/sensitivity/strategy/audit/`. Continue with the
+stages below. Keep successful fits and reductions until all dependent
+analyses and reports have finished.
+
+## Archived analysis inputs
+
+The [input manifest](config/data-manifest.yml) identifies the bundled files
+and records the checksums of the historical sources. The full original
+extraction and RoB workbooks, source-text strategy audit, and exact historical
+fit and verification bundles are held in the research archive. These are
+useful for provenance and resuming the historical analyses. The public
+workflow uses the bundled extraction data, frozen pre-update reference
+sample, reviewed strategy classifications, and final RoB 2 judgments.
+`config/verification-manifest-index.csv` identifies the original verification
+bundles. Each new run writes its own manifests and checksums.
 
 ## Required execution order
 
 There is deliberately no supported "run everything" command. Build and review
 one gated stage at a time in this order:
 
-1. Main updated relative-intake primary and sensitivity families, absolute
-   total-intake families, absolute supplementation families, publication-bias
-   models, and both measurement sensitivities. Follow
-   `data/update_2026/README.md`, `sensitivity/README.md`, and
-   `sensitivity/measurement-analyses.md`.
-2. Age/duration primary recovery, interaction fitting, LOO, combination, and
-   reporting through `_targets_age_duration.R`. Follow
-   `sensitivity/age-duration-interactions.md`.
+1. Build the [updated relative-intake primary analysis](data/update_2026/README.md#local-primary-refit-runbook),
+   including corrected LOO, reporting, and
+   `update_2026_primary_verification_files`. That target creates the parent
+   checkpoint for [both muscle-measurement analyses](sensitivity/measurement-analyses.md).
+   Build the relative, total-intake, and supplementation sensitivity families
+   using the [analysis stage index](#analysis-stage-index) and the documented
+   per-family review gates. Run publication bias before
+   [GRADE](data/GRADE/README.md#run-after-the-current-model-pipeline-has-finished).
+2. Retain the relative, total-intake, and supplementation primary fit files
+   and final LOO reductions. Their three `*_primary_verification_files`
+   targets generate the manifests read by the
+   [age/duration workflow](sensitivity/age-duration-interactions.md).
+   On a clean rebuild with all accepted total-intake fits present, run
+   interaction preparation directly. The recovery stages reproduce the
+   historical refit of the pruned total-intake family when those fits are absent.
 3. Training-status fitting, exact corrections, combination, and reporting
    through `_targets_training_status.R`. Follow
    `sensitivity/training-status.md`.
-4. Verify every frozen bundle in `results/verification/`, then review and
-   commit the static public interfaces under `manuscript/generated/`.
+4. Verify the new bundles in `results/verification/`. Refresh the reporting
+   tables with `Rscript scripts/materialize_preprint_reporting.R` and the
+   PRISMA includes with `Rscript supplement/build-prisma-includes.R`. Compare
+   the rebuilt values and diagnostic dispositions with the committed reports.
 5. Render manuscripts and supplements from the committed static interfaces in
    a clean clone without fitted models or target stores.
 
@@ -242,6 +280,14 @@ Every expensive phase is default-off. Set only the switch for the reviewed
 stage, preserve successful branches, inspect its diagnostic checkpoint, and
 unset the switch before moving on. Do not skip a preflight, diagnostic audit,
 exact-refit review, verification bundle, or checksum gate.
+
+## Analysis stage index
+
+Use the [stage index](sensitivity/analysis-stages.md) to find the targets and
+environment switches for each reported analysis. The index includes the
+relative-intake, absolute total-intake, and prescribed supplementation
+families, and the reporting and verification checkpoints for the separate
+measurement, age/duration, and training-status workflows.
 
 ## Fresh-clone release test
 
@@ -257,7 +303,46 @@ Before release, record a clean-clone test that demonstrates:
 - either a complete staged rebuild or an explicit account of which expensive
   stages were verified from frozen bundles instead.
 
-Do not describe the project as independently reproducible until that
-fresh-clone test has been completed and recorded. The local audit above proves
-what this development machine executed; it does not itself prove that a new
-machine can reproduce the complete suite without undeclared state.
+### Evidence from the candidate checkout
+
+An isolated checkout of public master plus this data and reproducibility
+update started with empty project libraries, target stores, model archives,
+and analysis output directories. Under R 4.4.3, the pinned library restored
+and `renv::status()` reported a consistent project. Rtools44, CmdStan 2.39.0,
+JAGS 4.3.2, Quarto and XeLaTeX were detected. All three target graphs validated.
+The input check reproduced the four eligible contrast counts and matched
+the published primary effect sizes, variances, intake, RT coding, and sample
+sizes for all 1,864 rows. It covered all 95 studies in the updated strategy
+audit and verified RoB 2 coverage for GRADE. The recomputed coefficient priors
+and 312 primary and strategy specifications matched the accepted recipes.
+All 248 initial primary Stan inputs across the three exposure scales passed
+the input checks without compilation or sampling.
+The PRISMA includes rebuilt to the same contents. The manuscript and all 15
+HTML supplements rendered, and the package checker verified the linked
+downloads, including the two workbooks.
+
+### Verify the frozen results or rerun the analysis
+
+The repository provides the extraction data, analysis code, and frozen
+reporting files used by the manuscript and supplements. Readers can check
+the reported values against those files and render the documents from them.
+The research archive holds the complete historical verification bundles and
+retained fitted model objects. The candidate checkout was checked through
+data preparation, initial primary model inputs, and standalone rendering.
+A full clean-clone refit and post-sampling rebuild were outside that check.
+
+For an independent rerun, follow the
+[analysis stage index](sensitivity/analysis-stages.md) from an empty analysis
+checkout. Run `Rscript sensitivity/audit_verification_bundles.R` to verify the
+new bundles, then compare the analysis samples, diagnostic decisions,
+exact-deletion coverage, stacking weights, and reported tables with the
+published outputs.
+
+The workflow sets seeds for sampling and reporting. Exact agreement also
+depends on the software, compiler, hardware, and sampling configuration.
+See the [Stan reproducibility guide](https://mc-stan.org/docs/reference-manual/reproducibility.html).
+
+The recorded remedy ledgers describe specific historical diagnostic failures.
+If a fresh run produces a different failure set, retain the run outputs and
+review the discrepancy before updating any ledger. Exact historical posterior
+draws and render bytes remain research-archive artifacts.

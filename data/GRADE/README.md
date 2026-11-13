@@ -1,5 +1,10 @@
 # GRADE decision sheet
 
+[`rob2_overall_judgments.csv`](rob2_overall_judgments.csv) provides the final
+overall risk-of-bias judgment by study number used by the GRADE analysis.
+See the [risk-of-bias supplement](https://jamessteeleii.github.io/protein_dose_response_meta/supplement/risk-of-bias.html)
+for the domain-level judgments.
+
 `grade_domain_judgments.csv` is the reviewer-controlled decision layer for the
 GRADE evidence profile. Automated analyses provide evidence and suggested
 flags, but do not write final domain judgments.

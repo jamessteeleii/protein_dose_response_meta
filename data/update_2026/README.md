@@ -1,15 +1,30 @@
 # Updated-search extraction workbook
 
-`protein_meta_data_update_2026.xlsx` is the isolated extraction workbook for
-studies found by the 2026 search update. Do not enter updated-search data in
-`data/protein_meta_data_all.xlsx`; that workbook remains the frozen canonical
-input for the completed primary and sensitivity analyses.
+[Download the frozen 2026 workbook](https://raw.githubusercontent.com/jamessteeleii/protein_dose_response_meta/master/data/update_2026/protein_meta_data_update_2026.xlsx)
+or open its [GitHub file page](protein_meta_data_update_2026.xlsx).
+The file contains the studies extracted for the 2026 search update. For the
+complete updated review, also download the canonical workbook from the
+[data guide](../README.md).
+
+The [review decisions](review_decisions.csv) describe study-level eligibility,
+the [digitised figure data](graphical_data_update_2026/) provides numerical
+extracts, and the [Svensson et al. table](svensson_tables_2_3_s1_mean_sd_estimates.csv)
+records estimated means and standard deviations. For reruns, the
+[frozen pre-update primary sample](frozen_pre_update_primary.csv) supplies
+the fields used by the preparation checks. File identities and checksums are
+recorded in the [input manifest](../../config/data-manifest.yml).
+
+To inspect the updated results without fitting models, see the
+[frozen reporting files](../../README.md#inspect-results-without-refitting).
+For an independent rerun, start with the
+[clean-clone checks](../../REPRODUCIBILITY.md#start-from-a-clean-clone) and
+follow the [analysis stage guide](../../sensitivity/analysis-stages.md).
 
 ## Provenance
 
 The workbook was created on 21 September 2026 from
-`data/protein_meta_data_all.xlsx` (SHA-256
-`79b9ca399b09af20a31e50bdda0ea3e49b33b2682bfbfcdc30148185976371b4`).
+`data/protein_meta_data_all.xlsx` (the original source hash is recorded in the
+input manifest).
 It retains the four original worksheet names, column headings, ordering,
 formatting, and workbook annotations. It was subsequently populated with the
 updated-search records and passed its final extraction audit on 28 September
@@ -70,9 +85,8 @@ do not delete `_targets/` or `model_archive/` to obtain a clean restart.
 - Add rows as needed while copying the formatting from the immediately
   preceding template row.
 
-This file is the sole new data input to the updated-analysis pipeline.
-Integration with the canonical dataset occurs only through the explicit,
-audited in-memory combination described below.
+The workbook supplies the new extraction rows. The pipeline combines them
+with the canonical workbook in memory and applies the recorded review decisions.
 
 ## Combined-data refit interface
 
@@ -2199,8 +2213,9 @@ start with their accepted 2,000-warmup/4,000-sampling schedule,
 
 ## Updated protein-manipulation strategy audit
 
-The completed 109-study strategy audit remains unchanged at
-`data/protein_manipulation_strategy_audit.csv`. The six studies newly included
+The [public 109-study strategy audit](../protein_manipulation_strategy_audit.csv)
+retains the original classifications and coding rationale. Its verbatim
+source-text fields are blank. The six studies newly included
 in the combined 2026 analysis are recorded separately in
 `protein_manipulation_strategy_audit_additions.csv`. Each addition identifies
 its Zotero storage key, PDF filename, and SHA-256 hash and records a short

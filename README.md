@@ -22,6 +22,24 @@ Please cite as:
 
 The [supplementary materials](https://jamessteeleii.github.io/protein_dose_response_meta/) include the analyses, plots, and supporting data.
 
+To check the paper's numbers or rebuild its documents, start with the
+[frozen reporting results](#inspect-results-without-refitting). For an
+independent analysis run, see the [clean-clone guide](REPRODUCIBILITY.md#start-from-a-clean-clone).
+
+## Download the extraction data
+
+Download either workbook on its own and open it in Excel or LibreOffice.
+
+| Workbook | Contents | Download |
+| --- | --- | --- |
+| [`protein_meta_data_all.xlsx`](data/protein_meta_data_all.xlsx) | Canonical study, arm, timepoint, and contrast extractions | [Download canonical workbook](https://raw.githubusercontent.com/jamessteeleii/protein_dose_response_meta/master/data/protein_meta_data_all.xlsx) |
+| [`protein_meta_data_update_2026.xlsx`](data/update_2026/protein_meta_data_update_2026.xlsx) | Extractions for studies identified in the 2026 update | [Download 2026 workbook](https://raw.githubusercontent.com/jamessteeleii/protein_dose_response_meta/master/data/update_2026/protein_meta_data_update_2026.xlsx) |
+
+Use both files for the full updated review. The [data guide](data/README.md)
+describes the four sheets, study identifiers, analysis-ready downloads, and
+checksums. The [reproducibility guide](REPRODUCIBILITY.md#start-from-a-clean-clone)
+walks through preparing the data and rerunning the models from a fresh clone.
+
 ## Repository structure
 
 - `_targets.R` defines the main analysis pipeline.
@@ -39,10 +57,9 @@ The [supplementary materials](https://jamessteeleii.github.io/protein_dose_respo
 - `supplement/` contains the supplementary Quarto sources and public audit tables.
 - `renv.lock` records the R package environment.
 
-Git contains the source and the compact public reporting interface. The
-release package contains the rendered PDF, supplements, and linked downloads.
-See [the archive instructions](REPRODUCIBILITY.md#archived-analysis-inputs)
-for the original workbooks and frozen analytical checkpoints.
+Git contains the source, frozen extraction data, compact analysis inputs, and
+the public reporting files. The release package contains the rendered PDF,
+supplements, and linked downloads.
 
 > **Full-rerun warning:** the completed suite contains **2,662 distinct
 > candidate models** and required **4,266 completed fitting/refitting jobs**.
@@ -82,7 +99,6 @@ versions include a compatible Quarto installation.
 Clone or download the repository, start R 4.4.3 in the project root, and run:
 
 ```r
-install.packages("renv")
 renv::restore()
 ```
 
@@ -113,8 +129,9 @@ Manifest inspection is non-sampling. An ordinary `targets::tar_make()` is not
 a complete reproduction command: expensive families are deliberately
 default-off, and two completed workflows use separate scripts and stores. A
 clean full reproduction is a staged operation measured in weeks and hundreds
-of gigabytes. Follow the execution order in
-[`REPRODUCIBILITY.md`](REPRODUCIBILITY.md), enable only one reviewed phase,
+of gigabytes. Start with the
+[sampling-free data check](REPRODUCIBILITY.md#start-from-a-clean-clone),
+enable only one reviewed phase,
 and use the `names` argument to request its documented checkpoint. Preserve
 successful branches and never erase a store to resume an interrupted run.
 
@@ -171,10 +188,10 @@ The execution order is:
 1. Produce the frozen relative, absolute total-intake and supplementation
    primary checkpoints, and complete both muscle-measurement verification
    bundles using the main pipeline.
-2. Restore missing total-primary fit archives from a verified backup, or
-   complete the reviewed recovery stages in the age/duration workflow before
-   interaction fitting and combination. See its recovery instructions for the
-   required diagnostic and LOO checks.
+2. Keep the total-primary fit archives and corrected LOO reductions for the
+   age/duration workflow. If the historical fit archives were pruned, restore
+   them from a verified backup or complete the recovery stages described in
+   that workflow.
 3. Complete the age/duration stages through reporting.
 4. Complete the training-status stages; expensive stages verify the completed
    age/duration reports as well as both measurement bundles.
@@ -184,13 +201,12 @@ The shell runners select the correct script, store and phase. For example,
 these commands perform preparation only, at the appropriate point above:
 
 ```sh
-Rscript sensitivity/run_age_duration.R recover_prepare
-Rscript sensitivity/run_age_duration.R prepare
+Rscript sensitivity/run_age_duration_batch.R prepare
 Rscript sensitivity/run_training_status.R prepare
 ```
 
-Run one reviewed stage at a time using the linked stage tables, rather than
-running this example block as a batch. Both phase switches default to `none`;
+Run each command when its prerequisites are complete, using the linked stage
+tables. Both phase switches default to `none`;
 later fitting, LOO, combination and reporting stages require explicit selection.
 Resume through the same runner and store, preserving successful branches and
 archives; do not merge, rename, manually edit or erase the stores to resume.
@@ -211,11 +227,17 @@ quarto render supplement/training-status.qmd
 
 ## Inspect results without refitting
 
-The public reporting interface supports inspection without fitting. Full
-checkpoints in the research archive restore to `results/verification/` and
-can be read without a local target store. Each family has a manifest with
-dimensions, descriptions, byte sizes and SHA-256 checksums. Tabular artifacts are gzip-compressed CSV files; non-tabular R
-objects use `qs`.
+The [frozen reporting files](manuscript/generated/reporting/) contain the
+saved analysis tables used in the paper and supplements, including
+study-level effects, diagnostic summaries, model weights, and dose-response
+results. Open the [supplements](https://jamessteeleii.github.io/protein_dose_response_meta/)
+to browse the results, or use the [rendering instructions](#render-the-documents)
+to rebuild the documents from those files without fitting models.
+
+The research archive holds the full historical verification bundles and
+retained fitted models. Each verification bundle has a manifest with file
+descriptions, byte sizes, and SHA-256 checksums. Tabular files use compressed
+CSV and other R objects use `qs`.
 
 After completing or changing the primary analysis, refresh its checkpoint:
 
@@ -296,7 +318,7 @@ outputs and run `Rscript scripts/materialize_preprint_reporting.R` to refresh
 the portable inputs. The main graph tracks these files as a file target. The
 age/duration, training-status, and primary figure targets write their own
 interfaces. Review changes in reported values and figures before committing.
-The PRISMA include builder uses the registers, archived workbooks and portable
+The PRISMA include builder uses the registers, bundled workbooks and portable
 primary study effects. Check the checklist locations against the final PDF.
 
 ## Publish the supplements on GitHub Pages
@@ -313,39 +335,16 @@ The workflow publishes the checked package with its `supplement/` and
 `manuscript/generated/` layout. Check the deployed site and sample manuscript
 links before circulating the submission PDF.
 
-## Final reproducibility cleanup
+## Clean-clone verification
 
-Before the repository is released, perform and document a fresh-clone test on
-a machine or clean environment with no project-specific state. The release
-check must include:
-
-- restoring the exact R environment from `renv.lock` without relying on an
-  existing user library;
-- detecting required external executables such as Quarto, Rtools, XeLaTeX,
-  and CmdStan by verifying that the configured files actually exist;
-- avoiding hard-coded paths and stale environment variables, including a
-  missing standalone Quarto installation when RStudio's bundled Quarto is
-  available;
-- failing early with clear installation or configuration instructions when a
-  required dependency is genuinely unavailable;
-- checking that targeted pipeline runs do not require unrelated document or
-  analysis dependencies merely to construct the pipeline; and
-- running the documented restore, manifest, representative lightweight
-  targets, document rendering, and—where practical—the full pipeline from the
-  clean clone.
-
-Include the separate age/duration and training-status workflows in that
-reproducibility record: record stages completed, prerequisite manifest
-identities, and standalone supplement-render results. A successful main
-pipeline run alone does not verify these supplementary analyses.
-
-Record the model-count, runtime, storage, hardware, and known-limitations audit
-described in [`REPRODUCIBILITY.md`](REPRODUCIBILITY.md). Confirm explicitly
-that the test began with no model archive or pre-existing target store.
-
-This checklist is a release requirement rather than evidence that the current
-development environment has already passed a clean-clone reproducibility
-test.
+The clean-checkout checks covered package restoration, all three workflow
+definitions, data preparation, initial primary model inputs, and standalone
+rendering of the manuscript and all 15 supplements. A complete refit and
+post-sampling rebuild remain unverified. The
+[reproducibility guide](REPRODUCIBILITY.md#verify-the-frozen-results-or-rerun-the-analysis)
+records the checks and explains what to expect from the fixed seeds on a
+different machine. Follow the [staged run guide](sensitivity/analysis-stages.md)
+if you want to rerun the analyses.
 
 ## License
 

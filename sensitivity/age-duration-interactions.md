@@ -257,9 +257,10 @@ remain recorded for later review and are not silently turned into exclusions.
 No remedies, new-model LOO, stacking or final reporting are automatically run
 after initial fitting. Full diagnostic review follows separately by dose family.
 
-The launcher first retries/completes the recovered-primary reference reporting
-checkpoint, then builds all 336 non-sampling Stan inputs and profile/provenance
-tables. Recovery reporting had failed because its model-average object omitted
+If a recovery manifest is present, the launcher completes the recovered-primary
+reference reporting checkpoint before building the 336 Stan inputs and
+profile/provenance tables. A fresh build can use the retained total-primary
+fits directly. Recovery reporting had failed because its model-average object omitted
 the settings list needed by the contrast helper; this is corrected and covered
 by a synthetic regression test. The recovered posteriors and LOO are unchanged.
 

@@ -1,4 +1,4 @@
-# Input identities recorded 2026-11-12. See REPRODUCIBILITY.md for access.
+# Input identities and provenance. See REPRODUCIBILITY.md for use.
 schema_version: 1
 bundled:
   - path: data/external/benito_study_data_18f3fc7.csv
@@ -21,6 +21,10 @@ bundled:
     description: "Nunes et al. reference study characteristics"
     text_lf: true
     sha256: 62c4b7f49d85bda5ec90fa92795f19db4933c933880266df697f56bc3261e03f
+  - path: data/buckner_data.csv
+    description: "Buckner et al. reference data used for anterior-thigh muscle thickness"
+    text_lf: true
+    sha256: c00f50eafc172e2122910bfaece5a0e63601e2b8a0cc5c065000dbbc3d881c25
   - path: data/update_2026/review_decisions.csv
     description: "Curated 2026 eligibility and analysis decisions"
     text_lf: true
@@ -29,13 +33,65 @@ bundled:
     description: "Reviewed 2026 GRADE domain decisions"
     text_lf: true
     sha256: 30aa4ecb710ad402043c671983d068c0f1af12ecd00f1127b06d5e5b63477ce6
-archived:
   - path: data/protein_meta_data_all.xlsx
-    description: "Canonical extraction workbook"
-    sha256: 79b9ca399b09af20a31e50bdda0ea3e49b33b2682bfbfcdc30148185976371b4
+    description: "Canonical extraction workbook with worksheet data and formulas preserved and working comments removed"
+    sha256: ee6462c15d0a0424b83748f07bbf40684b0a7c2548bcd38842343419b8f1102a
+    source_sha256: 79b9ca399b09af20a31e50bdda0ea3e49b33b2682bfbfcdc30148185976371b4
   - path: data/update_2026/protein_meta_data_update_2026.xlsx
     description: "September 2026 search-update extraction workbook"
     sha256: be64f35601b23896087d1cd3932b4cee7087f164827a472cdb4b1138684a7344
+  - path: data/update_2026/frozen_pre_update_primary.csv
+    description: "Frozen pre-update analysis fields used by the update preparation checks"
+    text_lf: true
+    sha256: 36af5e6a98aad9b427449a6eead09f66c25c38376427bdeadedc7c6f20158fd8
+    source_sha256: f842fd36149ccc4755a6beb164a6e8b7455eebd5bfa592730c106c387d90dd54
+  - path: data/GRADE/rob2_overall_judgments.csv
+    description: "Final study-level RoB 2 judgments used by GRADE"
+    text_lf: true
+    sha256: 6cf09f1c37ff4b5120d5a8ba34eea88c9306032da4341958826dcef36e49df4f
+    source_sha256: 66436ba457344b4e61e0e9792611116554ff1f3c5813faba53149a03d1157837
+  - path: data/protein_manipulation_strategy_audit.csv
+    description: "Historical study-level strategy classifications and coding rationale for 109 studies"
+    text_lf: true
+    sha256: 450acf461e5a6d26678abe19d2c2c8d4c53bd1b17c1e91025ebefb99675f8a6e
+    source_sha256: b3986e13304641088bcad4f8285f70bf6ee52324c37fad8bf095d8ddc2ebd075
+  - path: data/update_2026/protein_manipulation_strategy_audit_additions.csv
+    description: "Reviewed strategy classifications for the six included 2026 additions"
+    text_lf: true
+    sha256: 9710d465ea4b20441ab9933c8e48f070a1e3fb901697803dae4d4f73e2591f35
+  - path: data/update_2026/protein_manipulation_strategy_audit_supplement_only.csv
+    description: "Reviewed strategy classifications used only in the supplementation analysis"
+    text_lf: true
+    sha256: feb05be77db90b2bc0cc875351733ff195d147a2ec071b25794026f28558bd2c
+  - path: sensitivity/measurement-annotations.csv
+    description: "Reviewed measurement-method annotations"
+    text_lf: true
+    sha256: 7605414bb992813aaa1efa1e0d999078cb5ac2e5f9a97114f4dcecdc33e4937d
+  - path: sensitivity/measurement-remedies.csv
+    description: "Reviewed muscle-measurement sampling remedies"
+    text_lf: true
+    sha256: 3cc31980fda7526fb0b7793b5ed0cde247a6773f6502016b98a221b0bb73395e
+  - path: sensitivity/age-duration-base-priors.csv
+    description: "Frozen coefficient priors for the interaction analyses"
+    text_lf: true
+    sha256: f06f24bc601329b8467d22c593a47c95b3210207e1b32c91bc5144f88b2cc514
+  - path: sensitivity/age-duration-remedies.csv
+    description: "Reviewed age/duration sampling remedies"
+    text_lf: true
+    sha256: 9a5b88e6bdd6201fc3b5744b0ffc9dc5658c8ee466107bd09d6a86dd2a477ff6
+  - path: sensitivity/age-duration-exact-remedies.csv
+    description: "Reviewed age/duration exact-deletion remedies"
+    text_lf: true
+    sha256: 72cde6e94b937be1445b8aea3502c9b195c674e16b6a0701aae5b5d423ae0dcf
+  - path: sensitivity/training-status-remedies.csv
+    description: "Reviewed training-status sampling remedies"
+    text_lf: true
+    sha256: 59bdbf4e3a608e6cfd980261f8d06422504982cb63989e8b896b61a42b470702
+  - path: sensitivity/training-status-exact-remedies.csv
+    description: "Reviewed training-status exact-deletion remedies"
+    text_lf: true
+    sha256: 6c5fd7975628879c3b3b8b80a547b9aae7bf26c5a838f78e5a4f56a7b1621c30
+archived:
   - path: data/RoB2/ROB2_IRPG_beta_v9.xlsm
     description: "Historical RoB 2 assessment workbook"
     sha256: 897b2df3ee7025090d393c9cdd10a8fb5637f7bf3abd1f1b212925fa44977e85
@@ -43,11 +99,8 @@ archived:
     description: "Updated RoB 2 assessment workbook"
     sha256: 8384818ff8b4090c957216518b75acc7dc4d2a170f51a6b35c9cb9224c1127d2
   - path: results/verification/primary/analysis_data.csv.gz
-    description: "Frozen pre-update primary analysis sample used by update checks"
+    description: "Full frozen pre-update analysis sample"
     sha256: f842fd36149ccc4755a6beb164a6e8b7455eebd5bfa592730c106c387d90dd54
   - path: outputs/rob2_final_20260930/rob2_final_judgments.csv
-    description: "Final RoB 2 assessment input used by GRADE"
+    description: "Full RoB 2 assessment and provenance ledger"
     sha256: 66436ba457344b4e61e0e9792611116554ff1f3c5813faba53149a03d1157837
-  - path: data/protein_manipulation_strategy_audit.csv
-    description: "Original strategy evidence audit with source excerpts"
-    sha256: b3986e13304641088bcad4f8285f70bf6ee52324c37fad8bf095d8ddc2ebd075

@@ -43,8 +43,13 @@ run_age_duration_checkpoint <- function(stage = "initial_fit",
   }
   on.exit(Sys.setenv(PROTEIN_INTERACTION_PHASE = "none"), add = TRUE)
   if (stage %in% c("prepare", "initial_fit")) {
-    # Also retries an incomplete recovery reporting branch. No fitting or LOO.
-    run("iad_recovery_reporting_audit_files", "recover_report")
+    # Recovery reporting is required only when accepted replacement fits exist.
+    recovery_manifest <- file.path(
+      "results", "update_2026", "age_duration", "recovery", "accepted_manifest.csv"
+    )
+    if (file.exists(recovery_manifest)) {
+      run("iad_recovery_reporting_audit_files", "recover_report")
+    }
     run(c("iad_preparation_files", "iad_batch_storage_gate_file"), "none")
     if (stage == "prepare") return(invisible(TRUE))
   }

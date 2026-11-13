@@ -134,4 +134,37 @@ test_launcher_order <- function() {
   stopifnot(identical(events,"initial_fit"))
 }
 test_launcher_order()
+
+test_clean_preparation <- function() {
+  runner <- new.env(parent = .GlobalEnv)
+  sys.source("sensitivity/run_age_duration_batch.R", envir = runner)
+  has_recovery <- FALSE
+  runner$file.exists <- function(path) {
+    stopifnot(basename(path) == "accepted_manifest.csv")
+    has_recovery
+  }
+  script <- body(runner$run_age_duration_checkpoint)
+  # Intercept the local stage runner before it can call targets.
+  runner$stages_run <- list()
+  runner$record_stage <- function(targets, phase) {
+    runner$stages_run <- c(runner$stages_run, list(c(phase, targets)))
+  }
+  define_runner <- which(vapply(as.list(script), function(expr) {
+    is.call(expr) && identical(expr[[1L]], quote(`<-`)) &&
+      identical(expr[[2L]], quote(run))
+  }, logical(1L)))
+  stopifnot(length(define_runner) == 1L)
+  script[[define_runner]] <- quote(run <- record_stage)
+  body(runner$run_age_duration_checkpoint) <- script
+  preparation <- c("none", "iad_preparation_files", "iad_batch_storage_gate_file")
+  runner$run_age_duration_checkpoint("prepare")
+  stopifnot(identical(runner$stages_run, list(preparation)))
+  runner$stages_run <- list()
+  has_recovery <- TRUE
+  runner$run_age_duration_checkpoint("prepare")
+  stopifnot(identical(runner$stages_run, list(
+    c("recover_report", "iad_recovery_reporting_audit_files"), preparation
+  )))
+}
+test_clean_preparation()
 cat("Independent pilot gates, batch phase boundaries, storage/resume guards and recovery reporting regression passed. No pipeline run.\n")

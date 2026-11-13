@@ -282,6 +282,16 @@ The pilot saves diagnostics and held-out log-density draws to
 `results/update_2026/training_status/loo/marginal_pilot/`. Review the pilot
 before adopting the marginal refit for the other cases or assembling final LOO.
 
+For a clean clone, first finish the `exact` stage. Then run these in order
+from the project root and review the pilot diagnostics before proceeding:
+
+```sh
+Rscript sensitivity/run_training_status_marginal_pilot.R --check
+Rscript sensitivity/run_training_status_marginal_pilot.R --fit
+Rscript sensitivity/run_training_status.R exact_marginal
+Rscript sensitivity/run_training_status.R correction
+```
+
 The pilot passed with maximum Rhat 1.00393, minimum bulk ESS 2035, minimum tail
 ESS 4327 and zero divergences or treedepth hits. The exact held-out score was
 -9.4976 (Monte Carlo SE 0.1194 after restoring the saved draws' four-chain

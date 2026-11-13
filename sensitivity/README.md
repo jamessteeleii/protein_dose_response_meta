@@ -171,10 +171,10 @@ have already been prepared. Changing a classification therefore invalidates
 only the strategy family, not the completed primary or earlier sensitivity
 fits. The modelling data retain only the strategy code and factor; evidence
 excerpts and other audit prose are not copied into every fitted model.
-The final CSV contains the study identifiers, classification, confidence, and
-supporting evidence needed for analysis and sharing. Completed review fields
-and derived eligibility flags are intentionally omitted. The reader derives
-the principal and strict eligibility flags each time the file is loaded.
+The public CSV contains the study identifiers, classifications, confidence,
+and coding rationale. The historical verbatim source-text fields are blank.
+The reader derives the principal and strict eligibility flags each time the
+file is loaded.
 
 The principal sample includes resolved Addition and Substitution studies. The
 strict sample is prepared in parallel and requires a High-confidence

@@ -1,5 +1,5 @@
-output_dir <- file.path("outputs", "rob2_final_20260930")
-robvis_file <- file.path(output_dir, "rob2_robvis.csv")
+output_dir <- file.path("manuscript", "generated", "reporting", "rob2")
+judgments_file <- file.path(output_dir, "rob2_final_judgments.csv")
 
 if (!requireNamespace("robvis", quietly = TRUE)) {
   stop("The robvis package is required. Restore the project renv environment before running this script.")
@@ -8,12 +8,20 @@ if (!requireNamespace("ggplot2", quietly = TRUE)) {
   stop("The ggplot2 package is required. Restore the project renv environment before running this script.")
 }
 
-rob <- read.csv(
-  robvis_file,
+judgments <- read.csv(
+  judgments_file,
   stringsAsFactors = FALSE,
   check.names = FALSE,
   fileEncoding = "UTF-8-BOM"
 )
+
+judgment_fields <- c("study_label", paste0("D", 1:5, "_final"), "overall_final")
+if (!all(judgment_fields %in% names(judgments))) {
+  stop("The public RoB 2 judgments must include the study label and final domain judgments.")
+}
+rob <- judgments[judgment_fields]
+names(rob) <- c("Study", paste0("D", 1:5), "Overall")
+rob$Weight <- 1
 
 required_columns <- c("Study", "D1", "D2", "D3", "D4", "D5", "Overall", "Weight")
 risk_levels <- c("Low", "Some concerns", "High")
@@ -89,10 +97,11 @@ ggplot2::ggsave(
 )
 
 # A paginated PDF is easier to inspect and use as supplementary material.
+dir.create("outputs", showWarnings = FALSE)
 page_size <- 30L
 page_starts <- seq.int(1L, nrow(rob), by = page_size)
 grDevices::pdf(
-  file.path(output_dir, "rob2_traffic_light.pdf"),
+  file.path("outputs", "rob2_traffic_light.pdf"),
   width = 9.5,
   height = 11,
   onefile = TRUE,

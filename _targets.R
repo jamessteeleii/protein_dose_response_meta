@@ -1320,7 +1320,7 @@ update_2026_supplement_strategy_within_reporting_runtime_enabled <-
 
 # The updated protein-manipulation strategy sensitivity is independently
 # opt-in. It refits all 104 strategy-modified candidates on the combined data;
-# the frozen strategy checkpoint supplies sampling schedules only.
+# the specification builder records the accepted historical sampling schedules.
 update_2026_strategy_runtime_enabled <- tolower(
   Sys.getenv("PROTEIN_UPDATE_2026_STRATEGY", unset = "false")
 ) %in% c("1", "true", "yes", "fit")
@@ -2045,7 +2045,7 @@ c(list(
   ),
   tar_target(
     update_2026_frozen_primary_analysis_file,
-    here("results", "verification", "primary", "analysis_data.csv.gz"),
+    here("data", "update_2026", "frozen_pre_update_primary.csv"),
     format = "file"
   ),
   tar_target(
@@ -13646,9 +13646,7 @@ c(list(
 
   tar_target(
     update_2026_grade_rob2_file,
-    here(
-      "outputs", "rob2_final_20260930", "rob2_final_judgments.csv"
-    ),
+    here("data", "GRADE", "rob2_overall_judgments.csv"),
     format = "file"
   ),
 
@@ -29014,8 +29012,7 @@ c(list(
     make_update_2026_strategy_specifications(
       primary_specifications = update_2026_primary_refit_specifications,
       primary_remedy_specifications =
-        update_2026_primary_remedy_specifications,
-      historical_checkpoint = sensitivity_strategy_completed_checkpoint
+        update_2026_primary_remedy_specifications
     ),
     iteration = "list"
   ),
@@ -29740,9 +29737,7 @@ c(list(
     make_update_2026_strategy_within_specifications(
       primary_specifications = update_2026_primary_refit_specifications,
       primary_remedy_specifications =
-        update_2026_primary_remedy_specifications,
-      historical_checkpoint =
-        sensitivity_strategy_within_completed_checkpoint
+        update_2026_primary_remedy_specifications
     ),
     iteration = "list"
   ),

@@ -81,7 +81,10 @@ excluded from `direct_only`.
 ## Inputs and isolation
 
 - File targets declare the manifest, analysis rows, and final specifications
-  in `results/verification/primary_update_2026/`. Both input files must match
+  in `results/verification/primary_update_2026/`. In a clean clone, produce
+  these with `update_2026_primary_verification_files` after completing the
+  [relative primary runbook](../data/update_2026/README.md#local-primary-refit-runbook).
+  Both input files must match
   their manifest SHA-256 checksums. Parsing considers all rows and fails on
   data loss. The checkpoint is the frozen parent analysis, not a mutable raw
   workbook or a lookup of the latest result.

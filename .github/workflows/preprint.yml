@@ -36,15 +36,17 @@ jobs:
           sudo apt-get install -y libcurl4-openssl-dev libssl-dev libxml2-dev libfontconfig1-dev libfreetype6-dev libharfbuzz-dev libfribidi-dev fonts-lmodern
           quarto install tinytex --no-prompt
           python -m pip install -r scripts/requirements-release.txt
-      - name: Restore pinned rendering packages
+      - name: Restore pinned rendering and data-check packages
         run: |
-          Rscript -e 'renv::restore(packages = c("digest", "dplyr", "ggplot2", "here", "kableExtra", "knitr", "patchwork", "purrr", "readr", "rmarkdown", "tibble", "tidyr", "yaml"), prompt = FALSE)'
+          Rscript -e 'renv::restore(packages = c("digest", "dplyr", "ggplot2", "here", "janitor", "kableExtra", "knitr", "metafor", "patchwork", "purrr", "readr", "readxl", "rmarkdown", "stringr", "tibble", "tidyr", "yaml"), prompt = FALSE)'
           Rscript -e 'cat("R_LIBS=", paste(.libPaths(), collapse = .Platform$path.sep), "\n", sep = "", file = Sys.getenv("GITHUB_ENV"), append = TRUE)'
       - name: Parse analysis and reporting sources
         run: |
           Rscript --vanilla -e 'files <- c(Sys.glob("_targets*.R"), list.files(c("R", "sensitivity", "scripts", "supplement"), "[.]R$", recursive = TRUE, full.names = TRUE)); invisible(lapply(files, parse))'
       - name: Verify bundled input checksums
         run: Rscript scripts/verify_release_inputs.R
+      - name: Verify extraction and analysis inputs without sampling
+        run: Rscript scripts/check_analysis_inputs.R
       - name: Render and validate the release package
         run: python scripts/release_bundle.py outputs/preprint --render
       - uses: actions/upload-artifact@v6

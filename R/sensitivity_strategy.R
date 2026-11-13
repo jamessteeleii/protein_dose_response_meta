@@ -35,7 +35,10 @@ read_protein_strategy_audit <- function(path) {
     "Protein-only comparison", "Unclear"
   )
   valid_confidence <- c("High", "Moderate", "Low")
-  required_content <- setdiff(required, c("pmid", "doi", "page"))
+  # The public historical audit leaves verbatim source-text fields blank.
+  required_content <- setdiff(
+    required, c("pmid", "doi", "page", "reported_intervention", "evidence_excerpt")
+  )
   missing_content <- vapply(
     audit[required_content],
     function(value) any(is.na(value) | !nzchar(trimws(as.character(value)))),

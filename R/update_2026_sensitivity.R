@@ -16197,16 +16197,11 @@ execute_update_2026_within_pruning <- function(
 
 make_update_2026_strategy_specifications <- function(
     primary_specifications,
-    primary_remedy_specifications,
-    historical_checkpoint
+    primary_remedy_specifications
 ) {
   if (
     length(primary_specifications) != 104L ||
-      length(primary_remedy_specifications) != 1L ||
-      !is.list(historical_checkpoint) ||
-      !identical(historical_checkpoint$family, "strategy") ||
-      !is.data.frame(historical_checkpoint$accepted_fit_manifest) ||
-      nrow(historical_checkpoint$accepted_fit_manifest) != 104L
+      length(primary_remedy_specifications) != 1L
   ) {
     stop("The updated strategy base registries are incomplete.",
          call. = FALSE)
@@ -16217,14 +16212,8 @@ make_update_2026_strategy_specifications <- function(
     primary_remedy_specifications,
     key
   ))
-  historical_manifest <- historical_checkpoint$accepted_fit_manifest |>
-    dplyr::mutate(
-      key = paste(outcome, as.integer(model_index), sep = "::")
-    )
-  historical_remedy_keys <- historical_manifest |>
-    dplyr::filter(stage == "remedy_1") |>
-    dplyr::pull(key)
-  expected_historical_remedies <- c(
+  # Accepted pre-update remedy schedule carried into the 2026 fit recipe.
+  historical_remedy_keys <- c(
     "whole_body::11",
     "hypertrophy::14", "hypertrophy::19", "hypertrophy::26",
     "strength::3", "strength::10", "strength::15", "strength::22",
@@ -16234,9 +16223,7 @@ make_update_2026_strategy_specifications <- function(
     anyDuplicated(primary_keys) || anyDuplicated(primary_remedy_keys) ||
       !identical(primary_remedy_keys, "function::10") ||
       !all(primary_remedy_keys %in% primary_keys) ||
-      anyDuplicated(historical_manifest$key) ||
-      !setequal(historical_manifest$key, primary_keys) ||
-      !setequal(historical_remedy_keys, expected_historical_remedies)
+      !all(historical_remedy_keys %in% primary_keys)
   ) {
     stop("The historical strategy sampling lineage is invalid.",
          call. = FALSE)
@@ -16282,7 +16269,7 @@ make_update_2026_strategy_specifications <- function(
   if (
     length(specifications) != 104L || anyDuplicated(final_keys) ||
       !identical(as.integer(outcome_counts), rep(26L, 4L)) ||
-      !setequal(scheduled_keys, expected_historical_remedies) ||
+      !setequal(scheduled_keys, historical_remedy_keys) ||
       !identical(as.numeric(function_ten$adapt_delta), 0.9995)
   ) {
     stop("The updated strategy specification registry failed validation.",
@@ -18607,16 +18594,11 @@ execute_update_2026_strategy_pruning <- function(
 
 make_update_2026_strategy_within_specifications <- function(
     primary_specifications,
-    primary_remedy_specifications,
-    historical_checkpoint
+    primary_remedy_specifications
 ) {
   if (
     length(primary_specifications) != 104L ||
-      length(primary_remedy_specifications) != 1L ||
-      !is.list(historical_checkpoint) ||
-      !identical(historical_checkpoint$family, "strategy_within") ||
-      !is.data.frame(historical_checkpoint$accepted_fit_manifest) ||
-      nrow(historical_checkpoint$accepted_fit_manifest) != 104L
+      length(primary_remedy_specifications) != 1L
   ) {
     stop("The updated strategy-within base registries are incomplete.",
          call. = FALSE)
@@ -18627,14 +18609,8 @@ make_update_2026_strategy_within_specifications <- function(
     primary_remedy_specifications,
     key
   ))
-  historical_manifest <- historical_checkpoint$accepted_fit_manifest |>
-    dplyr::mutate(
-      key = paste(outcome, as.integer(model_index), sep = "::")
-    )
-  historical_remedy_keys <- historical_manifest |>
-    dplyr::filter(stage == "remedy_1") |>
-    dplyr::pull(key)
-  expected_historical_remedies <- c(
+  # Accepted pre-update remedy schedule carried into the 2026 fit recipe.
+  historical_remedy_keys <- c(
     "hypertrophy::10", "hypertrophy::22",
     "strength::9", "strength::10", "strength::12", "strength::13"
   )
@@ -18642,9 +18618,7 @@ make_update_2026_strategy_within_specifications <- function(
     anyDuplicated(primary_keys) || anyDuplicated(primary_remedy_keys) ||
       !identical(primary_remedy_keys, "function::10") ||
       !all(primary_remedy_keys %in% primary_keys) ||
-      anyDuplicated(historical_manifest$key) ||
-      !setequal(historical_manifest$key, primary_keys) ||
-      !setequal(historical_remedy_keys, expected_historical_remedies)
+      !all(historical_remedy_keys %in% primary_keys)
   ) {
     stop("The historical strategy-within sampling lineage is invalid.",
          call. = FALSE)
@@ -18691,7 +18665,7 @@ make_update_2026_strategy_within_specifications <- function(
   if (
     length(specifications) != 104L || anyDuplicated(final_keys) ||
       !identical(as.integer(outcome_counts), rep(26L, 4L)) ||
-      !setequal(scheduled_keys, expected_historical_remedies) ||
+      !setequal(scheduled_keys, historical_remedy_keys) ||
       !identical(as.numeric(function_ten$adapt_delta), 0.9995)
   ) {
     stop("The updated strategy-within specification registry is invalid.",
