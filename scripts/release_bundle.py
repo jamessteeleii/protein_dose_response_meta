@@ -20,6 +20,7 @@ from pypdf.generic import NameObject, TextStringObject
 
 
 PAGES_URL = "https://jamessteeleii.github.io/protein_dose_response_meta/"
+REPOSITORY_URL = "https://github.com/jamessteeleii/protein_dose_response_meta"
 REVIEW_PORT = 8766
 REVIEW_URL = f"http://127.0.0.1:{REVIEW_PORT}/"
 MANUSCRIPT = Path("manuscript/manuscript.pdf")
@@ -164,7 +165,17 @@ def render(root):
         subprocess.run(command, cwd=root, check=True)
 
 
-def landing_page():
+def landing_page(root):
+    citation_file = root / "supplement" / "includes" / "preprint-citation.md"
+    citation = re.search(
+        r"^> (.+) <(https://doi\.org/[^<>\s]+)>$",
+        citation_file.read_text(encoding="utf-8"),
+        re.MULTILINE,
+    )
+    if citation is None:
+        raise ValueError(f"Missing preprint citation and DOI in {citation_file}")
+    reference, doi = map(html.escape, citation.groups())
+
     downloads = "\n".join(
         f'<li><a href="{path}" download>{title}</a></li>'
         for path, title in WORKBOOKS
@@ -182,6 +193,12 @@ def landing_page():
         'a{color:#075b85}</style>\n'
         '<h1>Protein dose–response meta-analysis</h1>\n'
         '<p><a href="manuscript/manuscript.pdf">Manuscript PDF</a></p>\n'
+        '<p><strong>Please cite as:</strong></p>\n'
+        f'<blockquote>{reference} <a href="{doi}">{doi}</a></blockquote>\n'
+        f'<p>The <a href="{REPOSITORY_URL}">GitHub repository</a> contains the analysis code, '
+        'data, manuscript sources, and frozen reporting files. See the '
+        f'<a href="{REPOSITORY_URL}/blob/master/REPRODUCIBILITY.md">reproducibility guide</a> '
+        'for instructions to rebuild the documents or rerun the analyses.</p>\n'
         '<h2>Extraction data</h2>\n'
         '<p>Open either workbook in a spreadsheet app. Use both for the updated review.</p>\n'
         f'<ul>\n{downloads}\n</ul>\n'
@@ -235,7 +252,7 @@ def write_manifest(destination, commit, tag, source_root):
 
 
 def package(root, destination, review, commit, tag):
-    index_html = landing_page()
+    index_html = landing_page(root)
     files = collect_files(root, index_html)
     check_public_assets(files)
     destination.mkdir(parents=True, exist_ok=False)
