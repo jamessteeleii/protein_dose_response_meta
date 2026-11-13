@@ -31,6 +31,8 @@ execute:
   message: false
 ---
 
+{{< include includes/preprint-citation.md >}}
+
 ```{css}
 .table-scroll { overflow-x: auto; max-height: 45rem; overflow-y: auto; }
 .table-scroll table { font-size: 0.78rem; white-space: nowrap; }

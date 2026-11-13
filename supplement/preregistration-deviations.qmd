@@ -34,6 +34,8 @@ execute:
   message: false
 ---
 
+{{< include includes/preprint-citation.md >}}
+
 ```{r}
 #| label: setup
 #| include: false

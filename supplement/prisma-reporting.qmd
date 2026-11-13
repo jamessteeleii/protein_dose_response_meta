@@ -31,6 +31,8 @@ execute:
   message: false
 ---
 
+{{< include includes/preprint-citation.md >}}
+
 ```{=html}
 <style>
 .callout-important { border-left-color: #8b1e1e; }

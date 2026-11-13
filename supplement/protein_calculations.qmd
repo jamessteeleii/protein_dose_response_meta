@@ -32,6 +32,8 @@ execute:
   message: false
 ---
 
+{{< include includes/preprint-citation.md >}}
+
 *Preface: This supplementary document was produced with the assistance and auditing of ChatGPT/Codex (5.6 Sol, High). The complexity of protein dose response calculations as relative to body mass (i.e., g/kg/day) given the heterogeneity of reporting across studies, in addition to the calculation and appropriate propagation of sampling error for this, was not considered in sufficient detail during our planning and pre-registration. As such, calculation from reported data within our code pipelines and data structures was not prepared in advance and proceeded in a somewhat ad hoc basis with calculations being done within the extraction spreadsheets. This presents an issue for human checking, hence prior to analysis and with the assistance of a human for all checking, reviewing, and performance of the manual editing, ChatGPT/Codex (5.6 Sol, High) was used to check the extracted data in this regard, including formulas used, and cross reference against the study pdfs flagging all issues for checking. After this it then proceeded to collate the various methods depending on the reported data in order to transparently report the approaches taken to calculation of protein doses and propagation of uncertainty.*
 
 # Purpose and scope

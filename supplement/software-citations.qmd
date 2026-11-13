@@ -12,6 +12,8 @@ execute:
   echo: false
 ---
 
+{{< include includes/preprint-citation.md >}}
+
 ## R packages used
 
 The versions below were recorded in the analysis software report. The

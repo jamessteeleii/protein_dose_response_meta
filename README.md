@@ -1,15 +1,26 @@
 # Protein dose-response meta-analysis
 
 This repository contains the data, analysis code, figures, and manuscript
-sources for *An updated systematic review and dose-response meta-analysis of
-protein intakes' effects upon lean soft tissue mass, muscle, strength, and
-function in healthy adults*.
+sources for *Protein intake and changes in whole-body lean/fat-free mass,
+measures of muscle size or mass, strength, and physical function in healthy
+adults: an updated systematic review and Bayesian model averaged dose-response
+meta-analysis*.
 
 The project was preregistered on the
 [Open Science Framework](https://osf.io/w2qpx/overview). The originally
 preregistered models remain the primary analyses. Measurement-error Stan
 models were completed as supplementary analyses and remain clearly separated
 in the code and manuscript.
+
+## Citation
+
+Please cite as:
+
+> Steele, J., Nunes, E.A., Moore, M., Lees, M., Roxburgh, L., Viloria Medina, A., and Phillips, S. (2026). Protein intake and changes in whole-body lean/fat-free mass, measures of muscle size or mass, strength, and physical function in healthy adults: an updated systematic review and Bayesian model averaged dose-response meta-analysis. SportRxiv. <https://doi.org/10.51224/SportRxiv.1166>
+
+## Supplementary materials
+
+The [supplementary materials](https://jamessteeleii.github.io/protein_dose_response_meta/) include the analyses, plots, and supporting data.
 
 ## Repository structure
 

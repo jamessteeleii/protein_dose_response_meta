@@ -33,6 +33,8 @@ execute:
   message: false
 ---
 
+{{< include includes/preprint-citation.md >}}
+
 ```{css}
 .grade-scroll {
   overflow-x: auto;
