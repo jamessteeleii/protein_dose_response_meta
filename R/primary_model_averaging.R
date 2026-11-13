@@ -3,6 +3,10 @@
 # The functions in this file deliberately accept completed `loo` objects. They
 # never call brms::loo() and do not use the earlier conditional-LOO helpers.
 
+# Stacking weights from final holdout scores ----
+
+# Check that the candidate models score the same observations before
+# estimating stacking weights within each outcome.
 validate_primary_final_loo_results <- function(final_loo_results) {
   expected_outcomes <- c(
     "whole_body", "hypertrophy", "strength", "function"
@@ -113,6 +117,7 @@ validate_primary_models_and_weights <- function(models, weights) {
   if (anyDuplicated(names(models))) {
     stop("Model names must be unique.", call. = FALSE)
   }
+
   if (!all(purrr::map_lgl(models, inherits, what = "brmsfit"))) {
     stop("Every object in `models` must be a brmsfit.", call. = FALSE)
   }
@@ -127,6 +132,7 @@ validate_primary_models_and_weights <- function(models, weights) {
       call. = FALSE
     )
   }
+
   if (
     any(!is.finite(weights)) ||
       any(weights < 0) ||
@@ -152,6 +158,10 @@ get_primary_protein_median <- function(data) {
   protein_median[[1L]]
 }
 
+# Reference prediction grid ----
+
+# Hold covariates at the reporting reference values and vary protein intake
+# and resistance-exercise status on the grid used for population predictions.
 make_primary_prediction_grid <- function(
     data,
     protein_min = 0.8,
@@ -161,6 +171,7 @@ make_primary_prediction_grid <- function(
   if (!"protein_intake_raw" %in% names(data)) {
     stop("`data` must contain `protein_intake_raw`.", call. = FALSE)
   }
+
   if (is.null(protein_max)) {
     protein_max <- max(data$protein_intake_raw, na.rm = TRUE)
   }
@@ -188,6 +199,7 @@ make_primary_prediction_grid <- function(
     names(data)
   )
   reference_index <- 1L
+
   if (length(grouping_variables) > 0L) {
     complete <- stats::complete.cases(
       data[, grouping_variables, drop = FALSE]
@@ -213,6 +225,7 @@ make_primary_prediction_grid <- function(
       levels = levels(data$resistance_exercise_factor)
     )
   }
+
   if ("age_centre" %in% names(newdata)) newdata$age_centre <- 0
   if ("duration_centre" %in% names(newdata)) newdata$duration_centre <- 0
   if ("vi" %in% names(newdata)) newdata$vi <- 0
@@ -263,6 +276,11 @@ allocate_primary_mixture_models <- function(weights, n_draws) {
   counts
 }
 
+# Posterior mixture across candidate models ----
+
+# Draw population predictions from the fitted candidates in proportions
+# determined by their stacking weights. Keep each draw aligned across the grid
+# so later contrasts retain posterior dependence.
 build_primary_model_average <- function(
     models,
     weights,
@@ -274,10 +292,14 @@ build_primary_model_average <- function(
     seed = 1988L
 ) {
   validate_primary_models_and_weights(models, weights)
+
   if (length(n_draws) != 1L || !is.finite(n_draws) || n_draws < 1) {
     stop("`n_draws` must be a positive integer.", call. = FALSE)
   }
   n_draws <- as.integer(n_draws)
+
+  # Use one prediction grid for every candidate so their posterior draws can
+  # be combined column by column.
   prediction_grid <- make_primary_prediction_grid(
     data = data,
     protein_min = protein_min,
@@ -299,6 +321,8 @@ build_primary_model_average <- function(
     ncol = nrow(prediction_grid$newdata)
   )
 
+  # Place each candidate's joint prediction draws into the allocated rows of
+  # the mixture.
   for (model_index in seq_along(models)) {
     output_rows <- which(allocation == model_index)
     if (length(output_rows) == 0L) next
@@ -365,6 +389,7 @@ build_primary_model_average <- function(
       seed = seed
     )
   )
+
   class(output) <- c("primary_model_average", class(output))
   output
 }
@@ -376,6 +401,7 @@ summarise_primary_dose_response <- function(
   if (!inherits(model_average, "primary_model_average")) {
     stop("`model_average` is not a primary model average.", call. = FALSE)
   }
+
   alpha <- (1 - conf_level) / 2
   intervals <- matrixStats::colQuantiles(
     model_average$draws,
@@ -393,6 +419,11 @@ summarise_primary_dose_response <- function(
   )
 }
 
+# Pairwise dose contrasts and local equivalence ----
+
+# Difference pairs of protein doses within each posterior draw and exercise
+# group. Restrict dose pairs to the observed range and summarize their
+# uncertainty relative to the outcome-specific equivalence threshold.
 compute_primary_heatmap_contrasts <- function(
     model_average,
     data,
@@ -403,6 +434,7 @@ compute_primary_heatmap_contrasts <- function(
   if (!inherits(model_average, "primary_model_average")) {
     stop("`model_average` is not a primary model average.", call. = FALSE)
   }
+
   required_data <- c("protein_intake_raw", "resistance_exercise_code")
   missing_data <- setdiff(required_data, names(data))
   if (length(missing_data) > 0L) {
@@ -413,6 +445,7 @@ compute_primary_heatmap_contrasts <- function(
       call. = FALSE
     )
   }
+
   if (
     length(sesoi) != 1L || !is.finite(sesoi) || sesoi <= 0 ||
       length(conf_level) != 1L || !is.finite(conf_level) ||
@@ -421,6 +454,8 @@ compute_primary_heatmap_contrasts <- function(
     stop("`sesoi` and `conf_level` are invalid.", call. = FALSE)
   }
 
+  # Determine where each exercise stratum has observations before evaluating
+  # changes in protein intake.
   grid <- model_average$grid
   observed_support <- data |>
     dplyr::filter(
@@ -434,6 +469,7 @@ compute_primary_heatmap_contrasts <- function(
       .groups = "drop"
     ) |>
     dplyr::arrange(resistance_exercise_code)
+
   if (!identical(
     as.numeric(observed_support$resistance_exercise_code),
     c(0, 1)
@@ -451,6 +487,7 @@ compute_primary_heatmap_contrasts <- function(
     protein_values >= max(protein_min, observed_min) &
       protein_values <= observed_max
   ]
+
   if (length(protein_values) < 2L) {
     stop(
       "The model-average grid and observed protein-intake range do not overlap.",
@@ -539,6 +576,7 @@ compute_primary_heatmap_contrasts <- function(
         levels = c("Observed range", "Outside RT-specific range")
       )
     )
+
   output <- list(
     contrasts = contrasts,
     support = observed_support |>
@@ -563,10 +601,13 @@ compute_primary_heatmap_contrasts <- function(
       )
     )
   )
+
   class(output) <- c("primary_heatmap_contrasts", class(output))
   output
 }
 
+# Summarize which neighboring dose comparisons meet the posterior probability
+# threshold for practical equivalence.
 summarise_primary_local_equivalence <- function(
     contrast_data,
     outcome,
@@ -580,6 +621,7 @@ summarise_primary_local_equivalence <- function(
     "supported"
   )
   missing_columns <- setdiff(required_columns, names(contrast_data))
+
   if (length(missing_columns) > 0L) {
     stop(
       "Local-equivalence summary is missing required columns: ",
@@ -639,6 +681,10 @@ summarise_primary_local_equivalence <- function(
     )
 }
 
+# Figures for population and arm-conditional predictions ----
+
+# Draw the dose-contrast summaries and assemble them with the corresponding
+# prediction panels.
 plot_primary_heatmap_contrasts <- function(
     x,
     title,
@@ -647,12 +693,14 @@ plot_primary_heatmap_contrasts <- function(
   if (!inherits(x, "primary_heatmap_contrasts")) {
     stop("`x` is not a primary heatmap-contrast object.", call. = FALSE)
   }
+
   plot_data <- dplyr::filter(x$contrasts, supported) |>
     dplyr::mutate(plotted_estimate = estimate)
   supported_data <- plot_data
   grid_step <- x$settings$grid_step
   sesoi <- x$settings$sesoi
   fill_limit <- max(abs(supported_data$estimate), na.rm = TRUE)
+
   if (!is.finite(fill_limit) || fill_limit == 0) fill_limit <- sesoi
   extend_nearby_upper_tenth <- function(limits) {
     rounded_upper <- ceiling(
@@ -665,6 +713,7 @@ plot_primary_heatmap_contrasts <- function(
     }
     limits
   }
+
   contour_names <- c(
     "Outcome gain from increasing intake",
     "Practical equivalence",
@@ -678,6 +727,7 @@ plot_primary_heatmap_contrasts <- function(
     ),
     contour_region = contour_names
   )
+
   classification_present <- purrr::map_lgl(
     contour_specs$probability,
     ~ any(supported_data[[.x]] >= 0.95, na.rm = TRUE)
@@ -685,6 +735,7 @@ plot_primary_heatmap_contrasts <- function(
   absent_classifications <- tolower(
     contour_specs$contour_region[!classification_present]
   )
+
   if (length(absent_classifications) == 0L) {
     classification_note <- paste0(
       "Areas outside the displayed classification regions remain uncertain ",
@@ -706,6 +757,7 @@ plot_primary_heatmap_contrasts <- function(
       "relative to the ROPE."
     )
   }
+
   caption_text <- stringr::str_wrap(
     paste0(
       "ROPE = Region of Practical Equivalence (-0.1 to +0.1). ",
@@ -876,6 +928,7 @@ plot_primary_heatmap_contrasts <- function(
         )
     }
   }
+
   plot
 }
 
@@ -892,6 +945,7 @@ plot_primary_predictions_panel <- function(data, predictions) {
       )
     ) |>
     dplyr::filter(rt_condition == "RT" | protein_intake <= max_no_rt)
+
   point_data <- data |>
     dplyr::mutate(
       rt_condition = factor(
@@ -980,6 +1034,7 @@ plot_primary_arm_predictions_panel <- function(
     "observation", "prediction_id", "estimate", "conditional_size"
   )
   missing_arm_columns <- setdiff(required_arm_columns, names(arm_predictions))
+
   if (
     length(missing_arm_columns) ||
       length(include_observed_effects) != 1L ||
@@ -1009,6 +1064,7 @@ plot_primary_arm_predictions_panel <- function(
       )
     ) |>
     dplyr::filter(rt_condition == "RT" | protein_intake <= max_no_rt)
+
   point_data <- data |>
     dplyr::mutate(
       observation = dplyr::row_number(),
@@ -1027,6 +1083,7 @@ plot_primary_arm_predictions_panel <- function(
         ),
       by = "observation"
     )
+
   arm_point_data <- point_data |>
     dplyr::distinct(prediction_id, .keep_all = TRUE)
   observed_effect_layers <- if (isTRUE(include_observed_effects)) {

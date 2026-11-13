@@ -1,3 +1,8 @@
+# Exact training-status holdout remedies ----
+
+# Match failed or flagged holdouts to the reviewed remedy ledger and check the
+# resulting corrections before they enter the final LOO table.
+
 # Reviewed retries of failed exact checkpoints; passing cases are immutable.
 tst_exact_remedy_plan <- function(paths, ledger_path) {
   ledger <- iad_read_csv(ledger_path)
@@ -13,6 +18,7 @@ tst_exact_remedy_plan <- function(paths, ledger_path) {
       any(ledger$seed < 1 | ledger$seed %% 1 != 0) ||
       any(!grepl("^[a-f0-9]{64}$", ledger$initial_sha256)) || any(!nzchar(trimws(ledger$rationale))))
     stop("Invalid training exact-remedy ledger.")
+
   matched <- integer(); seen <- character()
   plans <- lapply(unname(unlist(paths)), function(path) {
     initial <- qs::qread(path)
@@ -38,6 +44,7 @@ tst_exact_remedy_plan <- function(paths, ledger_path) {
     }
     list(initial_path = path, initial_sha256 = iad_hash(path), record = record, remedy = remedy)
   })
+
   if (anyDuplicated(seen) || length(matched) != nrow(ledger) || !setequal(matched, seq_len(nrow(ledger))))
     stop("Exact-remedy ledger does not match the failed cases uniquely.")
   plans
@@ -51,12 +58,14 @@ tst_review_exact <- function(plan) {
   path <- iad_path(r$family, r$outcome, "loo", "exact_checkpoints", remedy$stage,
     sprintf("model_%02d_observation_%04d.qs", r$model_index, r$observation), archive = TRUE)
   iad_check_hash(r$fit_path, r$fit_sha256); iad_check_hash(r$loo_path, r$loo_sha256)
+
   if (file.exists(path)) {
     previous <- qs::qread(path)
     if (!isTRUE(previous$compact) || !identical(previous$interaction_record, r) ||
         !identical(previous$exact_remedy, plan)) stop("Existing exact retry has different settings or inputs.")
     return(normalizePath(path, winslash = "/", mustWork = TRUE))
   }
+
   candidate <- qs::qread(r$fit_path); integrated <- qs::qread(r$loo_path)
   if (!isTRUE(loo::pareto_k_values(integrated$loo)[[r$observation]] > 0.7)) stop("Invalid retry observation.")
   s <- candidate$specification
@@ -78,12 +87,14 @@ tst_review_exact <- function(plan) {
   diagnostics$max_treedepth <- remedy$max_treedepth
   diagnostics$initial_checkpoint_sha256 <- plan$initial_sha256
   correction <- if (isTRUE(diagnostics$diagnostic_pass)) iad_build_exact_correction(refit) else NULL
+
   if (!is.null(correction)) {
     correction$exact_remedy <- plan
     correction$exact_refit_summary$exact_stage <- remedy$stage
     correction$exact_refit_summary$iter_sampling <- remedy$iter_sampling
     correction$exact_refit_summary$iter_warmup <- remedy$iter_warmup
   }
+
   iad_qsave(list(compact = TRUE, interaction_record = r, exact_remedy = plan,
     diagnostics = diagnostics, correction = correction), path)
 }

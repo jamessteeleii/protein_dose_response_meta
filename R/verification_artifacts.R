@@ -1,3 +1,7 @@
+# Verification bundle paths and provenance ----
+
+# Use filesystem-safe artifact names and record the Git commit so an archived
+# bundle can be traced to its source code.
 verification_slug <- function(x) {
   x <- gsub("[^A-Za-z0-9._-]+", "_", x)
   gsub("^_+|_+$", "", x)
@@ -18,6 +22,9 @@ verification_git_commit <- function() {
   if (length(commit) == 1L && nzchar(commit)) commit else NA_character_
 }
 
+# Write the named artifacts and a manifest with their sizes and SHA-256
+# hashes. The manifest allows downstream readers to verify the exact files
+# used.
 write_verification_bundle <- function(
   family,
   artifacts,

@@ -1,5 +1,9 @@
 # Reproducible diagnostics for the final primary candidate-model ensemble.
 
+# Candidate provenance ----
+
+# Assign each fit to its original or remedied stage. Later remedies take
+# precedence because they replace earlier versions of the same candidate.
 infer_primary_candidate_source <- function(specification) {
   if (isTRUE(specification$third_remedy)) {
     return("third_remedied")
@@ -14,6 +18,8 @@ infer_primary_candidate_source <- function(specification) {
   "original"
 }
 
+# Require the full indexed candidate set before running per-fit checks, so an
+# omitted model cannot silently disappear from the diagnostics.
 diagnose_primary_candidate_set <- function(
     fitted_candidates,
     ppc_draws = 400L
@@ -35,6 +41,10 @@ diagnose_primary_candidate_set <- function(
   )
 }
 
+# Sampling and predictive checks ----
+
+# Collect the reasons a fit crosses the sampling thresholds. Predictive
+# discrepancies are assessed separately from sampler behavior.
 primary_sampling_issue <- function(row) {
   reasons <- character()
 
@@ -47,6 +57,7 @@ primary_sampling_issue <- function(row) {
       )
     )
   }
+
   if (row[["maximum_treedepth_transitions"]] > 0L) {
     reasons <- c(
       reasons,
@@ -56,6 +67,7 @@ primary_sampling_issue <- function(row) {
       )
     )
   }
+
   if (
     !is.na(row[["minimum_ebfmi"]]) &&
       row[["minimum_ebfmi"]] < 0.30
@@ -65,6 +77,7 @@ primary_sampling_issue <- function(row) {
       sprintf("minimum E-BFMI %.3f", row[["minimum_ebfmi"]])
     )
   }
+
   if (
     !is.na(row[["maximum_rhat"]]) &&
       row[["maximum_rhat"]] > 1.01
@@ -74,6 +87,7 @@ primary_sampling_issue <- function(row) {
       sprintf("maximum R-hat %.3f", row[["maximum_rhat"]])
     )
   }
+
   if (
     !is.na(row[["minimum_bulk_ess"]]) &&
       row[["minimum_bulk_ess"]] < 400
@@ -83,6 +97,7 @@ primary_sampling_issue <- function(row) {
       sprintf("minimum bulk ESS %.0f", row[["minimum_bulk_ess"]])
     )
   }
+
   if (
     !is.na(row[["minimum_tail_ess"]]) &&
       row[["minimum_tail_ess"]] < 400
@@ -92,6 +107,7 @@ primary_sampling_issue <- function(row) {
       sprintf("minimum tail ESS %.0f", row[["minimum_tail_ess"]])
     )
   }
+
   if (
     !is.na(row[["maximum_mcse_sd_ratio"]]) &&
       row[["maximum_mcse_sd_ratio"]] > 0.10
@@ -120,6 +136,8 @@ primary_ppc_warning <- function(summary) {
     summary$predictive_90_interval_coverage > 0.98
 }
 
+# Reduce the predictive checks across candidate fits to outcome-level
+# summaries while retaining the observation flags that support the audit.
 summarise_primary_ppc_outcome <- function(diagnostics, outcome) {
   outcome_diagnostics <- diagnostics[
     vapply(
@@ -228,6 +246,10 @@ summarise_primary_ppc_outcome <- function(diagnostics, outcome) {
   )
 }
 
+# Diagnostic audit and export ----
+
+# Assemble candidate-, parameter-, and observation-level results with the
+# provenance needed to review a refit decision.
 compile_primary_model_diagnostic_audit <- function(...) {
   diagnostic_sets <- list(...)
 

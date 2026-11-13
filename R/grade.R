@@ -6,6 +6,10 @@
 # using their final corrected LOO objects. No function in this file fits a
 # model.
 
+# Outcome and contrast definitions ----
+
+# Centralize the dose pairs, exercise groups and decision thresholds so the
+# evidence domains are assessed for the same contrasts.
 make_grade_primary_config <- function() {
   list(
     fixed_08_proposed_intakes = c(1.2, 1.6, 2.0, 2.4),
@@ -51,6 +55,7 @@ validate_grade_primary_config <- function(config) {
     "random_dose_model_indices", "di_flag", "asi_flag",
     "endpoint_neighbourhood", "outcomes", "rt_labels", "seeds"
   )
+
   if (!is.list(config) || !all(required %in% names(config))) {
     stop("The GRADE primary configuration is incomplete.", call. = FALSE)
   }
@@ -84,6 +89,7 @@ validate_grade_primary_config <- function(config) {
   ) {
     stop("The prespecified GRADE primary configuration is invalid.", call. = FALSE)
   }
+
   invisible(config)
 }
 
@@ -151,6 +157,10 @@ grade_primary_keys <- function(config = make_grade_primary_config()) {
     )
 }
 
+# Evidence sources and consistency checks ----
+
+# Confirm that accepted fits, holdout scores, reported predictions and
+# judgment inputs cover the required outcome and contrast keys.
 make_grade_primary_preflight <- function(
     accepted_fit_manifest,
     final_loo_audit,
@@ -204,6 +214,7 @@ make_grade_primary_preflight <- function(
     judgment_exists,
     normalizePath(judgment_path, winslash = "/", mustWork = FALSE)
   )
+
   if (!all(checks$passed)) {
     failed <- checks$check[!checks$passed]
     stop(
@@ -212,6 +223,7 @@ make_grade_primary_preflight <- function(
       call. = FALSE
     )
   }
+
   checks
 }
 
@@ -226,6 +238,10 @@ write_grade_primary_preflight <- function(
   normalizePath(output_file, winslash = "/", mustWork = TRUE)
 }
 
+# Study-specific contrasts for inconsistency ----
+
+# Estimate weights for the subset of models that support the study-level
+# predictions needed by the inconsistency calculation.
 compute_grade_restricted_stacking_weights <- function(
     final_loo_audit,
     config = make_grade_primary_config()
@@ -242,6 +258,7 @@ compute_grade_restricted_stacking_weights <- function(
       factor(.data$outcome, levels = names(config$outcomes)),
       .data$model_index
     )
+
   if (
     nrow(manifest) != 48L ||
       any(!file.exists(manifest$final_loo_path)) ||
@@ -270,6 +287,7 @@ compute_grade_restricted_stacking_weights <- function(
       final_loo_path = records$final_loo_path
     )
   })
+
   audit <- weights |>
     dplyr::group_by(.data$outcome) |>
     dplyr::summarise(
@@ -277,6 +295,7 @@ compute_grade_restricted_stacking_weights <- function(
       weight_sum = sum(.data$restricted_stacking_weight),
       .groups = "drop"
     )
+
   if (
     nrow(weights) != 48L ||
       any(audit$models != 12L) ||
@@ -284,6 +303,7 @@ compute_grade_restricted_stacking_weights <- function(
   ) {
     stop("Restricted GRADE stacking weights are invalid.", call. = FALSE)
   }
+
   weights
 }
 
@@ -310,12 +330,14 @@ make_grade_inconsistency_records <- function(
       factor(.data$outcome, levels = names(config$outcomes)),
       .data$model_index
     )
+
   if (
     nrow(table) != 48L || anyNA(table$fit_path) ||
       any(!file.exists(table$fit_path))
   ) {
     stop("The GRADE inconsistency fit records are incomplete.", call. = FALSE)
   }
+
   records <- purrr::map(names(config$outcomes), function(outcome_name) {
     models <- table |>
       dplyr::filter(.data$outcome == .env$outcome_name)
@@ -325,10 +347,13 @@ make_grade_inconsistency_records <- function(
       models = models
     )
   })
+
   names(records) <- names(config$outcomes)
   records
 }
 
+# Build study-specific low- and high-dose rows for the configured contrasts,
+# and identify which study-dose combinations have empirical support.
 make_grade_study_prediction_grid <- function(
     data,
     outcome,
@@ -341,12 +366,14 @@ make_grade_study_prediction_grid <- function(
   ) {
     stop("The GRADE prediction outcome is invalid.", call. = FALSE)
   }
+
   required <- c(
     "study_no", "arm_no", "outcome_no", "study_factor",
     "resistance_exercise_code", "protein_intake_raw", "protein_intake",
     "protein_median", "vi"
   )
   missing <- setdiff(required, names(data))
+
   if (length(missing)) {
     stop(
       "GRADE study prediction data are missing: ",
@@ -354,6 +381,7 @@ make_grade_study_prediction_grid <- function(
       call. = FALSE
     )
   }
+
   protein_median <- get_primary_protein_median(data)
   reference_rows <- data |>
     dplyr::filter(
@@ -372,6 +400,7 @@ make_grade_study_prediction_grid <- function(
     ) |>
     dplyr::slice(1L) |>
     dplyr::ungroup()
+
   if (!nrow(reference_rows)) {
     stop("No study rows are available for GRADE predictions.", call. = FALSE)
   }
@@ -394,6 +423,7 @@ make_grade_study_prediction_grid <- function(
       .data$contrast_order,
       factor(.data$endpoint, levels = c("reference", "proposed"))
     )
+
   newdata <- reference_rows[layout$reference_row, , drop = FALSE]
   doses <- ifelse(
     layout$endpoint == "reference",
@@ -404,6 +434,7 @@ make_grade_study_prediction_grid <- function(
   newdata$protein_intake <- doses - protein_median
   newdata$protein_intake_05 <- newdata$protein_intake / 0.5
   newdata$vi <- 0
+
   if ("age_centre" %in% names(newdata)) newdata$age_centre <- 0
   if ("duration_centre" %in% names(newdata)) newdata$duration_centre <- 0
 
@@ -439,6 +470,7 @@ make_grade_study_prediction_grid <- function(
         sep = "|"
       )
     )
+
   cell_keys <- prediction_keys |>
     dplyr::group_by(
       .data$cell_id, .data$study_no, .data$resistance_exercise_code,
@@ -460,6 +492,7 @@ make_grade_study_prediction_grid <- function(
       .data$study_no
     ) |>
     dplyr::mutate(contrast_column = dplyr::row_number())
+
   if (
     nrow(prediction_keys) != 2L * nrow(cell_keys) ||
       anyDuplicated(cell_keys$cell_id) ||
@@ -467,6 +500,7 @@ make_grade_study_prediction_grid <- function(
   ) {
     stop("The GRADE study prediction grid is invalid.", call. = FALSE)
   }
+
   list(
     newdata = newdata,
     prediction_keys = prediction_keys,
@@ -483,6 +517,9 @@ grade_inconsistency_draw_path <- function(outcome) {
   file.path(directory, paste0(outcome, ".qs"))
 }
 
+# Pair low- and high-dose predictions within each posterior draw, then persist
+# the study-level differences and the metadata needed for the inconsistency
+# audit.
 write_grade_study_contrast_draw_file <- function(
     record,
     data_by_outcome,
@@ -494,6 +531,7 @@ write_grade_study_contrast_draw_file <- function(
   if (is.null(data) || !nrow(data) || nrow(table) != 12L) {
     stop("The GRADE inconsistency record is invalid.", call. = FALSE)
   }
+
   grid <- make_grade_study_prediction_grid(
     data = data,
     outcome = record$outcome,
@@ -557,6 +595,7 @@ write_grade_study_contrast_draw_file <- function(
     rm(candidate, predictions)
     gc(verbose = FALSE)
   }
+
   if (anyNA(contrast_draws) || any(!is.finite(contrast_draws))) {
     stop("The GRADE study-contrast mixture is incomplete.", call. = FALSE)
   }
@@ -583,6 +622,7 @@ write_grade_study_contrast_draw_file <- function(
       )
     )
   )
+
   class(result) <- c("grade_study_contrast_draws", class(result))
   output_file <- grade_inconsistency_draw_path(record$outcome)
   temporary_file <- paste0(output_file, ".tmp-", Sys.getpid())
@@ -591,6 +631,7 @@ write_grade_study_contrast_draw_file <- function(
   if (!file.copy(temporary_file, output_file, overwrite = TRUE)) {
     stop("Could not finalise GRADE study-contrast draws.", call. = FALSE)
   }
+
   unlink(temporary_file, force = TRUE)
   normalizePath(output_file, winslash = "/", mustWork = TRUE)
 }
@@ -638,12 +679,14 @@ audit_grade_study_contrast_draw_files <- function(
         by = names(expected_contrasts)
       ))
   })
+
   if (
     !setequal(outcomes, names(config$outcomes)) ||
       anyDuplicated(outcomes) || !all(valid)
   ) {
     stop("A GRADE study-contrast draw file failed audit.", call. = FALSE)
   }
+
   tibble::tibble(
     outcome = outcomes,
     path = normalizePath(paths, winslash = "/", mustWork = TRUE),
@@ -658,6 +701,10 @@ audit_grade_study_contrast_draw_files <- function(
     dplyr::arrange(factor(.data$outcome, levels = names(config$outcomes)))
 }
 
+# Summarize inconsistency and empirical support ----
+
+# Use the study-by-draw matrix and the smallest effect of interest to compute
+# the two inconsistency measures used in the evidence profile.
 calculate_grade_di_asi <- function(draw_matrix, sesoi = 0.10) {
   draw_matrix <- as.matrix(draw_matrix)
   if (
@@ -667,6 +714,7 @@ calculate_grade_di_asi <- function(draw_matrix, sesoi = 0.10) {
   ) {
     stop("The DI/ASI draw matrix is invalid.", call. = FALSE)
   }
+
   categories <- matrix(
     ifelse(
       draw_matrix <= -sesoi,
@@ -681,6 +729,7 @@ calculate_grade_di_asi <- function(draw_matrix, sesoi = 0.10) {
     ncol = ncol(draw_matrix),
     dimnames = dimnames(draw_matrix)
   )
+
   levels <- c(
     "meaningful detriment", "practical equivalence",
     "meaningful benefit"
@@ -722,6 +771,7 @@ calculate_grade_di_asi <- function(draw_matrix, sesoi = 0.10) {
       100 * cramers_v
     }
   }
+
   list(
     DI = as.numeric(di),
     ASI = as.numeric(asi),
@@ -784,6 +834,7 @@ make_grade_empirical_support <- function(
           .data$protein_intake_proposed
         )
     )
+
   arm_counts <- data |>
     dplyr::filter(
       .data$resistance_exercise_code %in% c(0, 1),
@@ -800,6 +851,7 @@ make_grade_empirical_support <- function(
       arms = dplyr::n(),
       .groups = "drop"
     )
+
   summary <- study_support |>
     dplyr::group_by(
       .data$outcome, .data$resistance_exercise_code,
@@ -829,9 +881,14 @@ make_grade_empirical_support <- function(
       direct_spanning_fraction =
         .data$studies_spanning_contrast / .data$studies
     )
+
   list(summary = summary, study_support = study_support)
 }
 
+# Population effects and other evidence domains ----
+
+# Match published population contrasts to the GRADE definitions before joining
+# risk-of-bias, publication-bias and inconsistency evidence.
 make_grade_population_effects <- function(
     reporting_audit,
     config = make_grade_primary_config()
@@ -846,6 +903,7 @@ make_grade_population_effects <- function(
   ) {
     stop("Primary model-average files are unavailable for GRADE.", call. = FALSE)
   }
+
   contrasts <- grade_primary_contrasts(config)
   selected <- purrr::map_dfr(seq_len(nrow(manifest)), function(position) {
     model_average <- qs::qread(manifest$model_average_path[[position]])
@@ -939,6 +997,7 @@ make_grade_population_effects <- function(
       })
     })
   })
+
   expected_rows <- nrow(contrasts)
   if (nrow(selected) != expected_rows) {
     stop(
@@ -948,6 +1007,7 @@ make_grade_population_effects <- function(
       call. = FALSE
     )
   }
+
   selected
 }
 
@@ -972,6 +1032,7 @@ make_grade_rob2_summary <- function(
       )
   }) |>
     dplyr::left_join(rob, by = "study_no")
+
   summary <- studies |>
     dplyr::group_by(.data$outcome, .data$resistance_exercise_code) |>
     dplyr::summarise(
@@ -994,6 +1055,7 @@ make_grade_rob2_summary <- function(
         .data$some_concerns / .data$assessed_studies,
       high_proportion = .data$high / .data$assessed_studies
     )
+
   list(summary = summary, study_judgments = studies)
 }
 
@@ -1027,6 +1089,7 @@ make_grade_publication_bias_summary <- function(
       absolute_attenuation =
         abs(.data$estimate_brma) - abs(.data$estimate_robma)
     )
+
   counts <- high_low_data$outcome_summary |>
     dplyr::mutate(
       outcome = unname(outcome_map[.data$outcome_group])
@@ -1037,6 +1100,7 @@ make_grade_publication_bias_summary <- function(
       selected_contrasts,
       candidate_contrasts
     )
+
   summary <- estimates |>
     dplyr::left_join(counts, by = "outcome")
   if (nrow(summary) != 4L || anyNA(summary$outcome)) {
@@ -1220,6 +1284,7 @@ summarise_grade_inconsistency <- function(
       }
     }
   }
+
   list(
     summary = dplyr::bind_rows(summary_rows),
     study_summary = dplyr::bind_rows(study_rows),
@@ -1227,6 +1292,10 @@ summarise_grade_inconsistency <- function(
   )
 }
 
+# Recorded judgments and evidence profiles ----
+
+# Read the review team's domain judgments, check that every required key is
+# covered, and retain the rationale in the published evidence profile.
 read_grade_domain_judgments <- function(
     path,
     config = make_grade_primary_config()
@@ -1248,6 +1317,7 @@ read_grade_domain_judgments <- function(
     "publication_bias_rationale", "other_considerations",
     "other_adjustment", "importance"
   )
+
   missing <- setdiff(required, names(judgments))
   if (length(missing)) {
     stop(
@@ -1256,6 +1326,7 @@ read_grade_domain_judgments <- function(
       call. = FALSE
     )
   }
+
   expected <- grade_primary_keys(config) |>
     dplyr::select(
       outcome, rt_condition,
@@ -1264,6 +1335,7 @@ read_grade_domain_judgments <- function(
     )
   observed <- judgments |>
     dplyr::select(dplyr::all_of(names(expected)))
+
   if (
     nrow(judgments) != nrow(expected) || anyDuplicated(observed) ||
       nrow(dplyr::anti_join(expected, observed, by = names(expected))) ||
@@ -1276,6 +1348,7 @@ read_grade_domain_judgments <- function(
       call. = FALSE
     )
   }
+
   judgments
 }
 
@@ -1350,6 +1423,7 @@ assemble_grade_evidence_profile <- function(
         "protein_intake_proposed"
       )
     )
+
   downgrade_columns <- c(
     "risk_of_bias_downgrade", "inconsistency_downgrade",
     "indirectness_downgrade", "imprecision_downgrade",
@@ -1372,6 +1446,7 @@ assemble_grade_evidence_profile <- function(
         profile$total_adjustment[complete_judgment]
     )
   )
+
   profile |>
     dplyr::mutate(
       certainty = grade_certainty_label(.data$certainty_score),
@@ -1426,6 +1501,7 @@ write_grade_analysis_bundle <- function(
     judgments = file.path(output_dir, "domain_judgments_snapshot.csv"),
     evidence_profile = file.path(output_dir, "evidence_profile.csv")
   )
+
   readr::write_csv(restricted_weights, paths[["restricted_weights"]])
   readr::write_csv(draw_manifest, paths[["draw_manifest"]])
   readr::write_csv(population_effects, paths[["population_effects"]])
@@ -1457,6 +1533,7 @@ write_grade_analysis_bundle <- function(
       ~ digest::digest(file = .x, algo = "sha256")
     )
   )
+
   manifest_path <- file.path(output_dir, "manifest.csv")
   readr::write_csv(manifest, manifest_path)
   normalizePath(

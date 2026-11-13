@@ -1,3 +1,8 @@
+# Plan and review exact holdout remedies ----
+
+# Match flagged holdouts to the reviewed remedy ledger. The review step
+# separates the usable scores from cases requiring another fit.
+
 # Reviewed convergence remedies for compact interaction exact-LOO checkpoints.
 # Initial checkpoints remain immutable; passing cases keep their existing paths.
 iad_exact_remedy_plan <- function(paths, ledger_path, family) {
@@ -13,6 +18,7 @@ iad_exact_remedy_plan <- function(paths, ledger_path, family) {
       !all(ledger$iter_sampling == 12000L) ||
       !all(grepl("^[a-f0-9]{64}$", ledger$initial_sha256)) ||
       !all(nzchar(trimws(ledger$rationale)))) stop("Invalid exact-refit remedy ledger.")
+
   ledger <- ledger[ledger$family == family, , drop = FALSE]
   matched <- integer()
   plans <- lapply(unname(unlist(paths)), function(path) {
@@ -46,6 +52,7 @@ iad_exact_remedy_plan <- function(paths, ledger_path, family) {
     }
     list(initial_path = path, initial_sha256 = iad_hash(path), record = record, remedy = remedy)
   })
+
   if (length(matched) != nrow(ledger) || !setequal(matched, seq_len(nrow(ledger)))) {
     stop("Exact remedy ledger does not match the failed cases uniquely.")
   }
@@ -62,12 +69,14 @@ iad_review_exact <- function(plan) {
     sprintf("model_%02d_observation_%04d.qs", record$model_index, record$observation), archive = TRUE)
   iad_check_hash(record$fit_path, record$fit_sha256)
   iad_check_hash(record$loo_path, record$loo_sha256)
+
   if (file.exists(path)) {
     previous <- qs::qread(path)
     if (!isTRUE(previous$compact) || !identical(previous$interaction_record, record) ||
         !identical(previous$exact_remedy, plan)) stop("Existing exact remedy has different inputs or settings.")
     return(normalizePath(path, winslash = "/", mustWork = TRUE))
   }
+
   candidate <- qs::qread(record$fit_path)
   integrated <- qs::qread(record$loo_path)
   if (!isTRUE(loo::pareto_k_values(integrated$loo)[[record$observation]] > 0.7)) stop("Invalid exact remedy case.")
@@ -82,12 +91,14 @@ iad_review_exact <- function(plan) {
   diagnostics$iter_sampling <- as.integer(remedy$iter_sampling)
   diagnostics$initial_checkpoint_sha256 <- plan$initial_sha256
   correction <- if (isTRUE(diagnostics$diagnostic_pass)) iad_build_exact_correction(refit) else NULL
+
   if (!is.null(correction)) {
     correction$exact_remedy <- plan
     correction$exact_refit_summary$exact_stage <- remedy$stage
     correction$exact_refit_summary$iter_sampling <- as.integer(remedy$iter_sampling)
     correction$exact_refit_summary$initial_checkpoint_sha256 <- plan$initial_sha256
   }
+
   iad_qsave(list(compact = TRUE, interaction_record = record, exact_remedy = plan,
     diagnostics = diagnostics, correction = correction), path)
 }

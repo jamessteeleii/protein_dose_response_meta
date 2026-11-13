@@ -54,6 +54,10 @@ traffic_theme <- ggplot2::theme(
   plot.caption = ggplot2::element_text(size = 7, colour = "#555555", hjust = 0)
 )
 
+# RoB 2 traffic-light figure ----
+
+# Use the validated trial-level judgments and shared theme to display the five
+# domains and overall judgment for each index result.
 make_traffic <- function(data, subtitle = NULL, point_size = 8) {
   robvis::rob_traffic_light(
     data = data,

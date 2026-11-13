@@ -2,6 +2,10 @@
 # Selection is made from the checksummed, frozen 2026 primary rows. No original
 # workbook, fitted primary model, or existing sensitivity output is modified.
 
+# Frozen inputs and opt-in phases ----
+
+# Use the frozen primary muscle rows and candidate specifications as the
+# source for both measurement restrictions.
 measurement_variants <- function() c("prereg_methods", "direct_only")
 
 measurement_phase_enabled <- function(phase) {
@@ -38,12 +42,14 @@ read_measurement_checkpoint <- function(paths) {
     stop("Measurement analysis requires the frozen primary checkpoint.", call. = FALSE)
   }
   manifest <- utils::read.csv(paths[[1L]], stringsAsFactors = FALSE)
+
   for (path in paths[-1L]) {
     record <- manifest[manifest$file == basename(path), , drop = FALSE]
     if (nrow(record) != 1L || !identical(
       digest::digest(file = path, algo = "sha256"), record$sha256[[1L]]
     )) stop("Primary checkpoint checksum mismatch: ", basename(path), call. = FALSE)
   }
+
   data <- readr::read_csv(paths[[2L]], show_col_types = FALSE, guess_max = Inf)
   specifications <- readr::read_csv(paths[[3L]], show_col_types = FALSE, guess_max = Inf)
   if (nrow(readr::problems(data)) || nrow(readr::problems(specifications))) {
@@ -57,6 +63,7 @@ read_measurement_checkpoint <- function(paths) {
   if (anyNA(data$resistance_exercise_factor) || any(
     data$resistance_exercise_code != ifelse(data$resistance_exercise_factor == "yes", 0, 1)
   )) stop("Frozen primary RT coding is inconsistent.", call. = FALSE)
+
   specifications <- specifications[specifications$outcome == "hypertrophy", , drop = FALSE]
   specifications <- specifications[order(specifications$model_index), , drop = FALSE]
   if (!identical(as.integer(specifications$model_index), seq_len(26L))) {
@@ -70,6 +77,10 @@ read_measurement_checkpoint <- function(paths) {
   ])
 }
 
+# Method review and eligibility ----
+
+# Keep the extracted measurement label and the reviewed classification side by
+# side so readers can trace a restriction to its source.
 read_measurement_annotations <- function(path) {
   annotations <- utils::read.csv(path, colClasses = "character", stringsAsFactors = FALSE)
   required <- c("study_no", "arm_no", "outcome_no", "time1", "time2",
@@ -109,12 +120,16 @@ review_measurement_methods <- function(muscle, annotations = NULL) {
     provenance[positions] <- annotations$confirmation_source
     confirmed_on[positions] <- annotations$confirmation_date
   }
+
   data.frame(measurement_method_reviewed = reviewed,
     measurement_annotation_applied = applied,
     measurement_annotation_source = provenance,
     measurement_confirmation_date = confirmed_on, stringsAsFactors = FALSE)
 }
 
+# Return the retained muscle data and a row-level eligibility audit for one
+# measurement definition. Preserve the primary effect sizes and exposure
+# centring when subsetting.
 select_measurement_data <- function(data, variant, annotations = NULL) {
   stopifnot(variant %in% measurement_variants())
   required <- c("outcome_group", "measurement_method", "study_no", "arm_no",
@@ -123,6 +138,7 @@ select_measurement_data <- function(data, variant, annotations = NULL) {
   muscle <- data[data$outcome_group == "direct muscle size/mass", , drop = FALSE]
   review <- review_measurement_methods(muscle, annotations)
   method <- tolower(trimws(review$measurement_method_reviewed))
+
   if (anyNA(method) || any(!nzchar(method))) stop("Missing measurement method.")
   direct <- grepl("^(mri|ct|computed tomography|ultrasound|biopsy)( -|$)", method)
   composition <- grepl("^(dexa|dxa|bia)( -|$)", method)
@@ -162,6 +178,10 @@ select_measurement_data <- function(data, variant, annotations = NULL) {
        ))
 }
 
+# Candidate fits and diagnostics ----
+
+# Reuse the primary muscle candidate specifications on the restricted
+# observations, then identify accepted fits before comparing candidates.
 make_measurement_specifications <- function(checkpoint, variant) {
   table <- checkpoint$specifications
   records <- lapply(seq_len(nrow(table)), function(i) {
@@ -191,6 +211,7 @@ measurement_input_preflight <- function(selection, specifications, priors) {
       model_index = specification$model_index, observations = stan_data$N, valid = TRUE,
       warnings = paste(unique(warning_messages), collapse = " | "))
   })
+
   if (nrow(checks) != 26L || !all(checks$valid) ||
       any(checks$observations != nrow(selection$data))) stop("Measurement preflight failed.")
   checks
@@ -228,6 +249,7 @@ fit_measurement_candidate <- function(specification, selection, priors, prefligh
   if (!measurement_phase_enabled(phase)) {
     stop("Measurement ", phase, " is disabled; run only after the extended families finish.")
   }
+
   if (nrow(preflight) != 26L || !all(preflight$valid)) stop("Preflight must pass before fitting.")
   if (stage == "initial" && !isTRUE(pilot_audit$all_pass)) {
     stop("Time and diagnose candidates 2 and 26 before full measurement fan-out.")
@@ -272,12 +294,14 @@ make_measurement_remedy_records <- function(specifications, decisions, variant,
       nrow(initial_diagnostics$diagnostic_summary) != 26L) {
     stop("Inspect a complete initial diagnostic audit before specifying remedies.")
   }
+
   if (any(!decisions$variant %in% measurement_variants())) stop("Unknown remedy measurement set.")
   if (!setequal(names(decisions), c("variant", "model_index", "stage",
       "adapt_delta", "max_treedepth", "rationale"))) stop("Unrecognised remedy decision columns.")
   decisions <- decisions[decisions$variant == variant, , drop = FALSE]
   if (!nrow(decisions)) return(list(list(skip = TRUE, measurement_variant = variant)))
   required <- c("model_index", "stage", "adapt_delta", "max_treedepth", "rationale")
+
   if (!all(required %in% names(decisions)) || anyNA(decisions[required]) ||
       any(!nzchar(trimws(decisions$rationale))) ||
       any(!decisions$model_index %in% seq_len(26L)) ||
@@ -316,6 +340,7 @@ measurement_diagnostic_audit <- function(paths, variant) {
   })
   summary <- dplyr::bind_rows(purrr::map(diagnostics, "summary"))
   summary <- summary[order(summary$model_index), , drop = FALSE]
+
   if (!identical(as.integer(summary$model_index), seq_len(26L)) ||
       any(summary$outcome != "hypertrophy")) stop("Incomplete measurement diagnostic set.")
   summary$ppc_warning <- primary_ppc_warning(summary)
@@ -362,6 +387,7 @@ validate_measurement_fit_data <- function(candidate, selection) {
   if (isTRUE(specification$standardised_moderators)) {
     expected <- add_primary_standardised_moderators(expected)
   }
+
   if (isTRUE(specification$half_unit_protein)) {
     expected <- add_primary_half_unit_protein(expected)
   }
@@ -372,6 +398,7 @@ validate_measurement_fit_data <- function(candidate, selection) {
       nrow(actual) != nrow(expected)) {
     stop("Archived measurement fit lacks row identity fields or has a different row count.")
   }
+
   expected$Intercept <- rep(1, nrow(expected))
   for (column in names(actual)) {
     if (!column %in% names(expected)) {
@@ -392,6 +419,7 @@ validate_measurement_fit_data <- function(candidate, selection) {
       stop("Archived measurement fit does not match frozen rows/predictor: ", column)
     }
   }
+
   invisible(TRUE)
 }
 
@@ -416,15 +444,21 @@ measurement_accepted_manifest <- function(initial_paths, remedy_paths, variant, 
     gc(verbose = FALSE)
     row
   }
+
   manifest <- purrr::map_dfr(c(measurement_fit_paths(initial_paths),
     measurement_fit_paths(remedy_paths)), describe)
   manifest <- manifest |>
     dplyr::group_by(model_index) |> dplyr::slice_max(rank, n = 1L, with_ties = FALSE) |>
     dplyr::ungroup() |> dplyr::arrange(model_index)
   if (!identical(manifest$model_index, seq_len(26L))) stop("Incomplete accepted measurement fits.")
+
   manifest
 }
 
+# Holdout scoring and model averaging ----
+
+# Score the accepted fits on the same restricted sample, resolve flagged
+# observations by exact refits, and stack the resulting candidate scores.
 measurement_loo_records <- function(manifest, diagnostics, variant) {
   if (!all(diagnostics$diagnostic_summary$diagnostic_pass)) {
     stop("Measurement diagnostics require remediation; no candidate may be dropped before LOO.")
@@ -505,12 +539,14 @@ fit_measurement_exact <- function(record) {
     measurement_path(record$variant, "loo/exact", "no_exact_refits.qs")))
   candidate <- qs::qread(record$fit_path)
   integrated <- qs::qread(record$integrated_loo_path)
+
   if (!identical(candidate$specification$measurement_variant, record$variant) ||
       !identical(integrated$measurement_variant, record$variant) ||
       candidate$model_index != record$model_index ||
       !isTRUE(loo::pareto_k_values(integrated$loo)[[record$observation]] > 0.7)) {
     stop("Invalid measurement exact-LOO case.")
   }
+
   job <- c(record, list(fitted_candidate = candidate, integrated_result = integrated))
   refit <- fit_primary_integrated_exact_loo_case(job)
   # Use the same general primary design reconstruction as achieved/assignment
@@ -533,6 +569,7 @@ finalise_measurement_loo <- function(manifest, exact_paths, variant) {
   exact_summary <- if (length(corrections)) {
     dplyr::bind_rows(purrr::map(corrections, "exact_refit_summary"))
   } else tibble::tibble(model_index = integer(), observation = integer(), diagnostic_pass = logical())
+
   if (length(corrections) && (!all(exact_summary$diagnostic_pass) ||
       any(!is.finite(exact_summary$exact_elpd_loo)))) {
     stop("Measurement exact-LOO diagnostics failed; remediate before stacking.")
@@ -542,12 +579,14 @@ finalise_measurement_loo <- function(manifest, exact_paths, variant) {
     model_index = x$model_index, observation = which(loo::pareto_k_values(x$loo) > 0.7)))
   actual <- purrr::map_dfr(corrections, function(x) tibble::tibble(
     model_index = x$model_index, observation = x$exact_refit_summary$observation[[1L]]))
+
   if (!length(corrections)) actual <- expected[FALSE, , drop = FALSE]
   order_cases <- function(x) x[order(x$model_index, x$observation), , drop = FALSE]
   if (!isTRUE(all.equal(order_cases(expected), order_cases(actual), check.attributes = FALSE))) {
     stop("Exact corrections do not cover precisely the new high-k cases.")
   }
   paths <- character(length(results))
+
   for (i in seq_along(results)) {
     result <- results[[i]]
     selected <- Filter(function(x) x$model_index == result$model_index, corrections)
@@ -569,6 +608,7 @@ finalise_measurement_loo <- function(manifest, exact_paths, variant) {
     paths[[i]] <- write_measurement_qs(result, measurement_path(variant, "loo/final",
       sprintf("model_%02d.qs", result$model_index)))
   }
+
   paths
 }
 
@@ -588,12 +628,14 @@ measurement_stacking <- function(paths, variant) {
       stop("Measurement final LOO set is not stacking-ready.")
     }
   }
+
   objects <- lapply(results, `[[`, "loo")
   names(objects) <- vapply(results, `[[`, character(1), "model_name")
   weights <- as.numeric(loo::loo_model_weights(objects, method = "stacking"))
   if (any(!is.finite(weights)) || any(weights < -1e-8) || abs(sum(weights) - 1) > 1e-8) {
     stop("Invalid measurement stacking weights.")
   }
+
   weights <- pmax(weights, 0); weights <- weights / sum(weights)
   tibble::tibble(outcome = "hypertrophy", model_index = seq_len(26L),
     model_name = names(objects), stacking_weight = weights)
@@ -618,12 +660,15 @@ write_measurement_report <- function(average_path, selection) {
     output_file = measurement_path(selection$variant, "reporting", "report.qs"))
 }
 
+# Package the selection audit, fit diagnostics and final reporting checks for
+# comparison with the primary muscle analysis.
 write_measurement_checkpoint <- function(report_path, selection, specifications,
                                         diagnostics, manifest, loo_paths, checkpoint) {
   report <- qs::qread(report_path)
   if (nrow(report$model_weights) != 26L ||
       abs(sum(report$model_weights$stacking_weight) - 1) > 1e-8 ||
       any(!is.finite(report$dose_response$estimate))) stop("Invalid measurement report.")
+
   reductions <- lapply(unname(unlist(loo_paths)), qs::qread)
   accepted_specifications <- purrr::map_dfr(manifest$fit_path, function(path) {
     candidate <- qs::qread(path)
@@ -633,6 +678,7 @@ write_measurement_checkpoint <- function(report_path, selection, specifications,
     gc(verbose = FALSE)
     specification
   })
+
   artifacts <- list(
     source_manifest = checkpoint$source_manifest, selection_audit = selection$selection,
     measurement_annotations = selection$annotations,
@@ -656,6 +702,7 @@ write_measurement_checkpoint <- function(report_path, selection, specifications,
     pairwise_contrasts = report$pairwise_contrasts, observed_support = report$support,
     local_equivalence = report$local_equivalence
   )
+
   artifacts$reporting_settings <- tibble::as_tibble(c(report$settings,
     list(sesoi = 0.1, probability_criterion = 0.95, reference_age = 25, reference_weeks = 12)))
   artifacts$final_loo_manifest <- tibble::tibble(model_index = seq_len(26L),
@@ -671,6 +718,7 @@ write_measurement_checkpoint <- function(report_path, selection, specifications,
       abs(sum(report$model_weights$stacking_weight) - 1) < 1e-8,
       all(vapply(reductions, function(x) !any(loo::pareto_k_values(x$loo) > 0.7, na.rm = TRUE), logical(1))),
       all(!is.na(report$pairwise_contrasts$supported))))
+
   if (!all(artifacts$verification_checks$passed)) stop("Measurement checkpoint verification failed.")
   descriptions <- c(
     source_manifest = "Checksums of frozen primary data and candidate specifications.",
@@ -698,6 +746,7 @@ write_measurement_checkpoint <- function(report_path, selection, specifications,
     final_loo_manifest = "Final LOO reduction paths, byte sizes, and checksums.",
     verification_checks = "Required final reporting and diagnostic invariants."
   )
+
   paths <- write_verification_bundle(paste0("measurement_", selection$variant, "_update_2026"),
     artifacts, descriptions)
   bundle_manifest <- utils::read.csv(paths[basename(paths) == "manifest.csv"], stringsAsFactors = FALSE)
@@ -705,6 +754,7 @@ write_measurement_checkpoint <- function(report_path, selection, specifications,
   hashes <- vapply(file.path(directory, bundle_manifest$file), function(path) {
     digest::digest(file = path, algo = "sha256")
   }, character(1))
+
   if (!identical(unname(hashes), bundle_manifest$sha256)) stop("Measurement bundle checksum audit failed.")
   paths
 }

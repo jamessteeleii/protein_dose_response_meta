@@ -1,3 +1,8 @@
+# Design audit before fitting interactions ----
+
+# Check the frozen model samples and summarize training-status coverage,
+# sample exclusions and design rank for each analysis family.
+
 # Read-only design audit before choosing training-status interaction models.
 # No pipeline stages, model fits, prior calibration or workbook edits.
 training_interaction_audit <- function(root = ".") {
@@ -11,6 +16,7 @@ training_interaction_audit <- function(root = ".") {
     if (!identical(digest::digest(file = path, algo = "sha256"), record$sha256)) stop("Audit source hash changed.")
     read.csv(gzfile(path), stringsAsFactors = FALSE)
   }
+
   normalise <- function(x) {
     value <- tolower(trimws(as.character(x)))
     value[is.na(value) | !nzchar(value)] <- "not reported"
@@ -20,6 +26,7 @@ training_interaction_audit <- function(root = ".") {
     }
     value
   }
+
   rows <- lapply(names(folders), function(family) {
     directory <- file.path(root, "results", "verification", folders[[family]])
     data <- read_verified(directory, "analysis_data")
@@ -45,12 +52,14 @@ training_interaction_audit <- function(root = ".") {
     data$training_status_audit <- normalise(data$trained_or_untrained)
     data
   })
+
   data <- dplyr::bind_rows(rows)
   if (any(!is.finite(data$age_centre)) || any(!is.finite(data$duration_centre))) stop("Unexpected missing age/duration.")
   arm_consistency <- data |>
     dplyr::group_by(family, study_no, arm_no) |>
     dplyr::summarise(statuses = dplyr::n_distinct(training_status_audit),
       rt_conditions = dplyr::n_distinct(resistance_exercise_code), .groups = "drop")
+
   if (any(arm_consistency$statuses != 1L) || any(arm_consistency$rt_conditions != 1L)) stop("Inconsistent arm status/RT coding.")
   scope <- c("family", "analysis_outcome")
   status_counts <- data |>
@@ -76,6 +85,7 @@ training_interaction_audit <- function(root = ".") {
       dplyr::mutate(scenario = scenario, excluded_contrasts = original_contrasts - retained_contrasts,
         original_candidates_to_refit = ifelse(excluded_contrasts > 0L, ifelse(family == "relative", 26L, 18L), 0L))
   })
+
   scenarios <- dplyr::bind_rows(scenarios)
   # Rank screens catch structural non-identification, not statistical power.
   rank <- lapply(split(data, interaction(data$family, data$analysis_outcome, drop = TRUE)), function(current) {
@@ -98,6 +108,7 @@ training_interaction_audit <- function(root = ".") {
       }))
     }))
   })
+
   unknown <- data[data$training_status_audit == "not reported", ] |>
     dplyr::group_by(family, analysis_outcome, study_no, arm_no, resistance_exercise_code) |>
     dplyr::summarise(contrasts = dplyr::n(), .groups = "drop")
@@ -111,7 +122,10 @@ training_interaction_audit <- function(root = ".") {
       "age and duration complete", "arm status and RT coding consistent"), passed = TRUE))
 }
 
-write_training_interaction_audit <- function(audit, output_dir = "outputs/training_status_interactions") {
+write_training_interaction_audit <- function(
+    audit,
+    output_dir = "outputs/training_status_interactions"
+) {
   dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
   vapply(names(audit), function(name) {
     path <- file.path(output_dir, paste0(name, ".csv"))

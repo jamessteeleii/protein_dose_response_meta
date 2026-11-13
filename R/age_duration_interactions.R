@@ -1,8 +1,15 @@
 # Supplementary expansion of the frozen primary families only. This module is
 # sourced by a separate targets script; it never dispatches the main pipeline.
 
+# Workflow families and archive paths ----
+
+# The age and duration analysis starts from accepted primary candidates, adds
+# interaction terms where specified, and reports dose contrasts at supported
+# moderator profiles.
 iad_families <- function() c("relative", "total", "supplement")
+
 iad_outcomes <- function() c("whole_body", "hypertrophy", "strength", "function")
+
 iad_phase <- function(phase) {
   value <- Sys.getenv("PROTEIN_INTERACTION_PHASE", "none")
   if (!value %in% c("none", "pilot", "fit", "batch_fit", "remedy", "loo", "exact", "exact_remedy", "correction", "combine", "report",
@@ -11,9 +18,11 @@ iad_phase <- function(phase) {
   }
   identical(value, phase) || (identical(value, "batch_fit") && phase %in% c("pilot", "fit"))
 }
+
 iad_path <- function(..., archive = FALSE) {
   here::here(if (archive) "model_archive" else "results", "update_2026", "age_duration", ...)
 }
+
 iad_qsave <- function(object, path) {
   dir.create(dirname(path), recursive = TRUE, showWarnings = FALSE)
   temporary <- paste0(path, ".tmp-", Sys.getpid())
@@ -22,6 +31,7 @@ iad_qsave <- function(object, path) {
   if (!file.rename(temporary, path)) stop("Could not atomically finalise interaction archive.")
   normalizePath(path, winslash = "/", mustWork = TRUE)
 }
+
 iad_csv <- function(object, path) {
   dir.create(dirname(path), recursive = TRUE, showWarnings = FALSE)
   temporary <- paste0(path, ".tmp-", Sys.getpid())
@@ -31,17 +41,21 @@ iad_csv <- function(object, path) {
   if (!file.rename(temporary, path)) stop("Could not atomically write interaction table.")
   normalizePath(path, winslash = "/", mustWork = TRUE)
 }
+
 iad_read_csv <- function(path) {
   data <- readr::read_csv(path, guess_max = Inf, show_col_types = FALSE)
   if (nrow(readr::problems(data))) stop("Lossy checkpoint parsing: ", basename(path))
   data
 }
+
 iad_hash <- function(path) digest::digest(file = path, algo = "sha256")
+
 iad_check_hash <- function(path, hash) {
   if (!file.exists(path) || length(hash) != 1L || is.na(hash) ||
       !identical(iad_hash(path), unname(as.character(hash)))) stop("Checksum mismatch: ", path)
   invisible(TRUE)
 }
+
 iad_bundle_table <- function(directory, manifest, artifact) {
   row <- manifest[manifest$artifact == artifact, , drop = FALSE]
   if (nrow(row) != 1L || basename(row$file) != row$file) stop("Invalid source artifact: ", artifact)
@@ -49,6 +63,12 @@ iad_bundle_table <- function(directory, manifest, artifact) {
   iad_check_hash(path, row$sha256)
   iad_read_csv(path)
 }
+
+# Verify frozen parent analysis inputs ----
+
+# Identify the frozen tables and fit artifacts used to reproduce each parent
+# ensemble, and match the original observation order before reusing its LOO
+# scores.
 iad_checkpoint_inputs <- function() {
   folders <- c(relative = "primary_update_2026", total = "total_primary_update_2026",
                supplement = "supplement_primary_update_2026")
@@ -60,13 +80,16 @@ iad_checkpoint_inputs <- function() {
       if (folder == "primary_update_2026") "diagnostic_summary.csv.gz" else "final_sampling_diagnostic_summary.csv.gz"))
   }), use.names = FALSE)
 }
+
 iad_identity_columns <- function() c("study_no", "arm_no", "outcome_no", "time1", "time2", "yi", "vi")
+
 iad_same_observations <- function(first, second) {
   # Older brms spline fits keep only formula variables. Their study_factor
   # labels carry the same study IDs; factor integer codes are not those IDs.
   if (!"study_no" %in% names(first) && "study_factor" %in% names(first)) {
     first$study_no <- as.character(first$study_factor)
   }
+
   if (!"study_no" %in% names(second) && "study_factor" %in% names(second)) {
     second$study_no <- as.character(second$study_factor)
   }
@@ -82,6 +105,7 @@ iad_same_observations <- function(first, second) {
   }
   isTRUE(all.equal(normalise(first), normalise(second), tolerance = 1e-13, check.attributes = FALSE))
 }
+
 iad_fingerprint <- function(data) {
   columns <- c(iad_identity_columns(), "protein_intake", "protein_intake_raw",
                "age_centre", "duration_centre", "resistance_exercise_code")
@@ -92,6 +116,7 @@ iad_fingerprint <- function(data) {
   })
   digest::digest(value, algo = "sha256")
 }
+
 iad_validate_parent_data <- function(candidate, reference, family) {
   data <- candidate$model$data
   expected <- add_primary_half_unit_protein(add_primary_standardised_moderators(reference))
@@ -108,6 +133,7 @@ iad_validate_parent_data <- function(candidate, reference, family) {
   }
   invisible(TRUE)
 }
+
 iad_validate_loo <- function(result, expected = NULL) {
   if (!inherits(result$loo, "loo") || is.null(result$observation_manifest) ||
       nrow(result$loo$pointwise) != nrow(result$observation_manifest) ||
@@ -125,6 +151,9 @@ iad_validate_loo <- function(result, expected = NULL) {
   }
   invisible(TRUE)
 }
+
+# Read and validate the parent manifests, model data and fit paths needed to
+# prepare the interaction candidates.
 iad_read_checkpoints <- function(paths) {
   if (!all(file.exists(paths))) stop("Frozen primary checkpoint inputs are missing.")
   folders <- c(relative = "primary_update_2026", total = "total_primary_update_2026",
@@ -207,6 +236,7 @@ iad_read_checkpoints <- function(paths) {
         "verification_checks", "final_loo_manifest", "loo_final_manifest", "accepted_fit_manifest", "final_fit_manifest",
         "diagnostic_summary", "final_sampling_diagnostic_summary"), ])
   })
+
   names(output) <- iad_families()
   output
 }
@@ -228,10 +258,12 @@ iad_require_measurement <- function() {
   }
   invisible(TRUE)
 }
+
 iad_require_phase <- function(phase) {
   if (!iad_phase(phase)) stop("Interaction phase disabled: ", phase)
   iad_require_measurement()
 }
+
 iad_require_parents <- function(checkpoints) {
   parents <- dplyr::bind_rows(lapply(checkpoints, `[[`, "parents"))
   if (any(!file.exists(parents$fit_path))) stop(
@@ -239,6 +271,10 @@ iad_require_parents <- function(checkpoints) {
   invisible(TRUE)
 }
 
+# Interaction formulas, priors and profiles ----
+
+# Extend a parent dose-response formula for age or duration moderation while
+# using the parent model registry to retain candidate identity.
 iad_formula <- function(parent, type) {
   if (!type %in% c("age", "duration", "both")) stop("Invalid interaction type.")
   formula <- replace_primary_standardised_moderators(parent$formula)
@@ -266,8 +302,10 @@ iad_formula <- function(parent, type) {
       if (rt) terms <- c(terms, paste0(basis, ":", moderator, ":resistance_exercise_code"))
     }
   }
+
   paste(formula, paste(terms, collapse = " + "), sep = " + ")
 }
+
 iad_specifications <- function(checkpoints) {
   records <- list()
   for (family in iad_families()) for (outcome in iad_outcomes()) {
@@ -296,9 +334,11 @@ iad_specifications <- function(checkpoints) {
       records[[length(records) + 1L]] <- s
     }
   }
+
   names(records) <- vapply(records, function(s) paste(s$family, s$outcome, s$model_index, sep = "_"), character(1))
   records
 }
+
 iad_augment_data <- function(data) {
   for (moderator in c("age_outcome_z", "duration_outcome_z")) {
     data[[paste0(moderator, "_rt_yes")]] <- data[[moderator]] * (data$resistance_exercise_code == 0)
@@ -306,6 +346,7 @@ iad_augment_data <- function(data) {
   }
   data
 }
+
 iad_priors <- function(path) {
   data <- iad_read_csv(path)
   data$coef[is.na(data$coef)] <- ""
@@ -321,6 +362,7 @@ iad_priors <- function(path) {
   names(result) <- iad_outcomes()
   result
 }
+
 iad_prepare_input <- function(specification, checkpoints, priors) {
   s <- specification
   checkpoint <- checkpoints[[s$family]]
@@ -328,6 +370,7 @@ iad_prepare_input <- function(specification, checkpoints, priors) {
   parent <- as.list(table[table$outcome == s$outcome & table$model_index == s$parent_index, , drop = FALSE])
   prepared <- if (s$family == "relative") prepare_update_2026_primary_candidate_input(
     parent, checkpoint$data, priors) else prepare_update_2026_total_primary_input(parent, checkpoint$data, priors)
+
   if (!iad_same_observations(prepared$data, checkpoint$data[[s$outcome]])) stop("Interaction preparation dropped rows.")
   # Reuse all parent priors, including diagnostic remedies, before adding new
   # parameters. Standardisation is identical to the frozen parent's data.
@@ -337,6 +380,7 @@ iad_prepare_input <- function(specification, checkpoints, priors) {
   expanded_prior <- brms::get_prior(stats::as.formula(s$formula), data = prepared$data)
   added <- expanded_prior$coef[expanded_prior$class == "b" & nzchar(expanded_prior$coef) &
     !expanded_prior$coef %in% base_prior$coef[base_prior$class == "b"]]
+
   for (coefficient in unique(added)) prepared$priors <- c(prepared$priors,
     brms::set_prior("student_t(3, 0, 0.5)", class = "b", coef = coefficient))
   # Numeric-by smooth deviations use the parent's sds prior, or an explicitly
@@ -348,6 +392,9 @@ iad_prepare_input <- function(specification, checkpoints, priors) {
   prepared$specification <- s
   prepared
 }
+
+# Check the prepared model data and specifications before the opt-in fits. The
+# profile table records where moderator comparisons can be reported.
 iad_preflight <- function(specifications, checkpoints, priors) {
   purrr::map_dfr(specifications, function(s) {
     messages <- character()
@@ -367,6 +414,7 @@ iad_preflight <- function(specifications, checkpoints, priors) {
       data_sha256 = iad_fingerprint(prepared$data), warnings = paste(unique(messages), collapse = " | "))
   })
 }
+
 iad_profiles <- function(checkpoints) {
   purrr::map_dfr(iad_families(), function(family) purrr::map_dfr(iad_outcomes(), function(outcome) {
     data <- checkpoints[[family]]$data[[outcome]]
@@ -381,6 +429,7 @@ iad_profiles <- function(checkpoints) {
       age_neighbourhood_years = 10, duration_neighbourhood_weeks = 4)
   }))
 }
+
 iad_write_preparation <- function(checkpoints, specifications, preflight, profiles) {
   if (nrow(preflight) != length(specifications) || !all(preflight$valid)) stop("Incomplete input audit.")
   tables <- list(counts = dplyr::bind_rows(lapply(checkpoints, `[[`, "counts")),
@@ -391,6 +440,7 @@ iad_write_preparation <- function(checkpoints, specifications, preflight, profil
   purrr::imap_chr(tables, function(table, name) iad_csv(table,
     iad_path("preparation", paste0(name, ".csv")))) |> unname()
 }
+
 iad_storage_estimate <- function(checkpoints, specifications) {
   table <- purrr::map_dfr(specifications, function(s) {
     parents <- checkpoints[[s$family]]$parents
@@ -408,6 +458,11 @@ iad_pilot_specs <- function(specifications) {
   # Linear and most complex study/RT-smooth joint-interaction candidates, per scope.
   Filter(function(s) s$interaction == "both" && s$parent_index %in% c(6L, 26L), specifications)
 }
+
+# Fit, diagnose and accept interaction candidates ----
+
+# Fit an individual interaction candidate. The pilot, remedy and acceptance
+# helpers below govern which saved fits can enter the combined ensemble.
 iad_fit <- function(specification, checkpoints, priors, preflight, phase, pilot = NULL) {
   iad_require_phase(phase)
   iad_require_parents(checkpoints)
@@ -416,6 +471,7 @@ iad_fit <- function(specification, checkpoints, priors, preflight, phase, pilot 
   input <- iad_prepare_input(specification, checkpoints, priors)
   s <- specification
   path <- iad_path(s$family, s$outcome, s$stage, sprintf("model_%02d.qs", s$model_index), archive = TRUE)
+
   if (file.exists(path)) {
     previous <- qs::qread(path)
     fields <- c("family", "outcome", "model_index", "formula", "stage", "adapt_delta",
@@ -426,6 +482,7 @@ iad_fit <- function(specification, checkpoints, priors, preflight, phase, pilot 
     }
     return(normalizePath(path, winslash = "/", mustWork = TRUE))
   }
+
   started <- proc.time()[["elapsed"]]
   model <- brms::brm(stats::as.formula(input$formula), data = input$data, prior = input$priors,
     chains = 4L, cores = 4L, warmup = s$iter_warmup, iter = s$iter_warmup + s$iter_sampling,
@@ -433,12 +490,14 @@ iad_fit <- function(specification, checkpoints, priors, preflight, phase, pilot 
       100L * match(s$outcome, iad_outcomes()) + s$model_index,
     control = list(adapt_delta = s$adapt_delta, max_treedepth = s$max_treedepth),
     save_pars = brms::save_pars(all = TRUE))
+
   for (column in setdiff(names(input$data), names(model$data))) model$data[[column]] <- input$data[[column]]
   candidate <- list(outcome = s$outcome, model_index = s$model_index, model_name = s$model_name,
     specification = s, model = model, elapsed_seconds = proc.time()[["elapsed"]] - started,
     data_sha256 = iad_fingerprint(input$data))
   iad_qsave(candidate, path)
 }
+
 iad_diagnose <- function(path) {
   candidate <- qs::qread(path)
   s <- candidate$specification
@@ -456,9 +515,11 @@ iad_diagnose <- function(path) {
   result$parameter_failures$outcome <- rep(s$outcome, nrow(result$parameter_failures))
   result$parameter_failures$model_index <- rep(s$model_index, nrow(result$parameter_failures))
   result$standardised_residuals$family <- s$family
+
   if (!identical(result$summary$data_sha256, candidate$data_sha256)) stop("Archived interaction data changed.")
   result
 }
+
 iad_diagnostic_files <- function(diagnostics, stage, family = NULL) {
   summary <- purrr::map_dfr(diagnostics, "summary")
   summary$ppc_warning <- primary_ppc_warning(summary)
@@ -468,7 +529,9 @@ iad_diagnostic_files <- function(diagnostics, stage, family = NULL) {
   unname(purrr::imap_chr(tables, function(table, name) iad_csv(table,
     file.path(root, paste0(name, ".csv")))))
 }
+
 iad_diagnostic_summary <- function(diagnostics) purrr::map_dfr(diagnostics, "summary")
+
 iad_remedy_specs <- function(specifications, path, diagnostics, family = NULL) {
   decisions <- iad_read_csv(path)
   if (!is.null(family)) decisions <- decisions[decisions$family == family, , drop = FALSE]
@@ -477,6 +540,7 @@ iad_remedy_specs <- function(specifications, path, diagnostics, family = NULL) {
   if (anyNA(decisions) || any(!grepl("^remedy_[1-9][0-9]*$", decisions$stage)) ||
       anyDuplicated(decisions[c("family", "outcome", "model_index", "stage")]) ||
       any(!nzchar(trimws(decisions$rationale)))) stop("Invalid interaction remedy ledger.")
+
   for (i in seq_len(nrow(decisions))) {
     row <- decisions[i, ]
     found <- Filter(function(s) s$family == row$family && s$outcome == row$outcome &&
@@ -500,8 +564,10 @@ iad_remedy_specs <- function(specifications, path, diagnostics, family = NULL) {
     s$stage <- row$stage; s$remedy_rationale <- row$rationale
     records[[i]] <- s
   }
+
   records
 }
+
 iad_fit_remedy <- function(record, checkpoints, priors, preflight, family = NULL) {
   iad_require_phase("remedy")
   if (isTRUE(record$skip)) return(iad_qsave(record,
@@ -509,10 +575,12 @@ iad_fit_remedy <- function(record, checkpoints, priors, preflight, family = NULL
       iad_path(family, "remedies", "none.qs", archive = TRUE)))
   iad_fit(record, checkpoints, priors, preflight, "remedy")
 }
+
 iad_diagnose_remedy <- function(path) {
   if (basename(path) == "none.qs") return(list(summary = tibble::tibble(), parameter_failures = tibble::tibble()))
   iad_diagnose(path)
 }
+
 iad_accepted <- function(initial, remedies, specifications, checkpoints) {
   rows <- dplyr::bind_rows(initial, remedies)
   rows$rank <- suppressWarnings(as.integer(sub("remedy_", "", rows$stage)))
@@ -522,6 +590,7 @@ iad_accepted <- function(initial, remedies, specifications, checkpoints) {
     dplyr::slice_max(rank, n = 1, with_ties = FALSE) |> dplyr::ungroup() |>
     dplyr::arrange(family, outcome, model_index)
   expected <- dplyr::bind_rows(specifications)[c("family", "outcome", "model_index")]
+
   if (nrow(rows) != nrow(expected) || nrow(dplyr::anti_join(expected, rows,
     by = c("family", "outcome", "model_index"))) || !all(rows$diagnostic_pass)) {
     stop("Every interaction candidate must pass diagnostics before LOO. No automatic exclusions.")
@@ -530,9 +599,14 @@ iad_accepted <- function(initial, remedies, specifications, checkpoints) {
     reference <- checkpoints[[rows$family[[i]]]]$data[[rows$outcome[[i]]]]
     if (rows$data_sha256[[i]] != iad_fingerprint(reference)) stop("Accepted fit row/exposure/moderator mismatch.")
   }
+
   purrr::pmap(rows, list)
 }
 
+# Integrated and exact holdout scores ----
+
+# Compute observation-level integrated PSIS-LOO on the parent sample. Use the
+# exact refit helpers for observations with problematic importance weights.
 iad_compute_loo <- function(record, phase = "loo") {
   iad_require_phase(phase)
   iad_check_hash(record$fit_path, record$sha256)
@@ -549,6 +623,7 @@ iad_compute_loo <- function(record, phase = "loo") {
   iad_qsave(result, iad_path(record$family, record$outcome, "loo", "integrated",
     sprintf("model_%02d.qs", record$model_index), archive = TRUE))
 }
+
 iad_relabel_loo <- function(result, record) {
   result$model_index <- as.integer(record$model_index)
   result$model_name <- record$model_name
@@ -563,6 +638,7 @@ iad_relabel_loo <- function(result, record) {
   }
   result
 }
+
 iad_loo_audit <- function(paths) {
   rows <- list(); cases <- list(); summary <- list()
   for (path in unname(unlist(paths))) {
@@ -581,18 +657,21 @@ iad_loo_audit <- function(paths) {
   list(manifest = dplyr::bind_rows(rows), summary = dplyr::bind_rows(summary),
        cases = if (length(cases)) cases else list(list(skip = TRUE)))
 }
+
 iad_write_loo_audit <- function(audit, family = NULL) {
   root <- if (is.null(family)) iad_path("loo") else iad_path(family, "loo")
   c(iad_csv(audit$manifest, file.path(root, "manifest.csv")),
     iad_csv(audit$summary, file.path(root, "summary.csv")),
     iad_csv(dplyr::bind_rows(audit$cases), file.path(root, "exact_cases.csv")))
 }
+
 iad_exact <- function(record, phase = "exact", family = NULL, compact = FALSE) {
   iad_require_phase(phase)
   archive <- if (compact) "exact_checkpoints" else "exact_fits"
   if (isTRUE(record$skip)) return(iad_qsave(record,
     if (is.null(family)) iad_path("loo", archive, "none.qs", archive = TRUE) else
       iad_path(family, "loo", archive, "none.qs", archive = TRUE)))
+
   iad_check_hash(record$fit_path, record$fit_sha256)
   iad_check_hash(record$loo_path, record$loo_sha256)
   path <- iad_path(record$family, record$outcome, "loo", archive,
@@ -602,12 +681,14 @@ iad_exact <- function(record, phase = "exact", family = NULL, compact = FALSE) {
     if (!identical(previous$interaction_record, record)) stop("An existing exact refit belongs to different inputs.")
     return(normalizePath(path, winslash = "/", mustWork = TRUE))
   }
+
   candidate <- qs::qread(record$fit_path)
   integrated <- qs::qread(record$loo_path)
   if (!isTRUE(loo::pareto_k_values(integrated$loo)[[record$observation]] > 0.7)) stop("Invalid exact case.")
   refit <- fit_primary_integrated_exact_loo_case(c(record,
     list(fitted_candidate = candidate, integrated_result = integrated)))
   refit$interaction_record <- record
+
   if (compact) {
     rm(candidate, integrated)
     diagnostics <- iad_exact_diagnostic_summary(refit)
@@ -615,19 +696,23 @@ iad_exact <- function(record, phase = "exact", family = NULL, compact = FALSE) {
     return(iad_qsave(list(compact = TRUE, interaction_record = record,
       diagnostics = diagnostics, correction = correction), path))
   }
+
   iad_qsave(refit, path)
 }
+
 iad_exact_diagnostic_summary <- function(refit) {
   result <- summarise_primary_exact_loo_refit_diagnostics(refit)
   result$family <- refit$interaction_record$family
   result
 }
+
 iad_exact_diagnostics <- function(path) {
   refit <- qs::qread(path)
   if (isTRUE(refit$skip)) return(tibble::tibble())
   if (isTRUE(refit$compact)) return(refit$diagnostics)
   iad_exact_diagnostic_summary(refit)
 }
+
 iad_build_exact_correction <- function(refit) {
   record <- refit$interaction_record
   prediction_model <- refit$refitted_model
@@ -637,12 +722,14 @@ iad_build_exact_correction <- function(refit) {
   correction <- compute_update_2026_primary_exact_loo_case(refit, components = components)
   iad_relabel_loo(correction, record)
 }
+
 iad_score_exact <- function(path, phase = "correction", family = NULL) {
   iad_require_phase(phase)
   refit <- qs::qread(path)
   if (isTRUE(refit$skip)) return(iad_qsave(refit,
     if (is.null(family)) iad_path("loo", "exact_none.qs", archive = TRUE) else
       iad_path(family, "loo", "exact_none.qs", archive = TRUE)))
+
   record <- refit$interaction_record
   iad_check_hash(record$fit_path, record$fit_sha256)
   iad_check_hash(record$loo_path, record$loo_sha256)
@@ -650,6 +737,7 @@ iad_score_exact <- function(path, phase = "correction", family = NULL) {
   if (!isTRUE(diagnostics$diagnostic_pass)) {
     stop("Exact refit diagnostics require a reviewed remedy before scoring.")
   }
+
   correction <- if (isTRUE(refit$compact)) refit$correction else iad_build_exact_correction(refit)
   if (!identical(correction$family, record$family) || !identical(correction$outcome, record$outcome) ||
       !identical(correction$model_index, as.integer(record$model_index)) ||
@@ -658,9 +746,11 @@ iad_score_exact <- function(path, phase = "correction", family = NULL) {
       !isTRUE(is.finite(correction$exact_refit_summary$exact_elpd_loo))) {
     stop("Invalid exact correction checkpoint.")
   }
+
   iad_qsave(correction, iad_path(record$family, record$outcome, "loo", "exact",
     sprintf("model_%02d_observation_%04d.qs", record$model_index, record$observation), archive = TRUE))
 }
+
 iad_finalise_loo <- function(audit, exact_paths) {
   corrections <- lapply(unname(unlist(exact_paths)), qs::qread)
   corrections <- Filter(function(x) !isTRUE(x$skip), corrections)
@@ -668,12 +758,14 @@ iad_finalise_loo <- function(audit, exact_paths) {
     outcome = x$outcome, model_index = x$model_index, observation = x$exact_refit_summary$observation))
   expected <- dplyr::bind_rows(audit$cases)
   columns <- c("family", "outcome", "model_index", "observation")
+
   if ("skip" %in% names(expected)) expected <- actual[FALSE, , drop = FALSE]
   if (nrow(expected) != nrow(actual) || (nrow(expected) &&
       (anyDuplicated(actual[columns]) || nrow(dplyr::anti_join(expected, actual, by = columns))))) {
     stop("Exact corrections do not cover precisely all interaction high-k cases.")
   }
   paths <- character()
+
   for (i in seq_len(nrow(audit$manifest))) {
     row <- as.list(audit$manifest[i, ])
     iad_check_hash(row$loo_path, row$loo_sha256)
@@ -699,6 +791,7 @@ iad_finalise_loo <- function(audit, exact_paths) {
     paths <- c(paths, iad_qsave(r, iad_path(row$family, row$outcome, "loo", "final",
       sprintf("model_%02d.qs", row$model_index), archive = TRUE)))
   }
+
   paths
 }
 
@@ -718,12 +811,17 @@ iad_stacking_weights <- function(objects) {
   pmax(weights, 0) / sum(pmax(weights, 0))
 }
 
+# Compare primary and interaction models ----
+
+# Assemble the accepted interaction candidates and their primary parents on
+# the same observations, then estimate weights for reporting.
 iad_combine <- function(checkpoints, accepted, final_paths, families = iad_families()) {
   iad_require_phase("combine")
   iad_require_parents(checkpoints)
   accepted <- dplyr::bind_rows(accepted)
   new_loo <- lapply(unname(unlist(final_paths)), qs::qread)
   output <- list()
+
   for (family in families) for (outcome in iad_outcomes()) {
     parents <- checkpoints[[family]]$parents
     parents <- parents[parents$outcome == outcome, , drop = FALSE]
@@ -785,8 +883,10 @@ iad_combine <- function(checkpoints, accepted, final_paths, families = iad_famil
         model_index = r$model_index, model_name = r$model_name, .before = 1L)),
       gate_passed = TRUE)
   }
+
   output
 }
+
 iad_write_combination <- function(records, family = NULL) {
   table <- purrr::map_dfr(records, "models")
   root <- if (is.null(family)) iad_path("combination") else iad_path(family, "combination")
@@ -796,6 +896,10 @@ iad_write_combination <- function(records, family = NULL) {
       file.path(root, "summary.csv")))
 }
 
+# Predict and report at moderator profiles ----
+
+# Use the dose and moderator reference grid to compare profile-specific
+# predictions and increments with their empirical support.
 iad_prediction_grid <- function(data, family, profile) {
   grid <- if (family == "relative") make_primary_prediction_grid(data) else
     make_update_2026_total_primary_prediction_grid(data,
@@ -818,6 +922,7 @@ iad_prediction_grid <- function(data, family, profile) {
     order <- order(grid$keys$resistance_exercise_code, grid$keys$protein_intake)
     grid$newdata <- grid$newdata[order, ]; grid$keys <- grid$keys[order, ]
   }
+
   grid$newdata$Intercept <- 1
   grid$newdata$age_centre <- profile$age - 25
   grid$newdata$duration_centre <- profile$weeks - 12
@@ -827,11 +932,13 @@ iad_prediction_grid <- function(data, family, profile) {
   grid$newdata$age_outcome_z <- (profile$age - 25 - centres[["age_centre"]]) / scales[["age_centre"]]
   grid$newdata$duration_outcome_z <- (profile$weeks - 12 - centres[["duration_centre"]]) / scales[["duration_centre"]]
   grid$newdata$protein_intake_05 <- grid$newdata$protein_intake / 0.5
+
   if (family != "relative") grid$newdata$body_mass_outcome_z <- 0
   grid$newdata <- iad_augment_data(grid$newdata)
   grid$reference <- reference
   grid
 }
+
 iad_profile_support <- function(data, profile_row) {
   purrr::map_dfr(c(0, 1), function(rt) {
     rows <- data[data$resistance_exercise_code == rt, ]
@@ -846,6 +953,7 @@ iad_profile_support <- function(data, profile_row) {
       duration_within_range = profile_row$weeks >= min(rows$duration_centre + 12) && profile_row$weeks <= max(rows$duration_centre + 12))
   })
 }
+
 iad_summarise_draws <- function(draws) {
   limits <- matrixStats::colQuantiles(draws, probs = c(0.025, 0.975), drop = FALSE)
   tibble::tibble(estimate = colMeans(draws), conf_low = limits[, 1L], conf_high = limits[, 2L],
@@ -853,6 +961,7 @@ iad_summarise_draws <- function(draws) {
     probability_practical_equivalence = colMeans(abs(draws) <= 0.1),
     probability_meaningful_loss = colMeans(draws < -0.1))
 }
+
 iad_model_allocation <- function(models, n_draws, seed, column = "stacking_weight") {
   weights <- models[[column]]
   if (!length(weights) || any(!is.finite(weights)) || any(weights < 0) ||
@@ -860,12 +969,19 @@ iad_model_allocation <- function(models, n_draws, seed, column = "stacking_weigh
   set.seed(seed)
   sample(rep(seq_len(nrow(models)), times = allocate_primary_mixture_models(weights, n_draws)))
 }
+
+# Produce predictions for one outcome and family. Sample from the combined
+# ensemble and the primary-only ensemble, then write the dose curves, support
+# checks and moderator contrasts.
 iad_report_scope <- function(record, checkpoints, profiles) {
   iad_require_phase("report")
   if (!isTRUE(record$gate_passed)) stop("Combined ensemble has not passed its gate.")
   family <- record$family; outcome <- record$outcome; models <- record$models
   data <- checkpoints[[family]]$data[[outcome]]
   profiles <- profiles[profiles$family == family & profiles$outcome == outcome, ]
+
+  # Set up the same prediction profiles for the combined and primary-only
+  # ensembles so the resulting increments can be compared.
   grids <- lapply(seq_len(nrow(profiles)), function(i) iad_prediction_grid(data, family, profiles[i, ]))
   n_draws <- 4000L
   allocation <- iad_model_allocation(models, n_draws, record$seed)
@@ -873,6 +989,7 @@ iad_report_scope <- function(record, checkpoints, profiles) {
   width <- nrow(grids[[1L]]$newdata)
   newdata <- dplyr::bind_rows(lapply(grids, `[[`, "newdata"))
   draws <- old_draws <- matrix(NA_real_, n_draws, nrow(newdata))
+
   for (i in seq_len(nrow(models))) {
     selected <- which(allocation == i); old_selected <- which(old_allocation == i)
     count <- max(length(selected), length(old_selected))
@@ -895,9 +1012,13 @@ iad_report_scope <- function(record, checkpoints, profiles) {
     if (length(old_selected)) old_draws[old_selected, ] <- prediction[seq_along(old_selected), , drop = FALSE]
     rm(candidate, prediction); gc(verbose = FALSE)
   }
+
   if (anyNA(draws) || anyNA(old_draws)) stop("Incomplete interaction posterior mixture.")
   paths <- character(); dose_tables <- support_tables <- list(); increment_draws <- list()
   root <- iad_path(family, outcome, "reporting")
+
+  # Summarize each profile on its own observed support before comparing
+  # increments across profiles.
   for (i in seq_len(nrow(profiles))) {
     profile <- profiles[i, ]; columns <- (i - 1L) * width + seq_len(width)
     grid <- grids[[i]]
@@ -992,6 +1113,7 @@ iad_report_scope <- function(record, checkpoints, profiles) {
       y = "Expected standardised baseline-to-follow-up change", title = paste(family, outcome),
       caption = "Population means; random effects excluded. Curves may extend beyond local support; inspect profile_support.csv.") +
     ggplot2::theme(legend.position = "bottom", legend.title = ggplot2::element_blank())
+
   figure_path <- file.path(interface, "conditional_predictions.png")
   ggplot2::ggsave(figure_path, figure, width = 10, height = 14, dpi = 180)
   paths <- c(paths, normalizePath(figure_path, winslash = "/", mustWork = TRUE))
@@ -1009,6 +1131,7 @@ iad_report_scope <- function(record, checkpoints, profiles) {
     accepted_interaction_diagnostics = diagnostics, final_loo_summary = record$loo_summary,
     stacking_weights = public_weights, profiles = profiles, profile_support = support,
     dose_response_predictions = doses, interaction_contrasts = moderation, draw_allocation = allocation)
+
   if (!all(artifacts$verification_checks$passed)) stop("Reporting verification failed.")
   paths <- c(paths, write_verification_bundle(paste0("age_duration_", family, "_", outcome, "_update_2026"),
     artifacts, descriptions = stats::setNames(names(artifacts), names(artifacts))))
@@ -1016,12 +1139,14 @@ iad_report_scope <- function(record, checkpoints, profiles) {
     sha256 = vapply(paths, iad_hash, character(1)))
   c(paths, iad_csv(manifest, file.path(root, "file_manifest.csv")))
 }
+
 iad_write_supplement <- function(report_paths, records) {
   iad_require_phase("report")
   paths <- unname(unlist(report_paths))
   if (length(records) != 12L || any(!file.exists(paths))) stop("All twelve reporting scopes must finish first.")
   manifests <- paths[basename(paths) == "file_manifest.csv"]
   if (length(manifests) != 12L) stop("Missing supplementary reporting manifests.")
+
   for (manifest_path in manifests) {
     manifest <- iad_read_csv(manifest_path)
     for (i in seq_len(nrow(manifest))) iad_check_hash(manifest$path[[i]], manifest$sha256[[i]])
@@ -1031,6 +1156,7 @@ iad_write_supplement <- function(report_paths, records) {
     "These exploratory analyses were specified after registration. Stacking weights are estimated anew within each exposure and outcome; they are not posterior probabilities of moderator hypotheses.", "",
     "The plots show expected standardised baseline-to-follow-up changes with random effects excluded. Age is an arm/study mean. Profiles use the frozen common sample: age quartiles give each distinct arm one observation, and duration quartiles give each distinct study/follow-up one observation. Body mass is held at its outcome mean for absolute-exposure moderator candidates.", "",
     "Local support is a descriptive screen: at least three studies within 10 years and four weeks of a profile, with both doses inside that neighbourhood's observed range. It is not a guarantee of joint positivity or a causal comparison. Full support counts and paired differences of protein contrasts are provided alongside each plot.", "")
+
   for (record in records) {
     family <- record$family; outcome <- record$outcome
     weights <- record$models
@@ -1042,12 +1168,14 @@ iad_write_supplement <- function(report_paths, records) {
         "[profile support](../manuscript/generated/age-duration-interactions/", family, "/", outcome, "/profile_support.csv), ",
         "[paired interaction contrasts](../manuscript/generated/age-duration-interactions/", family, "/", outcome, "/interaction_contrasts.csv.gz)."), "")
   }
+
   path <- here::here("manuscript", "generated", "age-duration-interactions", "_results.qmd")
   dir.create(dirname(path), recursive = TRUE, showWarnings = FALSE)
   temporary <- paste0(path, ".tmp-", Sys.getpid())
   writeLines(lines, temporary)
   on.exit(unlink(temporary), add = TRUE)
   if (!file.rename(temporary, path)) stop("Could not atomically materialise supplement interface.")
+
   path
 }
 

@@ -1,3 +1,7 @@
+# Software citations report ----
+
+# Add navigation to the rendered software report by linking to the headings
+# already present in the HTML.
 add_software_report_contents <- function(path) {
   html <- readLines(path, encoding = "UTF-8", warn = FALSE)
   if (any(grepl('id="software-contents"', html, fixed = TRUE))) return(path)
@@ -7,6 +11,7 @@ add_software_report_contents <- function(path) {
       package_section >= citations_section) {
     stop("Could not find the software report sections for the contents links.")
   }
+
   contents <- c(
     '<nav id="software-contents" aria-label="Contents">',
     '<h2>Contents</h2>',
@@ -16,6 +21,7 @@ add_software_report_contents <- function(path) {
     '</ul>',
     '</nav>'
   )
+
   writeLines(enc2utf8(append(html, contents, after = package_section - 1L)),
              path, useBytes = TRUE)
   path

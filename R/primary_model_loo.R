@@ -3,6 +3,10 @@
 # Gaussian multilevel terms are integrated and the few remaining high Pareto-k
 # cases are replaced by exact case-deletion refits.
 
+# Align fitted observations with source rows ----
+
+# Define the observation keys and outcome fields used to match LOO scores to
+# the same extracted records across candidate models.
 primary_loo_manifest_columns <- function(data) {
   study_column <- if ("study_no" %in% names(data)) {
     "study_no"
@@ -64,6 +68,7 @@ get_primary_loo_observation_manifest <- function(fitted_candidate) {
   if (!"study_no" %in% names(manifest)) {
     manifest <- dplyr::rename(manifest, study_no = study_factor)
   }
+
   manifest <- dplyr::mutate(manifest, study_no = as.character(study_no))
 
   if (anyNA(manifest$study_no) || any(!nzchar(manifest$study_no))) {
@@ -84,6 +89,11 @@ get_primary_loo_observation_manifest <- function(fitted_candidate) {
   manifest
 }
 
+# Conditional PSIS-LOO screen ----
+
+# Score the fit's stored log likelihood and attach the observation manifest.
+# Integrated scoring below accounts for the held-out observation's random
+# effects.
 compute_primary_candidate_psis_loo <- function(
     fitted_candidate,
     cores = 1L,
@@ -147,6 +157,11 @@ primary_loo_estimate <- function(loo_result, statistic, column) {
 
 
 
+# Integrate Gaussian random effects for holdout scoring ----
+
+# Accept draw-by-observation predictors and residual variance components and
+# return one conditional log density per draw and observation. The held-out
+# row is conditioned on the remaining rows in its study.
 integrate_primary_study_basis_log_lik <- function(
     linear_predictor,
     observed,
@@ -204,6 +219,7 @@ integrate_primary_study_basis_log_lik <- function(
       },
       logical(1)
     ))
+
   if (
     n_draws < 1L || n_observations < 1L ||
       any(vapply(
@@ -238,7 +254,10 @@ integrate_primary_study_basis_log_lik <- function(
   study_groups <- split(seq_len(n_observations), study_id)
 
   for (indices in study_groups) {
+    # Begin with sampling and residual variance, then account for the random
+    # intercept shared by observations of the same outcome.
     group_variance <- outer(
+
       residual_sd^2,
       known_variance[indices],
       FUN = "+"
@@ -306,6 +325,8 @@ integrate_primary_study_basis_log_lik <- function(
       }
     }
 
+    # Add the arm-level contribution after accounting for the outcome-level
+    # covariance.
     arms_within_study <- split(
       seq_len(n_in_study),
       arm_id[indices]
@@ -404,6 +425,9 @@ integrate_primary_study_basis_log_lik <- function(
       )
     }
 
+    # The diagonal precision gives the conditional variance. The
+    # precision-weighted residual supplies the corresponding standardized
+    # error.
     log_lik[, indices] <-
       0.5 * (log(precision_diagonal) - log(2 * pi)) -
       0.5 * precision_residual^2 / precision_diagonal
@@ -471,6 +495,7 @@ extract_primary_exact_draws <- function(model, variables) {
   ) {
     stop("The requested posterior draws are invalid.", call. = FALSE)
   }
+
   draws
 }
 
@@ -486,6 +511,7 @@ primary_indexed_posterior_variables <- function(model, prefix) {
   valid <- !is.na(indices)
   candidates <- candidates[valid]
   indices <- indices[valid]
+
   if (
     length(candidates) < 1L || anyDuplicated(indices) ||
       !identical(sort(indices), seq_len(length(indices)))
@@ -497,9 +523,14 @@ primary_indexed_posterior_variables <- function(model, prefix) {
       call. = FALSE
     )
   }
+
   candidates[order(indices)]
 }
 
+# Recover the study-specific basis from the fit ----
+
+# Match the factor-smooth design and indexed posterior coefficients to study
+# levels so integration uses the same basis as the fitted model.
 map_primary_factor_smooth_design <- function(design, study_factor) {
   design <- as.matrix(design)
   study_factor <- droplevels(as.factor(study_factor))
@@ -526,6 +557,7 @@ map_primary_factor_smooth_design <- function(design, study_factor) {
     },
     integer(1)
   )
+
   columns_by_study <- split(seq_len(ncol(design)), column_study)
   component_counts <- lengths(columns_by_study)
   if (
@@ -545,6 +577,7 @@ map_primary_factor_smooth_design <- function(design, study_factor) {
     nrow = n_studies,
     ncol = n_components
   )
+
   for (study in seq_len(n_studies)) {
     component_columns[study, ] <- columns_by_study[[as.character(study)]]
   }
@@ -577,6 +610,7 @@ find_primary_factor_smooth_design <- function(
     names(standata),
     value = TRUE
   )
+
   if (length(design_names) < 1L) {
     stop("No smooth design matrices were found.", call. = FALSE)
   }
@@ -633,6 +667,7 @@ find_primary_factor_smooth_design <- function(
     }
     list(design_names = names_in_group, mappings = mappings)
   })
+
   candidates <- Filter(Negate(is.null), candidates)
   if (length(candidates) != 1L) {
     stop(
@@ -640,6 +675,7 @@ find_primary_factor_smooth_design <- function(
       call. = FALSE
     )
   }
+
   candidates[[1L]]
 }
 
@@ -935,6 +971,11 @@ get_primary_integrated_loo_components <- function(fitted_candidate) {
   )
 }
 
+# Integrated PSIS-LOO and diagnostics ----
+
+# Rebuild the integrated likelihood for one accepted fit, compute PSIS-LOO,
+# and retain the observation keys and Pareto-k values needed to select exact
+# refits.
 compute_primary_candidate_integrated_psis_loo <- function(
     fitted_candidate,
     initial_loo_result,
@@ -951,6 +992,7 @@ compute_primary_candidate_integrated_psis_loo <- function(
     model_index = as.character(initial_loo_result$model_index),
     model_name = as.character(initial_loo_result$model_name)
   )
+
   if (
     !identical(candidate_identity, initial_identity) ||
       !inherits(initial_loo_result$loo, "loo") ||
@@ -986,6 +1028,7 @@ compute_primary_candidate_integrated_psis_loo <- function(
     outcome_intercept_sd = components$outcome_intercept_sd,
     study_basis = components$study_basis
   )
+
   relative_efficiency <- loo::relative_eff(
     exp(integrated_log_lik),
     chain_id = components$chain_id,
@@ -998,6 +1041,7 @@ compute_primary_candidate_integrated_psis_loo <- function(
     cores = as.integer(cores)
   )
   compute_seconds <- proc.time()[["elapsed"]] - start_time
+
   if (
     !inherits(integrated_loo, "loo") ||
       is.null(integrated_loo$diagnostics$pareto_k) ||
@@ -1101,6 +1145,7 @@ combine_primary_integrated_psis_loo_results <- function(...) {
       results[order(purrr::map_int(results, "model_index"))]
     }
   )
+
   names(validated_sets) <- expected_outcomes
 
   method_comparison <- purrr::map_dfr(
@@ -1178,6 +1223,10 @@ write_primary_integrated_psis_loo_audit <- function(
   unname(paths)
 }
 
+# Exact holdouts and replacements ----
+
+# Identify the individual observations requiring an exact refit, then replace
+# those pointwise scores in the integrated LOO results.
 select_primary_integrated_exact_loo_jobs <- function(
     integrated_audit,
     fitted_whole_body,
@@ -1196,6 +1245,7 @@ select_primary_integrated_exact_loo_jobs <- function(
   expected_warning_cases <- expected_cases |>
     dplyr::select(outcome, model_index, observation) |>
     dplyr::arrange(outcome, model_index, observation)
+
   if (
     !isTRUE(all.equal(
       warning_cases,
@@ -1283,6 +1333,7 @@ fit_primary_integrated_exact_loo_case <- function(
   ) {
     stop("The exact-LOO data do not match the manifest.", call. = FALSE)
   }
+
   training_data <- original_data[-job$observation, , drop = FALSE]
   if (nrow(training_data) != nrow(original_data) - 1L) {
     stop("The held-out observation was not removed uniquely.", call. = FALSE)
@@ -1313,6 +1364,7 @@ fit_primary_integrated_exact_loo_case <- function(
     ),
     save_pars = brms::save_pars(all = TRUE)
   )
+
   refit_seconds <- proc.time()[["elapsed"]] - start_time
   if (!inherits(refitted_model, "brmsfit")) {
     stop("The exact-LOO refit did not return a brmsfit.", call. = FALSE)
@@ -1391,6 +1443,7 @@ update_primary_exact_loo_estimates <- function(loo_result) {
   if (!all(required_columns %in% colnames(pointwise))) {
     stop("The LOO pointwise matrix is incomplete.", call. = FALSE)
   }
+
   estimates <- loo_result$estimates
   update_row <- function(statistic, values) {
     if (statistic %in% rownames(estimates)) {
@@ -1406,6 +1459,8 @@ update_primary_exact_loo_estimates <- function(loo_result) {
   loo_result
 }
 
+# Score the excluded observation using the refitted posterior. Keep the
+# observation's original key so only its pointwise contribution is replaced.
 compute_primary_integrated_exact_loo_case <- function(refit) {
   integrated_result <- refit$integrated_result
   manifest <- integrated_result$observation_manifest
@@ -1417,6 +1472,7 @@ compute_primary_integrated_exact_loo_case <- function(refit) {
     arm = "sd_arm_no__Intercept",
     outcome = "sd_outcome_no__Intercept"
   )
+
   if (
     !identical(integrated_result$study_structure, "study_intercept") ||
       observation < 1L || observation > nrow(manifest) ||
@@ -1433,12 +1489,14 @@ compute_primary_integrated_exact_loo_case <- function(refit) {
     allow_new_levels = TRUE
   )
   sd_draws <- extract_primary_exact_draws(model, sd_variables)
+
   if (
     nrow(population_linear_predictor) != nrow(sd_draws) ||
       ncol(population_linear_predictor) != nrow(manifest)
   ) {
     stop("Exact-LOO posterior predictions do not align.", call. = FALSE)
   }
+
   integrated_log_lik <- integrate_primary_study_basis_log_lik(
     linear_predictor = population_linear_predictor,
     observed = manifest$yi,
@@ -1454,6 +1512,7 @@ compute_primary_integrated_exact_loo_case <- function(refit) {
       rep(1, nrow(manifest))
     ))
   )
+
   held_out_log_lik <- integrated_log_lik[, observation]
   maximum_log_lik <- max(held_out_log_lik)
   scaled_likelihood <- exp(held_out_log_lik - maximum_log_lik)
@@ -1470,6 +1529,7 @@ compute_primary_integrated_exact_loo_case <- function(refit) {
   patched_loo$pointwise[observation, "elpd_loo"] <- exact_elpd
   patched_loo$pointwise[observation, "p_loo"] <- full_data_lpd - exact_elpd
   patched_loo$pointwise[observation, "looic"] <- -2 * exact_elpd
+
   if ("mcse_elpd_loo" %in% colnames(patched_loo$pointwise)) {
     patched_loo$pointwise[observation, "mcse_elpd_loo"] <- exact_mcse
   }
@@ -1481,6 +1541,7 @@ compute_primary_integrated_exact_loo_case <- function(refit) {
   ) {
     patched_loo$diagnostics$n_eff[[observation]] <- NA_real_
   }
+
   patched_loo <- update_primary_exact_loo_estimates(patched_loo)
 
   initial_loo <- integrated_result$comparison |>
@@ -1505,6 +1566,7 @@ compute_primary_integrated_exact_loo_case <- function(refit) {
       exact_loo_refits = 1L,
       exact_refit_seconds = refit$refit_seconds
     )
+
   comparison <- dplyr::bind_rows(
     dplyr::mutate(
       initial_loo,
@@ -1550,6 +1612,7 @@ compute_primary_integrated_exact_loo_case <- function(refit) {
         integrated_new_warning
       )
     )
+
   diagnostics <- summarise_primary_exact_loo_refit_diagnostics(refit)
   exact_summary <- dplyr::mutate(
     diagnostics,
@@ -1607,6 +1670,7 @@ fit_primary_integrated_exact_loo_geometry_remedy <- function(
   original_adapt_delta <- job$fitted_candidate$specification$adapt_delta
   original_max_treedepth <-
     job$fitted_candidate$specification$max_treedepth
+
   if (
     !identical(job$outcome, "hypertrophy") ||
       !identical(as.integer(job$model_index), 20L) ||
@@ -1634,6 +1698,7 @@ fit_primary_integrated_exact_loo_geometry_remedy <- function(
     iter = iter,
     seed = seed
   )
+
   remedied$geometry_remedy <- list(
     reason = "one_divergence_in_initial_exact_loo_refit",
     original_adapt_delta = original_adapt_delta,
@@ -1657,6 +1722,7 @@ replace_primary_exact_loo_geometry_remedy <- function(
     identities$outcome == "hypertrophy" &
       identities$model_index == 20L
   )
+
   if (
     length(exact_results) != 3L ||
       length(replacement_position) != 1L ||
@@ -1669,10 +1735,13 @@ replace_primary_exact_loo_geometry_remedy <- function(
   ) {
     stop("The exact-LOO geometry replacement is invalid.", call. = FALSE)
   }
+
   exact_results[[replacement_position]] <- remedied_result
   exact_results
 }
 
+# Apply the exact pointwise scores to the matching models before recomputing
+# LOO summaries for stacking.
 apply_primary_integrated_exact_loo_corrections <- function(
     integrated_audit,
     exact_results
@@ -1698,6 +1767,7 @@ apply_primary_integrated_exact_loo_corrections <- function(
     position <- match(exact_result$model_index, indices)
     final_results[[outcome]][[position]] <- exact_result
   }
+
   flattened <- unlist(final_results, recursive = FALSE)
   method_comparison <- purrr::map_dfr(flattened, "comparison")
   observation_diagnostics <- purrr::map_dfr(
@@ -1715,6 +1785,7 @@ apply_primary_integrated_exact_loo_corrections <- function(
       diagnostics
     }
   )
+
   model_summary <- dplyr::filter(
     method_comparison,
     method == "integrated_observation_level_psis"
@@ -1735,6 +1806,7 @@ apply_primary_integrated_exact_loo_corrections <- function(
       stacking_ready = all(n_pareto_k_gt_threshold == 0L),
       .groups = "drop"
     )
+
   exact_diagnostics_by_outcome <- exact_refit_summary |>
     dplyr::group_by(outcome) |>
     dplyr::summarise(
@@ -1750,6 +1822,7 @@ apply_primary_integrated_exact_loo_corrections <- function(
       ),
       stacking_ready = stacking_ready & exact_refit_diagnostics_pass
     )
+
   diagnostic_pass <- all(exact_refit_summary$diagnostic_pass)
 
   list(
