@@ -53,13 +53,17 @@ jobs:
           path: outputs/preprint.zip
           if-no-files-found: error
       - name: Prepare GitHub Pages deployment
-        if: github.event_name == 'workflow_dispatch' && inputs.deploy_pages && github.ref == 'refs/heads/master'
+        if: >-
+          github.ref == 'refs/heads/master' &&
+          (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.deploy_pages))
         uses: actions/upload-pages-artifact@v4
         with:
           path: outputs/preprint
 
   deploy:
-    if: github.event_name == 'workflow_dispatch' && inputs.deploy_pages && github.ref == 'refs/heads/master'
+    if: >-
+      github.ref == 'refs/heads/master' &&
+      (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.deploy_pages))
     needs: package
     runs-on: ubuntu-latest
     permissions:

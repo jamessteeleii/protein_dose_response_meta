@@ -302,12 +302,12 @@ primary study effects. Check the checklist locations against the final PDF.
 ## Publish the supplements on GitHub Pages
 
 In the repository, select **Settings → Pages → Build and deployment →
-Source → GitHub Actions**. After reviewing and merging the candidate to
-`master`, open **Actions → Preprint package → Run workflow**, select
-`master`, and enable **Publish the checked manuscript and supplements to
-GitHub Pages**. Approve the `github-pages` environment if GitHub requests
-approval. Ordinary CI builds produce a reviewable package. Deployment runs
-only on that explicit workflow dispatch.
+Source → GitHub Actions**. The **Preprint package** workflow deploys to
+GitHub Pages after a push to `master` passes the package checks. Pull
+requests build a reviewable package. To redeploy manually, open **Actions →
+Preprint package → Run workflow**, select `master`, and enable **Publish the
+checked manuscript and supplements to GitHub Pages**. Approve the
+`github-pages` environment if GitHub requests approval.
 
 The workflow publishes the checked package with its `supplement/` and
 `manuscript/generated/` layout. Check the deployed site and sample manuscript
