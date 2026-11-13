@@ -1,3 +1,8 @@
+# Targets for the measurement restrictions ----
+
+# Define the two restriction branches from frozen input selection through the
+# accepted fits, holdout scores and manuscript outputs.
+
 # Target definitions are generated here to keep the two measurement restrictions
 # on identical workflows without duplicating the analysis implementation.
 make_measurement_targets <- function() {
@@ -16,6 +21,7 @@ make_measurement_targets <- function() {
       measurement_remedy_decision_file, stringsAsFactors = FALSE
     )))
   )
+
   variants <- lapply(measurement_variants(), function(variant) {
     prefix <- paste0("measurement_", variant, "_")
     symbol <- function(suffix) as.name(paste0(prefix, suffix))
@@ -94,5 +100,6 @@ make_measurement_targets <- function() {
       add("figure_files", quote(write_measurement_figure(REPORT, SEL)), phase = "report", format = "file")
     )
   })
+
   c(common, unlist(variants, recursive = FALSE))
 }

@@ -6,6 +6,10 @@
 # contour-enhanced funnel plots. A fitted-model reference line can be supplied
 # later through `model_estimates` without changing the data preparation.
 
+# Funnel-plot outcome groups ----
+
+# The funnel data uses the same outcome groups as the primary synthesis, with
+# labels for display.
 publication_bias_outcome_labels <- function() {
   c(
     "whole body lean mass" = "Whole-body lean/fat-free mass",
@@ -15,6 +19,10 @@ publication_bias_outcome_labels <- function() {
   )
 }
 
+# Construct and select within-study contrasts ----
+
+# Form comparable protein contrasts from arms in the same study and use the
+# dose ordering to give the effect estimates a consistent direction.
 make_publication_bias_within_study_contrasts <- function(data_by_outcome) {
   if (!is.list(data_by_outcome) || !length(data_by_outcome)) {
     stop("Publication-bias input must be a non-empty outcome list.",
@@ -29,6 +37,7 @@ make_publication_bias_within_study_contrasts <- function(data_by_outcome) {
     "protein_intake", "protein_intake_raw"
   )
   missing <- setdiff(required, names(data))
+
   if (length(missing)) {
     stop(
       "Publication-bias input is missing columns: ",
@@ -169,6 +178,8 @@ make_publication_bias_within_study_contrasts <- function(data_by_outcome) {
   paired
 }
 
+# Choose one index contrast per study and outcome for the study-balanced
+# funnel plot. Keep the selection data for audit.
 select_publication_bias_index_contrasts <- function(contrasts) {
   required <- c(
     "study_no", "outcome_group", "time2", "total_n",
@@ -178,6 +189,7 @@ select_publication_bias_index_contrasts <- function(contrasts) {
     "resistance_exercise_label"
   )
   missing <- setdiff(required, names(contrasts))
+
   if (length(missing)) {
     stop(
       "Index-contrast selection is missing columns: ",
@@ -281,6 +293,10 @@ select_publication_bias_index_contrasts <- function(contrasts) {
   )
 }
 
+# Funnel contours and exports ----
+
+# Build the contour background on the effect and standard-error scales used by
+# the panels.
 make_publication_bias_contour_grid <- function(x_limit, se_limit) {
   # Use cell midpoints so geom_raster fills the plotting region without
   # placing cell centres exactly on (and cell edges beyond) scale limits.
@@ -304,6 +320,7 @@ make_publication_bias_contour_grid <- function(x_limit, se_limit) {
         right = FALSE
       )
     )
+
   grid
 }
 
@@ -314,6 +331,7 @@ make_publication_bias_funnel_panel <- function(
 ) {
   panel_data <- data |>
     dplyr::filter(.data$outcome_group == .env$outcome_group)
+
   if (!nrow(panel_data)) {
     stop("No funnel-plot data for outcome: ", outcome_group,
          call. = FALSE)
@@ -516,6 +534,7 @@ write_publication_bias_funnel_data <- function(
   purrr::iwalk(paths, function(path, name) {
     readr::write_csv(funnel_data[[name]], path)
   })
+
   if (any(!file.exists(paths)) || any(file.info(paths)$size <= 0)) {
     stop("Publication-bias data files were not written correctly.",
          call. = FALSE)
@@ -541,6 +560,7 @@ write_publication_bias_funnel_plot <- function(
     width = 11,
     height = 9
   )
+
   ggplot2::ggsave(
     paths[[2L]],
     plot,
@@ -550,6 +570,7 @@ write_publication_bias_funnel_plot <- function(
     height = 9,
     compression = "lzw"
   )
+
   ggplot2::ggsave(
     paths[[3L]],
     plot,
@@ -557,6 +578,7 @@ write_publication_bias_funnel_plot <- function(
     width = 11,
     height = 9
   )
+
   if (any(!file.exists(paths)) || any(file.info(paths)$size <= 0)) {
     stop("Publication-bias funnel plots were not written correctly.",
          call. = FALSE)

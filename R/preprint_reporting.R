@@ -1,3 +1,8 @@
+# Static reporting interface ----
+
+# Locate the pipeline-produced tables and figures that the preprint and
+# supplements consume.
+
 # Portable inputs for rendering the preprint from frozen analytical results.
 preprint_report_root <- function(root = ".") {
   file.path(root, "manuscript", "generated", "reporting")
@@ -10,6 +15,8 @@ preprint_report_files <- function(root = ".", section = "") {
   sort(paths)
 }
 
+# Write the portable reporting inputs from the verified analysis artifacts so
+# the documents can render from static files.
 write_preprint_report_inputs <- function(root = ".") {
   destination <- preprint_report_root(root)
   verification <- file.path(root, "results", "verification")
@@ -27,6 +34,8 @@ write_preprint_report_inputs <- function(root = ".") {
   )
   written <- character()
 
+  # Route each derivative through a shared writer that collects its output
+  # path.
   write_output <- function(source, relative_path, write) {
     if (!file.exists(source)) stop("Missing frozen reporting input: ", source)
     path <- file.path(destination, relative_path)
@@ -39,6 +48,7 @@ write_preprint_report_inputs <- function(root = ".") {
     written <<- c(written, path)
     invisible(path)
   }
+
   copy_output <- function(source, relative_path) {
     write_output(source, relative_path, function(from, to) {
       if (!file.copy(from, to)) stop("Could not copy ", from)
@@ -54,6 +64,7 @@ write_preprint_report_inputs <- function(root = ".") {
       readr::write_csv(transform(data), to)
     })
   }
+
   copy_files <- function(source, section, names) {
     for (name in names) copy_output(file.path(source, name), file.path(section, name))
   }
@@ -119,6 +130,7 @@ write_preprint_report_inputs <- function(root = ".") {
                  "stacking_weights.csv.gz")
     }
   }
+
   write_output(file.path(verification, primary, "reference_values.qs"),
                "reference-values.yml", function(from, to) {
     values <- lapply(qs::qread(from), function(value) {
@@ -127,6 +139,7 @@ write_preprint_report_inputs <- function(root = ".") {
     writeLines(c("# Generated from frozen primary reference values. Do not edit.",
                  yaml::as.yaml(values, precision = 17)), to, useBytes = TRUE)
   })
+
   fields <- c("study_no", "doi", "pmid", "arm_no", "outcome_no", "analysis_outcome", "outcome_group",
               "measurement_method", "unit_of_measurement", "condition", "n", "time1", "time2",
               "baseline_mean", "baseline_sd", "baseline_n", "followup_mean", "followup_sd",

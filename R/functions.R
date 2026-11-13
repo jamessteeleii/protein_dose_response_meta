@@ -1,6 +1,9 @@
 # Functions for targets pipeline
 
-# Misc
+# Quarto and sampler setup ----
+# These helpers configure local execution and resolve the Quarto executable
+# before a render. The renderer checks its declared report inputs and restores
+# the caller's environment on exit.
 set_rstan_options <- function() {
   rstan_options(auto_write = TRUE)
   options(mc.cores = parallel::detectCores() - 1)
@@ -74,6 +77,7 @@ render_quarto_document <- function(input, output, dependencies = character()) {
     },
     add = TRUE
   )
+
   Sys.setenv(QUARTO_R = normalizePath(R.home("bin"), winslash = "/"))
   if (.Platform$OS.type == "windows") {
     quarto_cache <- file.path("_targets", "quarto-cache")
@@ -103,20 +107,25 @@ render_quarto_document <- function(input, output, dependencies = character()) {
 
 # Preliminary re-analysis with Nunes et al. (https://doi.org/10.1002/jcsm.12922) lean soft tissue/muscle data ----
 
+# Historical re-analysis and prior calibration ----
+
+# Combine the arm characteristics and lean-tissue outcome extracts from Nunes
+# et al. Estimate pooled pre-post correlations and prepare standardized
+# changes for the historical re-analysis.
 read_prepare_nunes_data <- function(file1, file2) {
-  
+
   # read in and prepare study characteristics csv for combining with effect sizes
   study_characteristics <- read_csv(file1) |>
     janitor::clean_names() |>
     select(id, ref, sex, age, duration, resistance_exercise, int_group, int_protein_intake, con_protein_intake) |>
-    
+
     # pivot to arm based format
     pivot_longer(
       8:9,
       names_to = "condition",
       values_to = "protein_intake"
     ) |>
-    
+
     # convert to NA missing values (i.e, 10000s in original dataset) and relabel condition
     mutate(
       protein_intake = if_else(protein_intake == 10000, NA, protein_intake),
@@ -126,7 +135,7 @@ read_prepare_nunes_data <- function(file1, file2) {
       )
     ) |>
     rename(intervention = "int_group")
-  
+
   # read in and prepare lean soft tissue/muscle outcome data to calculate effect sizes
   data <- read_csv(file2) |>
     janitor::clean_names() |>
@@ -140,48 +149,48 @@ read_prepare_nunes_data <- function(file1, file2) {
       int_ri = if_else(between(int_ri,-1,1) == FALSE, NA, int_ri),
       con_ri = if_else(between(con_ri,-1,1) == FALSE, NA, con_ri)
     ) |>
-    
+
     # calculate pooled SD to use for denominator in effect size calculations
     mutate(pre_sd_pool = sqrt(((int_n - 1) * int_pre_sd ^ 2 +
                                  (con_n - 1) * con_pre_sd ^ 2) /  (int_n + con_n - 2))) |>
     # add effect code
     rowid_to_column("effect") |>
-    # add arm code 
+    # add arm code
     unite("arm", c(id,intervention), sep = "_", remove = FALSE) |>
     mutate(arm = dense_rank(arm))
-  
+
   # Calculate pre-post correlations for SMCR calculations
-  
+
   data <- escalc(measure = "ZCOR", ri = int_ri, ni = int_n, data = data)
-  
+
   meta_int_ri <- rma.mv(yi, V=vi, data=data,
                         random = list(~ 1 | id, ~1 | arm, ~1 | effect), method="REML", test="t",
                         control=list(optimizer="optim", optmethod="Nelder-Mead"))
-  
+
   rob_meta_int_ri <- robust(meta_int_ri, data$id)
-  
+
   z2r_int <- psych::fisherz2r(rob_meta_int_ri$b[1])
-  
+
   data$int_ri <- if_else(is.na(data$int_ri), z2r_int, data$int_ri)
-  
+
   data_con <- data |>
     group_by(id) |>
     slice_head()
-  
+
   data_con <- escalc(measure = "ZCOR", ri = con_ri, ni = con_n, data = data_con)
-  
+
   meta_con_ri <- rma.mv(yi, V=vi, data=data_con,
                         random = list(~ 1 | id, ~1 | arm, ~1 | effect), method="REML", test="t",
                         control=list(optimizer="optim", optmethod="Nelder-Mead"))
-  
+
   rob_meta_con_ri <- robust(meta_con_ri, data_con$id)
-  
+
   z2r_con <- psych::fisherz2r(rob_meta_con_ri$b[1])
-  
+
   data$con_ri <- if_else(is.na(data$con_ri), z2r_con, data$con_ri)
-  
+
   # Pivot longer so in arm based format
-  
+
   data <- data |>
     select(-yi, -vi) |>
     pivot_longer(
@@ -192,18 +201,18 @@ read_prepare_nunes_data <- function(file1, file2) {
     separate("what", into = c("condition", "what"), sep = "_", extra = "merge") |>
     pivot_wider(names_from = "what",
                 values_from = "value")
-  
-  
+
+
   # Join with study characteristics
   data_joined <- left_join(data, study_characteristics, by = c("id", "condition", "intervention")) |>
     filter(!is.na(protein_intake)) |>
     group_by(id, condition, intervention) |>
     slice_head(n=1)
-  
+
   # calculate for pre-post and delta separately
   data_joined_pre_post <- data_joined |>
     filter(!is.na(post_m))
-  
+
   data_joined_pre_post <- escalc(
     measure = "SMCR",
     m1i = post_m,
@@ -214,11 +223,11 @@ read_prepare_nunes_data <- function(file1, file2) {
     ri = ri,
     data = data_joined_pre_post
   )
-  
+
   data_joined_delta <- data_joined |>
     filter(is.na(post_m)) |>
     mutate(ref = 0)
-  
+
   data_joined_delta <- escalc(
     measure = "SMCR",
     m1i = delta_m,
@@ -229,16 +238,16 @@ read_prepare_nunes_data <- function(file1, file2) {
     ri = ri,
     data = data_joined_delta
   )
-  
+
   data_joined <- bind_rows(data_joined_pre_post, data_joined_delta)
-  
+
   data_joined <- data_joined |>
-    
+
     # add study weights/sizes
     mutate(
       wi = 1/sqrt(vi),
       size = 0.5 + 3.0 * (wi - min(wi, na.rm=TRUE))/(max(wi, na.rm=TRUE) - min(wi, na.rm=TRUE))) |>
-    
+
     # centre  predictors
     mutate(
       protein_intake = protein_intake - 1.12,
@@ -249,23 +258,27 @@ read_prepare_nunes_data <- function(file1, file2) {
         resistance_exercise == "NO" ~ 1,
       )
     ) |>
-  
+
   # re-add effect and arm codes now all in long form
-  
+
   # add effect code
   select(-effect) |>
   rowid_to_column("effect") |>
-    # add arm code 
+    # add arm code
     unite("arm", c(id,intervention, condition), sep = "_", remove = FALSE) |>
     mutate(arm = dense_rank(arm))
-  
+
 }
+
+# Pool standardized changes in lean tissue and muscle from the historical
+# resistance-exercise studies. Use the estimates and standard errors to set
+# priors for the primary intercept and exercise coefficient.
 
 # Note these are for hypertrophy (lean mass/muscle mass/size) only as Nunes reanalysis was only with these outcomes
 get_steele_priors <- function(data) {
-  
+
   # uses data from Steele et al. (https://doi.org/10.1080/02640414.2023.2286748) for lean soft tissue/muscle data (i.e., "hypertrophy" outcomes)
-  
+
   steele_data <- data |>
     mutate(
       # calculate pre-post SDs from SEs
@@ -273,27 +286,27 @@ get_steele_priors <- function(data) {
       CON_pre_sd = if_else(is.na(CON_pre_se), CON_pre_sd, CON_pre_se * sqrt(CON_n)),
       RT_post_sd = if_else(is.na(RT_post_se), RT_post_sd, RT_post_se * sqrt(RT_n)),
       CON_post_sd = if_else(is.na(CON_post_se), CON_post_sd, CON_post_se * sqrt(CON_n)),
-      
+
       # convert p to t (Change scores)
       RT_delta_t_value = if_else(is.na(RT_delta_t_value), qt(RT_delta_p_value/2, df=RT_n-1, lower.tail=FALSE), RT_delta_t_value),
       CON_delta_t_value = if_else(is.na(CON_delta_t_value), qt(CON_delta_p_value/2, df=CON_n-1, lower.tail=FALSE), CON_delta_t_value),
-      
+
       # convert t to SE (Change scores)
       RT_delta_se = if_else(is.na(RT_delta_se), if_else(is.na(RT_delta_m), (RT_post_m - RT_pre_m)/RT_delta_t_value, RT_delta_m/RT_delta_t_value), RT_delta_se),
       CON_delta_se = if_else(is.na(CON_delta_se), if_else(is.na(CON_delta_m), (CON_post_m - CON_pre_m)/CON_delta_t_value, CON_delta_m/CON_delta_t_value), CON_delta_se),
-      
+
       # make positive
       RT_delta_se = if_else(RT_delta_se < 0, RT_delta_se * -1, RT_delta_se),
       CON_delta_se = if_else(CON_delta_se < 0, CON_delta_se * -1, CON_delta_se),
-      
+
       # convert CI to SE (Change scores)
       RT_delta_se = if_else(is.na(RT_delta_se), (RT_delta_CI_upper - RT_delta_CI_lower)/3.92, RT_delta_se),
       CON_delta_se = if_else(is.na(CON_delta_se), (CON_delta_CI_upper - CON_delta_CI_lower)/3.92, CON_delta_se),
-      
+
       # convert SE to SD (Change scores)
       RT_delta_sd = if_else(is.na(RT_delta_sd), RT_delta_se * sqrt(RT_n), RT_delta_sd),
       CON_delta_sd = if_else(is.na(CON_delta_sd), CON_delta_se * sqrt(CON_n), CON_delta_sd),
-      
+
       # calculate pre-post correlation coefficient for those with pre, post, and delta SDs
       RT_ri = (RT_pre_sd^2 + RT_post_sd^2 - RT_delta_sd^2)/(2 * RT_pre_sd * RT_post_sd),
       CON_ri = (CON_pre_sd^2 + CON_post_sd^2 - CON_delta_sd^2)/(2 * CON_pre_sd * CON_post_sd)
@@ -305,42 +318,42 @@ get_steele_priors <- function(data) {
     ) |>
     mutate(pre_sd_pool = sqrt(((RT_n - 1) * RT_pre_sd ^ 2 +
                                  (CON_n - 1) * CON_pre_sd ^ 2) /  (RT_n + CON_n - 2)))
-  
+
   # Calculate pre-post correlations for SMCR calculations
-  
+
   steele_data <- escalc(measure = "ZCOR", ri = RT_ri, ni = RT_n, data = steele_data)
-  
+
   meta_RT_ri <- rma.mv(yi, V=vi, data=steele_data,
                         random = list(~ 1 | study, ~1 | arm, ~1 | es), method="REML", test="t",
                         control=list(optimizer="optim", optmethod="Nelder-Mead"))
-  
+
   rob_meta_RT_ri <- robust(meta_RT_ri, steele_data$study)
-  
+
   z2r_RT <- psych::fisherz2r(rob_meta_RT_ri$b[1])
-  
+
   steele_data$RT_ri <- if_else(is.na(steele_data$RT_ri), z2r_RT, steele_data$RT_ri)
-  
+
   steele_data_CON <- steele_data |>
     select(study, arm, es, CON_ri, CON_n) |>
     distinct()
-  
+
   steele_data_CON <- escalc(measure = "ZCOR", ri = CON_ri, ni = CON_n, data = steele_data_CON)
-  
+
   meta_CON_ri <- rma.mv(yi, V=vi, data=steele_data_CON,
                         random = list(~ 1 | study, ~1 | arm, ~1 | es), method="REML", test="t",
                         control=list(optimizer="optim", optmethod="Nelder-Mead"))
-  
+
   rob_meta_CON_ri <- robust(meta_CON_ri, steele_data_CON$study)
-  
+
   z2r_CON <- psych::fisherz2r(rob_meta_CON_ri$b[1])
-  
+
   steele_data$CON_ri <- if_else(is.na(steele_data$CON_ri), z2r_CON, steele_data$CON_ri)
-  
-  
+
+
   # calculate for pre-post and delta separately
-  
+
   # Pivot longer so in arm based format
-  
+
   steele_data <- steele_data |>
     select(-yi, -vi, -RT_only) |>
     pivot_longer(
@@ -351,11 +364,11 @@ get_steele_priors <- function(data) {
     separate("what", into = c("condition", "what"), sep = "_", extra = "merge") |>
     pivot_wider(names_from = "what",
                 values_from = "value")
-  
+
   # calculate for pre-post and delta separately
   steele_data_pre_post <- steele_data |>
     filter(!is.na(post_m))
-  
+
   steele_data_pre_post <- escalc(
     measure = "SMCR",
     m1i = post_m,
@@ -366,11 +379,11 @@ get_steele_priors <- function(data) {
     ri = ri,
     data = steele_data_pre_post
   )
-  
+
   steele_data_joined_delta <- steele_data |>
     filter(is.na(post_m)) |>
     mutate(ref = 0)
-  
+
   data_joined_delta <- escalc(
     measure = "SMCR",
     m1i = delta_m,
@@ -381,7 +394,7 @@ get_steele_priors <- function(data) {
     ri = ri,
     data = steele_data_joined_delta
   )
-  
+
   steele_data_joined <- bind_rows(steele_data_pre_post, steele_data_joined_delta) |>
     filter(outcome == "hypertrophy") |>
     unite("arm", c(outcome,study,arm,condition), sep = "_", remove = FALSE) |>
@@ -402,7 +415,7 @@ get_steele_priors <- function(data) {
   )
 
   rob_steele_meta <- robust(steele_meta, cluster = steele_data_joined$study, clubSandwich = TRUE)
-  
+
   # set priors based on estimates (assumes habitual protein intake to get effects of RT and CON at that level)
 
   priors <-
@@ -414,13 +427,17 @@ get_steele_priors <- function(data) {
       set_prior("student_t(3,0,1)", class = "b")
       # All other priors for variance parameters are kept as default weakly regularising
     )
-  
+
   priors
-  
+
 }
 
 # Determining baseline standard deviations to provide reference values for smallest effect size of interest of 0.1
 
+# Reference values for interpreting effects ----
+
+# Put the outcome-specific reference standard deviations and regions of
+# practical equivalence on a consistent scale for the reporting functions.
 estimate_lean_mass_sd <- function(data) {
 
   benito_data <-  data |>
@@ -438,52 +455,52 @@ estimate_lean_mass_sd <- function(data) {
     ) |>
     filter(!is.na(duration)) |>
     rowid_to_column("effect")
-  
+
   benito_data <- escalc(
     measure = "SDLN",
     sdi = pre_sd,
     ni = pre_n,
     data = benito_data
   )
-  
+
   benito_meta_sd <- rma.mv(yi, vi,
                            random = list(~ 1 | study, ~ 1 | arm, ~ 1 | effect),
                            mods = ~ 0 + outcome,
                            data = benito_data,
                            method="REML", test="t")
-  
+
   rob_benito_meta_sd <- robust(benito_meta_sd, benito_data$study)
-  
-  
+
+
   benito_sds <- broom::tidy(rob_benito_meta_sd) |>
     mutate(across(c(estimate, std.error), exp))
-  
+
   return(benito_sds)
 }
 
 estimate_muscle_thickness_sd <- function(data) {
-  
+
   buckner_data <- data |>
     janitor::clean_names() |>
     filter(retracted == "NO") |>
-    mutate(centred_pre_mean = pre_mean - 5) 
-  
+    mutate(centred_pre_mean = pre_mean - 5)
+
   buckner_data <- escalc(
     measure = "SDLN",
     sdi = pre_sd,
     ni = n,
     data = buckner_data
   )
-  
+
   buckner_meta_sd <- rma.mv(yi, vi,
                             random = list(~ 1 | study, ~ 1 | group, ~ 1 | effect),
                             mods = ~ log(pre_mean),
                            data = buckner_data,
                            method="REML", test="t")
-  
+
   rob_buckner_meta_sd <- robust(buckner_meta_sd, buckner_data$study)
-  
-  
+
+
   reference_mean <- median(buckner_data$pre_mean)
   buckner_sd <- as_tibble(predict(
     rob_buckner_meta_sd,
@@ -493,10 +510,10 @@ estimate_muscle_thickness_sd <- function(data) {
       across(where(is.double), exp),
       reference_mean = reference_mean
     )
-  
-  
+
+
   return(buckner_sd)
-  
+
 }
 
 prepare_open_powerlifting_strength_data <- function(data) {
@@ -555,6 +572,9 @@ read_open_powerlifting_strength_snapshot <- function(path) {
   snapshot
 }
 
+# Return the reference scales and equivalence thresholds for whole-body lean
+# mass, muscle thickness, strength and function. Read the pinned strength
+# snapshot when one is supplied.
 make_primary_reference_values <- function(
     protein_data,
     lean_mass_sd,
@@ -722,6 +742,11 @@ fit_candidate_models <- function(formula, priors, data) {
 
 # Functions to define, fit, and diagnose the primary candidate models ----
 
+# Candidate formula and prior adjustments ----
+
+# These helpers modify individual model terms and priors. The specification
+# builders below record which adjustments apply to each candidate and each
+# refit stage.
 make_uncorrelated_study_formula <- function(formula) {
   updated_formula <- stringr::str_replace_all(
     formula,
@@ -1013,6 +1038,10 @@ add_primary_function_tail_priors <- function(
   priors
 }
 
+# Primary candidate registry ----
+
+# Turn the model names and formulas into indexed specifications with the
+# settings needed by fitting and diagnostic targets.
 get_primary_model_fit_specifications <- function(
     model_names,
     model_formulas
@@ -1155,6 +1184,11 @@ get_primary_model_fit_specifications <- function(
   specification_list
 }
 
+# Diagnostic remedies ----
+
+# Build the first refit specifications from the primary registry. Subsequent
+# builders carry forward model indices so refitted candidates can be overlaid
+# in their original slots.
 get_primary_model_remedy_specifications <- function(specifications) {
   specification_table <- dplyr::bind_rows(specifications) |>
     dplyr::mutate(
@@ -1419,6 +1453,7 @@ get_primary_model_second_remedy_specifications <- function(
     function_21 = 0.995,
     function_25 = 0.999
   )
+
   expected_max_treedepth <- c(
     whole_body_13 = 15L,
     strength_1 = 12L,
@@ -1607,6 +1642,11 @@ select_primary_model_fit_specifications <- function(
   selected
 }
 
+# Fit and assemble candidates ----
+
+# Fit a single specification against the prepared data and priors. Keep the
+# model identity and fit settings alongside the fitted object for downstream
+# diagnostics.
 fit_primary_candidate_model <- function(
     specification,
     priors,
@@ -2097,6 +2137,9 @@ safe_diagnostic_maximum <- function(x) {
   max(x, na.rm = TRUE)
 }
 
+# Combine sampler diagnostics and posterior predictive checks for one
+# candidate, retaining its identity so the results can be compared across
+# refit stages.
 get_primary_candidate_model_diagnostics <- function(
     fitted_candidate,
     ppc_draws = 400
@@ -2245,11 +2288,17 @@ get_primary_candidate_model_diagnostics <- function(
   )
 }
 
+# Historical model averaging and plots ----
+
+# These helpers compute weights, predictions and slopes for the earlier
+# workflow. The final primary posterior mixture is built in
+# primary_model_averaging.R.
+
 # Functions to generate weights and obtain model averaged preds/slopes
 get_model_weights <- function(models) {
-  
+
   models_nunes <- models
-  
+
   # pass each to object as loo doesn't like the list for some reason
   m_intercept <- models_nunes$`Intercept only model`
   m_linear <- models_nunes$`Linear model`
@@ -2269,7 +2318,7 @@ get_model_weights <- function(models) {
   m_lspline_interact <- models_nunes$`Linear spline (1.6g/kg/day) model (+ RT interaction)`
   m_tps_interact <- models_nunes$`Thin plate spline model (+ RT interaction smooth)`
   m_linear_mods_interact <- models_nunes$`Linear model (+ moderators & RT interaction)`
-  m_lspline_mods_interact <- models_nunes$`Linear spline (1.6g/kg/day) model (+ moderators & RT interaction)` 
+  m_lspline_mods_interact <- models_nunes$`Linear spline (1.6g/kg/day) model (+ moderators & RT interaction)`
   m_tps_mods_interact <- models_nunes$`Thin plate spline model (+ moderators & RT interaction)`
   m_linear_ranef_interact <- models_nunes$`Linear model (+ random slopes & RT interaction)`
   m_lspline_ranef_interact <- models_nunes$`Linear spline (1.6g/kg/day) model (+ random slopes & RT interaction)`
@@ -2277,46 +2326,46 @@ get_model_weights <- function(models) {
   m_linear_mods_ranef_interact <- models_nunes$`Linear model (+ moderators & random slopes & RT interaction)`
   m_lspline_mods_ranef_interact <- models_nunes$`Linear spline (1.6g/kg/day) model (+ moderators & random slopes & RT interaction)`
   m_tps_mods_ranef_interact <- models_nunes$`Thin plate spline model (+ moderators & random smooths & RT interaction smooth)`
-  
-  
-  
-  weights_stacking <- loo::loo_model_weights(m_intercept, 
-                                             m_linear, 
-                                             m_lspline, 
+
+
+
+  weights_stacking <- loo::loo_model_weights(m_intercept,
+                                             m_linear,
+                                             m_lspline,
                                              m_tps,
-                                             m_intercept_mods, 
-                                             m_linear_mods, 
-                                             m_lspline_mods, 
+                                             m_intercept_mods,
+                                             m_linear_mods,
+                                             m_lspline_mods,
                                              m_tps_mods,
-                                             m_linear_ranef, 
+                                             m_linear_ranef,
                                              m_lspline_ranef,
                                              m_tps_ranef,
-                                             m_linear_mods_ranef, 
-                                             m_lspline_mods_ranef, 
+                                             m_linear_mods_ranef,
+                                             m_lspline_mods_ranef,
                                              m_tps_mods_ranef,
-                                             m_linear_interact, 
-                                             m_lspline_interact, 
+                                             m_linear_interact,
+                                             m_lspline_interact,
                                              m_tps_interact,
-                                             m_linear_mods_interact, 
-                                             m_lspline_mods_interact, 
+                                             m_linear_mods_interact,
+                                             m_lspline_mods_interact,
                                              m_tps_mods_interact,
-                                             m_linear_ranef_interact, 
+                                             m_linear_ranef_interact,
                                              m_lspline_ranef_interact,
                                              m_tps_ranef_interact,
-                                             m_linear_mods_ranef_interact, 
-                                             m_lspline_mods_ranef_interact, 
+                                             m_linear_mods_ranef_interact,
+                                             m_lspline_mods_ranef_interact,
                                              m_tps_mods_ranef_interact,
                                              method = "stacking")
-  
+
   return(weights_stacking)
 }
 
 get_model_avg_preds <- function(models, weights) {
-  
+
   models_nunes <- models
   weights_stacking <- weights
-  
-  preds <- map(models_nunes, ~ predictions(.x, 
+
+  preds <- map(models_nunes, ~ predictions(.x,
                                            re_formula= NA,
                                            newdata   = datagrid(
                                              resistance_exercise_code = c(0,1),
@@ -2325,7 +2374,7 @@ get_model_avg_preds <- function(models, weights) {
                                              duration_centre = 0,
                                              vi = 0
                                            )))
-  
+
   weighted_preds <- map2(preds, weights_stacking, function(pred_df, w) {
     pred_df %>%
       mutate(
@@ -2334,7 +2383,7 @@ get_model_avg_preds <- function(models, weights) {
         .upper_weighted = conf.high * w
       )
   })
-  
+
   combined_preds <- reduce(weighted_preds, function(df1, df2) {
     df1 %>%
       mutate(
@@ -2342,8 +2391,8 @@ get_model_avg_preds <- function(models, weights) {
         .lower_weighted = .lower_weighted + df2$.lower_weighted,
         .upper_weighted = .upper_weighted + df2$.upper_weighted
       )
-  }) 
-  
+  })
+
   final_predictions <- combined_preds %>%
     mutate(
       estimate = .pred_weighted,
@@ -2358,19 +2407,19 @@ get_model_avg_preds <- function(models, weights) {
       ),
       protein_intake = protein_intake + 1.12
     )
-  
+
   return(final_predictions)
 }
 
 get_model_avg_slopes <- function(models, weights) {
-  
+
   models_nunes <- models
   weights_stacking <- weights
-  
+
   # Because can't run slopes(model, variables = "protein_intake") on intercept model with no protein_intake
-  safe_slopes <- possibly(slopes, otherwise = NULL) 
-  
-  slopes <- map(models_nunes, ~ safe_slopes(.x, 
+  safe_slopes <- possibly(slopes, otherwise = NULL)
+
+  slopes <- map(models_nunes, ~ safe_slopes(.x,
                                             re_formula= NA,
                                             variables = "protein_intake",
                                             newdata   = datagrid(
@@ -2380,27 +2429,27 @@ get_model_avg_slopes <- function(models, weights) {
                                               duration_centre = 0,
                                               vi = 0
                                             )) |> get_draws())
-  
-  
+
+
   # remove nulls from slopes and weights
   slopes_clean <- compact(slopes)
-  weights_stacking_clean <- weights_stacking[!map_lgl(slopes, is.null)] 
-  
+  weights_stacking_clean <- weights_stacking[!map_lgl(slopes, is.null)]
+
   # Convert each to a matrix (rowid-draw order must match)
   draw_matrices <- map(slopes_clean, ~ matrix(.x$draw, ncol = 1))
-  
+
   # Stack into matrix: rows = rowid × draw, cols = models
   draw_mat <- do.call(cbind, draw_matrices)  # fast column binding
-  
+
   # Multiply each column by stacking weight
   weighted_draw_mat <- sweep(draw_mat, 2, weights_stacking_clean, FUN = "*")
-  
+
   # Sum across models
   stacked_draws <- rowSums(weighted_draw_mat)
-  
+
   # Reattach draw + rowid info
   meta <- slopes_clean[[1]] |> select(rowid, draw, resistance_exercise_code, protein_intake)
-  
+
   stacked_df <- bind_cols(meta, estimate = stacked_draws) |>
     mutate(
       resistance_exercise_label = "Resistance Exercise?",
@@ -2410,12 +2459,12 @@ get_model_avg_slopes <- function(models, weights) {
       ),
       protein_intake = protein_intake + 1.12
     )
-  
+
   stacked_df
 }
 
 get_rope_pd <- function(slopes) {
-  
+
   rope <- slopes |>
     group_by(protein_intake, resistance_exercise) |>
     nest() |>
@@ -2426,8 +2475,8 @@ get_rope_pd <- function(slopes) {
     select(protein_intake, resistance_exercise, ROPE_low, ROPE_high, ROPE_Percentage) |>
     filter(resistance_exercise == "YES" | protein_intake < 1.6) |>
     mutate(type = "rope")
-  
-  
+
+
   pd <- slopes |>
     group_by(protein_intake, resistance_exercise) |>
     nest() |>
@@ -2438,22 +2487,22 @@ get_rope_pd <- function(slopes) {
     select(protein_intake, resistance_exercise, ROPE_low, ROPE_high, ROPE_Percentage) |>
     filter(resistance_exercise == "YES" | protein_intake < 1.6) |>
     mutate(type = "pd")
-  
+
   rope_pd <- bind_rows(rope, pd)
-  
+
   return(rope_pd)
 
-  
+
 }
 
 plot_preds_slopes <- function(data, preds, slopes) {
-  
-  preds_plot <- preds |> 
+
+  preds_plot <- preds |>
     filter(resistance_exercise == "YES" | protein_intake < 1.6) |>
     ggplot(aes(x = protein_intake, y = estimate)) +
     geom_hline(yintercept = 0, linetype = "dotted", alpha = 0.75) +
     geom_point(data = data |>
-                 mutate(resistance_exercise_label = "Resistance Exercise?"), 
+                 mutate(resistance_exercise_label = "Resistance Exercise?"),
                aes(x = protein_intake + 1.12, y = yi, size = size, color = condition), alpha = 0.5) +
     geom_ribbon(aes(ymin = conf.low, ymax = conf.high),
                 alpha = 0.5, color = "black", size = 0.25) +
@@ -2476,8 +2525,8 @@ plot_preds_slopes <- function(data, preds, slopes) {
       plot.title = element_text(size = 12),
       axis.title = element_text(size = 10)
     )
-  
-  
+
+
   slopes_plot <- slopes |>
     filter(resistance_exercise == "YES" | protein_intake < 1.6) |>
     ggplot(aes(x = protein_intake, y = estimate*0.42)) +
@@ -2491,7 +2540,7 @@ plot_preds_slopes <- function(data, preds, slopes) {
     y = "Marginal Slope for Lean Mass Change (SMD)",
     title = "Incremental marginal slope of lean mass/muscle change for 0.42 g/kg/day increase",
     subtitle = "Note, 0.42 g/kg/day increase reflects the difference in median protein intake between intervention and control conditions\nDashed lines reflect a smallest effect size of interest of 0.1 SMD"
-    ) + 
+    ) +
     guides(
       size = "none"
     ) +
@@ -2501,7 +2550,7 @@ plot_preds_slopes <- function(data, preds, slopes) {
       plot.subtitle = element_text(size = 8),
       axis.title = element_text(size = 10)
     )
-  
+
   combined_plots <- (preds_plot / slopes_plot) +
     plot_annotation(
       tag_levels = "i",
@@ -2512,7 +2561,7 @@ plot_preds_slopes <- function(data, preds, slopes) {
     theme(
       legend.position = "bottom"
     )
-  
+
   return(combined_plots)
 }
 
@@ -2520,6 +2569,10 @@ plot_preds_slopes <- function(data, preds, slopes) {
 
 ## Read and prepare new data ----
 
+# Prepare and audit the extracted workbooks ----
+
+# Use shared exclusion labels for preprocessing and the systematic-review flow
+# tables so eligibility decisions can be traced across outputs.
 primary_exclusion_labels <- function() {
   c(
     exclusion_missing_mean_change = "missing mean change",
@@ -2539,22 +2592,25 @@ primary_exclusion_labels <- function() {
 }
 
 read_protein_workbook <- function(path){
-  
+
   sheets <- readxl::excel_sheets(path)
-  
+
   data <- purrr::map(
     sheets,
     ~ readxl::read_excel(path, sheet = .x,
                          guess_max = 100000) |>
       janitor::clean_names()
   )
-  
+
   names(data) <- janitor::make_clean_names(sheets)
-  
+
   data
-  
+
 }
 
+# Convert the extracted workbook sheets into analysis contrasts. Recover
+# missing uncertainty where possible, join baseline and follow-up records, and
+# retain the information needed to audit eligibility.
 prepare_protein_data <- function(protein_data){
 
   # rename any variables needed
@@ -2569,31 +2625,31 @@ prepare_protein_data <- function(protein_data){
 
   observations <- protein_data$arm_based_data_by_timepoint |>
     rename(outcome_group = "outcome_group_whole_body_lean_mass_direct_muscle_size_mass_strength_function",
-           week = "timepoint_week_note_baseline_0") 
+           week = "timepoint_week_note_baseline_0")
 
   contrasts    <- protein_data$contrasts_between_timepoints |>
     rename(contrast_weeks = "contrast_e_g_baseline_to_12_weeks_0_12_baseline_to_24_weeks_0_24_12_weeks_to_24_weeks_12_24",
            outcome_group = "outcome_group_whole_body_lean_mass_direct_muscle_size_mass_strength_function") |>
-    
+
     # separate contrast timepoints
     separate(contrast_weeks, into = c("time1", "time2"), sep = "_") |>
     mutate(time1 = as.numeric(time1),
            time2 = as.numeric(time2))
 
   # calculate missing sds from ses, p and t stats
-  
+
   # for arm characteristics
   # variables that have both _sd/_se counterparts
   bases <- names(arms) |>
     str_subset("_(sd|se)$") |>
     str_remove("_(sd|se)$") |>
     unique()
-  
+
   for (v in bases) {
-    
+
     sd_col <- paste0(v, "_sd")
     se_col <- paste0(v, "_se")
-    
+
     # Calculate missing SDs
     arms[[sd_col]] <-
       if_else(
@@ -2603,7 +2659,7 @@ prepare_protein_data <- function(protein_data){
         arms[[se_col]] * sqrt(arms$sample_size_at_baseline),
         arms[[sd_col]]
       )
-    
+
     # Calculate missing SEs
     arms[[se_col]] <-
       if_else(
@@ -2613,9 +2669,9 @@ prepare_protein_data <- function(protein_data){
         arms[[sd_col]] / sqrt(arms$sample_size_at_baseline),
         arms[[se_col]]
       )
-    
+
   }
-  
+
   # for observations
   observations <- observations |>
     mutate(
@@ -2625,26 +2681,26 @@ prepare_protein_data <- function(protein_data){
         (upper_95_percent_confidence_interval - lower_95_percent_confidence_interval) /
           (2 * qt(0.975, df = sample_size_at_timepoint - 1))
       ),
-      
+
       # Recover standard_deviation from standard_error
       standard_deviation = coalesce(
         standard_deviation,
         standard_error * sqrt(sample_size_at_timepoint)
       ),
-      
+
       # Recover standard_error from standard_deviation (for completeness)
       standard_error = coalesce(
         standard_error,
         standard_deviation / sqrt(sample_size_at_timepoint)
       )
     ) |>
-    
+
     select(-upper_95_percent_confidence_interval, -lower_95_percent_confidence_interval)
-  
+
   # Note we do contrasts after joining with observations for the corresponding sample sizes
-  
+
   # First we generate all possible contrasts with baseline from the observations and join with contrasts extracted
-  
+
   ## Generate all baseline -> follow-up contrasts
   contrast_grid <-
     observations |>
@@ -2704,7 +2760,7 @@ prepare_protein_data <- function(protein_data){
       call. = FALSE
     )
   }
-  
+
   contrasts_join <-
     contrast_grid |>
     mutate(arm_timepoint_rows_present = TRUE) |>
@@ -2741,7 +2797,9 @@ prepare_protein_data <- function(protein_data){
       call. = FALSE
     )
   }
-  
+
+  # Link each side of the contrast to its timepoint so missing uncertainty can
+  # be recovered using the corresponding sample sizes.
   baseline_obs <-
     observations |>
     rename(
@@ -2751,8 +2809,8 @@ prepare_protein_data <- function(protein_data){
       baseline_se = standard_error,
       baseline_n = sample_size_at_timepoint
     )
-  
-  
+
+
   contrasts_join <-
     contrasts_join |>
     left_join(
@@ -2766,8 +2824,8 @@ prepare_protein_data <- function(protein_data){
         "time1"
       )
     )
-  
-  
+
+
   followup_obs <-
     observations |>
     rename(
@@ -2777,7 +2835,7 @@ prepare_protein_data <- function(protein_data){
       followup_se = standard_error,
       followup_n = sample_size_at_timepoint
     )
-  
+
   contrasts_join <-
     contrasts_join |>
     left_join(
@@ -2791,7 +2849,7 @@ prepare_protein_data <- function(protein_data){
         "time2"
       )
     )
-  
+
   # for contrasts
   contrasts_analysis <- contrasts_join |>
 
@@ -2824,7 +2882,7 @@ prepare_protein_data <- function(protein_data){
         TRUE ~ NA_real_
       )
     ) |>
-    
+
     # Add missing contrast means
     mutate(
       mean = coalesce(
@@ -2835,7 +2893,7 @@ prepare_protein_data <- function(protein_data){
     rename(
       mean_change = "mean"
     ) |>
-    
+
     mutate(
       # Recover standard_error from 95% CI
       standard_error = coalesce(
@@ -2849,7 +2907,7 @@ prepare_protein_data <- function(protein_data){
       #   standard_error,
       #   abs(mean / t_statistic)
       # ),
-      # 
+      #
       # # Recover SE from reported two-sided p value
       # standard_error = coalesce(
       #   standard_error,
@@ -2873,12 +2931,12 @@ prepare_protein_data <- function(protein_data){
         standard_deviation / sqrt(n)
       )
     ) |>
-    
+
     # Note whether change SD is present
     mutate(
       has_change_sd = !is.na(standard_deviation)
     ) |>
-    
+
     # Calculate pre-post correlations
     mutate(
       r = case_when(
@@ -2896,7 +2954,7 @@ prepare_protein_data <- function(protein_data){
     mutate(
       r = pmin(0.999, pmax(-0.999, r)) # Constrain it in case of errors
     )
-  
+
   # Meta-analyse pre-post correlations to impute missing ones
   # convert using Fishers r to z
   contrasts_analysis <- escalc(measure = "ZCOR", ri = r, ni = n, data = contrasts_analysis)
@@ -2904,13 +2962,13 @@ prepare_protein_data <- function(protein_data){
   meta_r <- rma.mv(yi, V=vi, data=contrasts_analysis,
                          random = list(~ 1 | study_no, ~ 1 | arm_no_nested, ~ 1 | outcome_no), method="REML", test="t",
                          control=list(optimizer="optim", optmethod="Nelder-Mead"))
-  
+
   robu_meta_r <- robust(meta_r, contrasts_analysis$study_no)
-  
+
   z2r_RT <- psych::fisherz2r(robu_meta_r$b)
   z2r_RT_lower <- psych::fisherz2r(robu_meta_r$ci.lb)
   z2r_RT_upper <- psych::fisherz2r(robu_meta_r$ci.ub)
-  
+
   contrasts_analysis <- contrasts_analysis |>
     mutate(
       r = case_when(
@@ -2918,7 +2976,7 @@ prepare_protein_data <- function(protein_data){
         .default = r
       )
     )
-  
+
   # Calculate pooled sd for each outcome and then becker's d for each contrast
 
   baseline_pool <-
@@ -2939,7 +2997,7 @@ prepare_protein_data <- function(protein_data){
       baseline_n,
       baseline_sd
     ) |>
-    group_by(study_no, 
+    group_by(study_no,
              outcome_group,
              measurement_method,
              unit_of_measurement) |>
@@ -2950,32 +3008,32 @@ prepare_protein_data <- function(protein_data){
       ),
       .groups = "drop"
     )
-  
+
   contrasts_analysis <-
     contrasts_analysis |>
     left_join(
       baseline_pool,
-      by = c("study_no", 
+      by = c("study_no",
              "outcome_group",
              "measurement_method",
              "unit_of_measurement")
     ) |>
-    
+
     # add zero to just use reported or imputed change for numerator
     mutate(
       zero = 0
     )
-  
+
   contrasts_analysis <- escalc(
-    measure="SMCR", 
-    m1i=mean_change, 
-    m2i=zero, 
-    sd1i=baseline_sd_pooled, 
-    ni=n, 
-    ri=r, 
+    measure="SMCR",
+    m1i=mean_change,
+    m2i=zero,
+    sd1i=baseline_sd_pooled,
+    ni=n,
+    ri=r,
     data = contrasts_analysis
-  ) 
-  
+  )
+
   # Now rejoin with study and arm based data for dose and other characteristics
   contrasts_analysis <-
     contrasts_analysis |>
@@ -2983,7 +3041,7 @@ prepare_protein_data <- function(protein_data){
       studies,
       by = "study_no"
     )
-  
+
   contrasts_analysis <-
     contrasts_analysis |>
     left_join(
@@ -2998,7 +3056,7 @@ prepare_protein_data <- function(protein_data){
           mean_age_years,
           sd_age_years,
           mean_body_mass_kg,
-          sd_body_mass_kg, 
+          sd_body_mass_kg,
           resistance_exercise_yes_no,
           intervention_dietary_protein_intake_g_kg_day,
           intervention_dietary_protein_intake_g_kg_day_se
@@ -3007,9 +3065,9 @@ prepare_protein_data <- function(protein_data){
     ) |>
     rename(protein_intake_raw = "intervention_dietary_protein_intake_g_kg_day",
            protein_intake_se = "intervention_dietary_protein_intake_g_kg_day_se")
-  
+
   # centre  predictors
-  
+
   # first get protein median from controls/placebos
   protein_median_controls_placebos <- contrasts_analysis |>
     filter(condition == "control" | condition == "placebo") |>
@@ -3020,9 +3078,11 @@ prepare_protein_data <- function(protein_data){
       protein_median = median(protein_intake_raw, na.rm = TRUE)
     )
 
+  # Retain a reason for each excluded row so the same eligibility decisions
+  # feed the model data and review flow counts.
   exclusion_labels <- primary_exclusion_labels()
-    
-  
+
+
   contrasts_analysis <- contrasts_analysis |>
   mutate(
     protein_median = protein_median_controls_placebos$protein_median[1],
@@ -3095,11 +3155,13 @@ prepare_protein_data <- function(protein_data){
       call. = FALSE
     )
   }
-  
+
   return(contrasts_analysis)
 
 }
 
+# Aggregate the prepared observations and exclusions into review counts and
+# outcome-level audit tables.
 summarise_systematic_review_data <- function(
   data,
   additional_exclusion_labels = NULL
@@ -3126,6 +3188,7 @@ summarise_systematic_review_data <- function(
   )
   outcome_levels <- names(outcome_labels)
   condition_levels <- c("control", "placebo", "protein")
+
   if (
     !is.null(additional_exclusion_labels) &&
       (is.null(names(additional_exclusion_labels)) ||
@@ -3135,6 +3198,7 @@ summarise_systematic_review_data <- function(
     stop("Additional exclusion labels must be a uniquely named vector.",
          call. = FALSE)
   }
+
   exclusion_labels <- c(
     primary_exclusion_labels(),
     additional_exclusion_labels
@@ -3514,11 +3578,14 @@ write_systematic_review_audit_files <- function(summary) {
   unname(output_files)
 }
 
+# Use the historical strength and function results to construct prior sets on
+# the corresponding outcome scales.
+
 ## Fitting old pre-reg brms models ----
 get_steele_strength_priors <- function(data) {
-  
+
   # uses data from Steele et al. (https://doi.org/10.1080/02640414.2023.2286748) for strength
-  
+
   steele_data <- data |>
     mutate(
       # calculate pre-post SDs from SEs
@@ -3526,27 +3593,27 @@ get_steele_strength_priors <- function(data) {
       CON_pre_sd = if_else(is.na(CON_pre_se), CON_pre_sd, CON_pre_se * sqrt(CON_n)),
       RT_post_sd = if_else(is.na(RT_post_se), RT_post_sd, RT_post_se * sqrt(RT_n)),
       CON_post_sd = if_else(is.na(CON_post_se), CON_post_sd, CON_post_se * sqrt(CON_n)),
-      
+
       # convert p to t (Change scores)
       RT_delta_t_value = if_else(is.na(RT_delta_t_value), qt(RT_delta_p_value/2, df=RT_n-1, lower.tail=FALSE), RT_delta_t_value),
       CON_delta_t_value = if_else(is.na(CON_delta_t_value), qt(CON_delta_p_value/2, df=CON_n-1, lower.tail=FALSE), CON_delta_t_value),
-      
+
       # convert t to SE (Change scores)
       RT_delta_se = if_else(is.na(RT_delta_se), if_else(is.na(RT_delta_m), (RT_post_m - RT_pre_m)/RT_delta_t_value, RT_delta_m/RT_delta_t_value), RT_delta_se),
       CON_delta_se = if_else(is.na(CON_delta_se), if_else(is.na(CON_delta_m), (CON_post_m - CON_pre_m)/CON_delta_t_value, CON_delta_m/CON_delta_t_value), CON_delta_se),
-      
+
       # make positive
       RT_delta_se = if_else(RT_delta_se < 0, RT_delta_se * -1, RT_delta_se),
       CON_delta_se = if_else(CON_delta_se < 0, CON_delta_se * -1, CON_delta_se),
-      
+
       # convert CI to SE (Change scores)
       RT_delta_se = if_else(is.na(RT_delta_se), (RT_delta_CI_upper - RT_delta_CI_lower)/3.92, RT_delta_se),
       CON_delta_se = if_else(is.na(CON_delta_se), (CON_delta_CI_upper - CON_delta_CI_lower)/3.92, CON_delta_se),
-      
+
       # convert SE to SD (Change scores)
       RT_delta_sd = if_else(is.na(RT_delta_sd), RT_delta_se * sqrt(RT_n), RT_delta_sd),
       CON_delta_sd = if_else(is.na(CON_delta_sd), CON_delta_se * sqrt(CON_n), CON_delta_sd),
-      
+
       # calculate pre-post correlation coefficient for those with pre, post, and delta SDs
       RT_ri = (RT_pre_sd^2 + RT_post_sd^2 - RT_delta_sd^2)/(2 * RT_pre_sd * RT_post_sd),
       CON_ri = (CON_pre_sd^2 + CON_post_sd^2 - CON_delta_sd^2)/(2 * CON_pre_sd * CON_post_sd)
@@ -3558,42 +3625,42 @@ get_steele_strength_priors <- function(data) {
     ) |>
     mutate(pre_sd_pool = sqrt(((RT_n - 1) * RT_pre_sd ^ 2 +
                                  (CON_n - 1) * CON_pre_sd ^ 2) /  (RT_n + CON_n - 2)))
-  
+
   # Calculate pre-post correlations for SMCR calculations
-  
+
   steele_data <- escalc(measure = "ZCOR", ri = RT_ri, ni = RT_n, data = steele_data)
-  
+
   meta_RT_ri <- rma.mv(yi, V=vi, data=steele_data,
                        random = list(~ 1 | study, ~1 | arm, ~1 | es), method="REML", test="t",
                        control=list(optimizer="optim", optmethod="Nelder-Mead"))
-  
+
   rob_meta_RT_ri <- robust(meta_RT_ri, steele_data$study)
-  
+
   z2r_RT <- psych::fisherz2r(rob_meta_RT_ri$b[1])
-  
+
   steele_data$RT_ri <- if_else(is.na(steele_data$RT_ri), z2r_RT, steele_data$RT_ri)
-  
+
   steele_data_CON <- steele_data |>
     select(study, arm, es, CON_ri, CON_n) |>
     distinct()
-  
+
   steele_data_CON <- escalc(measure = "ZCOR", ri = CON_ri, ni = CON_n, data = steele_data_CON)
-  
+
   meta_CON_ri <- rma.mv(yi, V=vi, data=steele_data_CON,
                         random = list(~ 1 | study, ~1 | arm, ~1 | es), method="REML", test="t",
                         control=list(optimizer="optim", optmethod="Nelder-Mead"))
-  
+
   rob_meta_CON_ri <- robust(meta_CON_ri, steele_data_CON$study)
-  
+
   z2r_CON <- psych::fisherz2r(rob_meta_CON_ri$b[1])
-  
+
   steele_data$CON_ri <- if_else(is.na(steele_data$CON_ri), z2r_CON, steele_data$CON_ri)
-  
-  
+
+
   # calculate for pre-post and delta separately
-  
+
   # Pivot longer so in arm based format
-  
+
   steele_data <- steele_data |>
     select(-yi, -vi, -RT_only) |>
     pivot_longer(
@@ -3604,11 +3671,11 @@ get_steele_strength_priors <- function(data) {
     separate("what", into = c("condition", "what"), sep = "_", extra = "merge") |>
     pivot_wider(names_from = "what",
                 values_from = "value")
-  
+
   # calculate for pre-post and delta separately
   steele_data_pre_post <- steele_data |>
     filter(!is.na(post_m))
-  
+
   steele_data_pre_post <- escalc(
     measure = "SMCR",
     m1i = post_m,
@@ -3619,11 +3686,11 @@ get_steele_strength_priors <- function(data) {
     ri = ri,
     data = steele_data_pre_post
   )
-  
+
   steele_data_joined_delta <- steele_data |>
     filter(is.na(post_m)) |>
     mutate(ref = 0)
-  
+
   data_joined_delta <- escalc(
     measure = "SMCR",
     m1i = delta_m,
@@ -3634,7 +3701,7 @@ get_steele_strength_priors <- function(data) {
     ri = ri,
     data = steele_data_joined_delta
   )
-  
+
   steele_data_joined <- bind_rows(steele_data_pre_post, steele_data_joined_delta) |>
     filter(outcome == "strength") |>
     unite("arm", c(outcome,study,arm,condition), sep = "_", remove = FALSE) |>
@@ -3644,7 +3711,7 @@ get_steele_strength_priors <- function(data) {
       condition == "RT" ~ 0,
       condition == "CON" ~ 1,
     ))
-  
+
   # frequentist meta-analysis estimates
   steele_meta <- rma.mv(yi, vi,
                         random = list(~ 1 | study, ~1 | arm, ~1 | effect),
@@ -3653,11 +3720,11 @@ get_steele_strength_priors <- function(data) {
                         method="REML", test="t",
                         # control=list(optimizer="optim", optmethod="Nelder-Mead")
   )
-  
+
   rob_steele_meta <- robust(steele_meta, cluster = steele_data_joined$study, clubSandwich = TRUE)
-  
+
   # set priors based on estimates (assumes habitual protein intake to get effects of RT and CON at that level)
-  
+
   priors <-
     c(
       # # We set priors based on the overall estimates for both control and RT conditions in an arm based model using Steele et al. data
@@ -3667,17 +3734,17 @@ get_steele_strength_priors <- function(data) {
       set_prior("student_t(3,0,1)", class = "b")
       # All other priors for variance parameters are kept as default weakly regularising
     )
-  
+
   priors
-  
+
 }
 
 get_kirk_function_priors <- function() {
-  
+
   # Taken directly from posterior estimates reported in Kirk et al. (https://doi.org/10.3390/jfmk9040239) for functional outcomes
   # as arm based model already fit
   # set priors based on estimates (assumes habitual protein intake to get effects of RT and CON at that level)
-  
+
   priors <-
     c(
       # # We set priors based on the overall estimates for both control and RT conditions in an arm based model using Steele et al. data
@@ -3687,14 +3754,19 @@ get_kirk_function_priors <- function() {
       set_prior("student_t(3,0,1)", class = "b")
       # All other priors for variance parameters are kept as default weakly regularising
     )
-  
+
   priors
-  
+
 }
 
 
 
 ## Fitting error in variables models using stan ----
+
+# Stan inputs for measurement-error models ----
+
+# Translate the prior and analysis representations into the numeric fields
+# expected by the supplementary Stan programs.
 
 # Helper functions to take old brms prior and extract to save rerunning earlier parts of pipeline
 extract_student_t_prior <- function(prior_text) {
@@ -3702,11 +3774,11 @@ extract_student_t_prior <- function(prior_text) {
     stringr::str_remove_all(prior_text, "\\s+"),
     "^student_t\\(([-+0-9.eE]+),([-+0-9.eE]+),([-+0-9.eE]+)\\)$"
   )
-  
+
   if (anyNA(matches)) {
     stop("Expected a student_t(df, location, scale) prior.")
   }
-  
+
   c(
     df = as.numeric(matches[2]),
     location = as.numeric(matches[3]),
@@ -3716,7 +3788,7 @@ extract_student_t_prior <- function(prior_text) {
 
 make_stan_priors <- function(steele_priors) {
   prior_table <- as.data.frame(steele_priors)
-  
+
   get_prior <- function(coefficient) {
     prior_text <- prior_table |>
       dplyr::filter(
@@ -3724,20 +3796,20 @@ make_stan_priors <- function(steele_priors) {
         coef == coefficient
       ) |>
       dplyr::pull(prior)
-    
+
     if (length(prior_text) != 1L) {
       stop(
         "Expected exactly one prior for coefficient: ",
         coefficient
       )
     }
-    
+
     extract_student_t_prior(prior_text)
   }
-  
+
   intercept_prior <- get_prior("Intercept")
   rt_prior <- get_prior("resistance_exercise_code")
-  
+
   list(
     prior_intercept_location = unname(intercept_prior["location"]),
     prior_intercept_scale = unname(intercept_prior["scale"]),
@@ -3764,9 +3836,9 @@ make_stan_data <- function(
     "duration_centre",
     "age_centre"
   )
-  
+
   missing_cols <- setdiff(required_cols, names(data))
-  
+
   if (length(missing_cols) > 0) {
     stop(
       "data is missing: ",
@@ -3774,10 +3846,10 @@ make_stan_data <- function(
       call. = FALSE
     )
   }
-  
+
   data <- data |>
     dplyr::mutate(study_id = .data[[study_id_col]])
-  
+
   # Each study–arm supplies one observed intake and one intake SE.
   # Do not silently continue if duplicated rows disagree.
   arm_checks <- data |>
@@ -3787,13 +3859,13 @@ make_stan_data <- function(
       n_protein_intake_se = dplyr::n_distinct(protein_intake_se),
       .groups = "drop"
     )
-  
+
   bad_arms <- arm_checks |>
     dplyr::filter(
       n_protein_intake != 1L |
         n_protein_intake_se != 1L
     )
-  
+
   if (nrow(bad_arms) > 0) {
     stop(
       "Each study–arm must have one protein_intake and one ",
@@ -3803,18 +3875,18 @@ make_stan_data <- function(
       call. = FALSE
     )
   }
-  
+
   if (anyNA(data$protein_intake_se) || any(data$protein_intake_se <= 0)) {
     stop(
       "protein_intake_se must be present and strictly positive.",
       call. = FALSE
     )
   }
-  
+
   if (anyNA(data$vi) || any(data$vi <= 0)) {
     stop("vi must be present and strictly positive.", call. = FALSE)
   }
-  
+
   data_indexed <- data |>
     dplyr::arrange(study_id, arm_no, outcome_no) |>
     dplyr::group_by(study_id) |>
@@ -3826,7 +3898,7 @@ make_stan_data <- function(
     dplyr::group_by(study_id, arm_no, outcome_no) |>
     dplyr::mutate(outcome_index = dplyr::cur_group_id()) |>
     dplyr::ungroup()
-  
+
   arm_data <- data_indexed |>
     dplyr::distinct(
       study_id,
@@ -3836,26 +3908,26 @@ make_stan_data <- function(
       protein_intake_se
     ) |>
     dplyr::arrange(arm_index)
-  
+
   list(
     # Outcome-effect-size level
     N = nrow(data_indexed),
     y = data_indexed$yi,
     se_y = sqrt(data_indexed$vi),
-    
+
     # Latent protein intake: one value per nested study–arm
     N_arm = nrow(arm_data),
     arm = data_indexed$arm_index,
     x_obs = arm_data$protein_intake,
     x_se = arm_data$protein_intake_se,
-    
+
     # Nested meta-analytic random-intercept structure
     N_study = dplyr::n_distinct(data_indexed$study_index),
     study = data_indexed$study_index,
-    
+
     N_outcome = dplyr::n_distinct(data_indexed$outcome_index),
     outcome = data_indexed$outcome_index,
-    
+
     # Fixed-effect moderators
     resistance_exercise_code = data_indexed$resistance_exercise_code,
     duration_centre = data_indexed$duration_centre,

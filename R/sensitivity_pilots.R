@@ -65,6 +65,7 @@ materialise_final_primary_specifications <- function(
     "targeted_function_tail_priors",
     "targeted_piecewise_interaction_priors", "third_remedy"
   )
+
   missing_fields <- setdiff(logical_fields, names(specification_table))
   for (field in missing_fields) specification_table[[field]] <- FALSE
   specification_table <- specification_table |>
@@ -108,6 +109,11 @@ materialise_final_primary_specifications <- function(
   specification_list
 }
 
+# Pilot and expansion settings ----
+
+# Derive sampler budgets, candidate subsets and stage-specific seeds from the
+# base configuration. Structural checks use these settings before opt-in
+# fitting.
 make_sensitivity_pilot_config <- function(
     outcome = "whole_body",
     model_indices = c(2L, 3L, 4L, 13L, 26L),
@@ -130,6 +136,7 @@ make_sensitivity_pilot_config <- function(
     stop("Pilot model indices must identify protein-containing candidates.",
          call. = FALSE)
   }
+
   if (!residual_correlation_model_index %in% seq_len(26L)) {
     stop("Invalid residual-correlation model index.", call. = FALSE)
   }
@@ -164,6 +171,7 @@ make_mundlak_remedy_pilot_config <- function(
     base_config$null_model_indices,
     base_config$model_indices
   )))
+
   if (
     length(remedy_model_indices) < 1L ||
       !all(remedy_model_indices %in% comparison_indices) ||
@@ -171,6 +179,7 @@ make_mundlak_remedy_pilot_config <- function(
   ) {
     stop("Invalid Mundlak remedy model indices.", call. = FALSE)
   }
+
   config <- base_config
   config$remedy_model_indices <- remedy_model_indices
   config$regularised_model_indices <- regularised_model_indices
@@ -198,12 +207,14 @@ make_mundlak_full_expansion_config <- function(
     regularised_model_indices
   ))
   config$seed <- as.integer(base_config$seed + seed_offset)
+
   if (
     config$iter_warmup < 1L || config$iter_sampling < 1L ||
       any(!config$regularised_model_indices %in% config$model_indices)
   ) {
     stop("Invalid full Mundlak expansion configuration.", call. = FALSE)
   }
+
   config
 }
 
@@ -218,12 +229,14 @@ make_within_remedy_pilot_config <- function(
     base_config$null_model_indices,
     base_config$model_indices
   )))
+
   if (
     length(remedy_model_indices) < 1L ||
       !all(remedy_model_indices %in% comparison_indices)
   ) {
     stop("Invalid within-contrast remedy model indices.", call. = FALSE)
   }
+
   config <- base_config
   config$remedy_model_indices <- remedy_model_indices
   config$iter_warmup <- as.integer(iter_warmup)
@@ -246,6 +259,7 @@ make_within_full_expansion_config <- function(
   config$iter_warmup <- as.integer(iter_warmup)
   config$iter_sampling <- as.integer(iter_sampling)
   config$seed <- as.integer(base_config$seed + seed_offset)
+
   if (
     config$chains != 4L || config$parallel_chains < 1L ||
       config$iter_warmup != 1500L || config$iter_sampling != 2000L
@@ -253,6 +267,7 @@ make_within_full_expansion_config <- function(
     stop("Invalid full within-contrast expansion configuration.",
          call. = FALSE)
   }
+
   config
 }
 
@@ -270,6 +285,7 @@ make_within_full_remedy_config <- function(
   config$adapt_delta_floor <- as.numeric(adapt_delta)
   config$max_treedepth_floor <- as.integer(max_treedepth)
   config$seed <- as.integer(full_config$seed + seed_offset)
+
   if (
     config$iter_warmup < full_config$iter_warmup ||
       config$iter_sampling <= full_config$iter_sampling ||
@@ -281,6 +297,7 @@ make_within_full_remedy_config <- function(
     stop("Invalid full within-contrast remedy configuration.",
          call. = FALSE)
   }
+
   config
 }
 
@@ -298,6 +315,7 @@ make_exposure_full_expansion_config <- function(
   config$iter_warmup <- as.integer(iter_warmup)
   config$iter_sampling <- as.integer(iter_sampling)
   config$seed <- as.integer(base_config$seed + seed_offset)
+
   if (
     config$chains != 4L || config$parallel_chains < 1L ||
       config$iter_warmup != 1500L || config$iter_sampling != 2000L
@@ -305,6 +323,7 @@ make_exposure_full_expansion_config <- function(
     stop("Invalid full exposure expansion configuration.",
          call. = FALSE)
   }
+
   config
 }
 
@@ -322,6 +341,7 @@ make_exposure_full_remedy_config <- function(
   config$adapt_delta_floor <- as.numeric(adapt_delta)
   config$max_treedepth_floor <- as.integer(max_treedepth)
   config$seed <- as.integer(full_config$seed + seed_offset)
+
   if (
     config$iter_warmup < full_config$iter_warmup ||
       config$iter_sampling <= full_config$iter_sampling ||
@@ -332,6 +352,7 @@ make_exposure_full_remedy_config <- function(
   ) {
     stop("Invalid full exposure remedy configuration.", call. = FALSE)
   }
+
   config
 }
 
@@ -350,6 +371,7 @@ make_exposure_remedy_pilot_config <- function(
   achieved_model_indices <- unique(as.integer(achieved_model_indices))
   assignment_model_indices <- unique(as.integer(assignment_model_indices))
   shared_null_model_index <- as.integer(shared_null_model_index)
+
   if (
     length(shared_null_model_index) != 1L ||
       !shared_null_model_index %in% base_config$null_model_indices ||
@@ -362,6 +384,7 @@ make_exposure_remedy_pilot_config <- function(
   ) {
     stop("Invalid exposure remedy model indices.", call. = FALSE)
   }
+
   config <- base_config
   config$achieved_model_indices <- achieved_model_indices
   config$assignment_model_indices <- assignment_model_indices
@@ -383,12 +406,14 @@ make_exposure_second_remedy_pilot_config <- function(
     base_config$null_model_indices,
     base_config$model_indices
   )))
+
   if (
     length(model_indices) < 1L ||
       !all(model_indices %in% comparison_indices)
   ) {
     stop("Invalid second exposure remedy model indices.", call. = FALSE)
   }
+
   config <- base_config
   config$model_indices <- model_indices
   config$iter_warmup <- as.integer(iter_warmup)
@@ -433,12 +458,14 @@ make_eiv_ensemble_remedy_pilot_config <- function(
     base_config$model_indices
   )))
   remedy_model_indices <- sort(unique(as.integer(remedy_model_indices)))
+
   if (
     length(remedy_model_indices) < 1L ||
       !all(remedy_model_indices %in% eligible)
   ) {
     stop("Invalid EIV remedy model indices.", call. = FALSE)
   }
+
   config <- base_config
   config$remedy_model_indices <- remedy_model_indices
   config$iter_warmup <- as.integer(iter_warmup)
@@ -453,6 +480,7 @@ parse_sensitivity_pilot_selection <- function(selection) {
     "strategy_within"
   )
   if (is.null(selection)) selection <- ""
+
   selection <- tolower(trimws(selection))
   selected <- unique(trimws(unlist(strsplit(selection, ",", fixed = TRUE))))
   selected <- selected[nzchar(selected)]
@@ -465,6 +493,7 @@ parse_sensitivity_pilot_selection <- function(selection) {
       call. = FALSE
     )
   }
+
   if ("all" %in% selected) selected <- families
   if ("none" %in% selected) selected <- character()
   stats::setNames(families %in% selected, families)
@@ -513,6 +542,11 @@ infer_sensitivity_basis_family <- function(specification) {
   if (isTRUE(specification$natural_spline)) "natural_spline" else "thin_plate"
 }
 
+# Basis construction and within-study decomposition ----
+
+# Construct the basis for the original dose-response shape. The Mundlak
+# helpers decompose each basis term into its study mean and the deviation from
+# that mean.
 make_sensitivity_basis_spec <- function(data, specification, knot = 0.5) {
   required <- c("study_no", "arm_no", "protein_intake")
   missing <- setdiff(required, names(data))
@@ -520,6 +554,7 @@ make_sensitivity_basis_spec <- function(data, specification, knot = 0.5) {
     stop("Basis data are missing: ", paste(missing, collapse = ", "), ".",
          call. = FALSE)
   }
+
   family <- infer_sensitivity_basis_family(specification)
   if (family == "none") {
     stop("A protein basis cannot be made for an intercept-only candidate.",
@@ -533,6 +568,7 @@ make_sensitivity_basis_spec <- function(data, specification, knot = 0.5) {
     stop("Too few distinct study-arms to define a protein basis.",
          call. = FALSE)
   }
+
   x_scale <- if (isTRUE(specification$half_unit_protein)) 0.5 else 1
   x_model <- arm_data$protein_intake / x_scale
 
@@ -543,6 +579,7 @@ make_sensitivity_basis_spec <- function(data, specification, knot = 0.5) {
     model_index = specification$model_index,
     outcome = specification$outcome
   )
+
   if (family == "natural_spline") {
     raw <- splines::ns(x_model, df = 3)
     output$knots <- attr(raw, "knots")
@@ -612,6 +649,7 @@ predict_sensitivity_basis <- function(basis_spec, x) {
       data.frame(x_model = x_model)
     ) %*% basis_spec$basis_transform
   )
+
   basis <- as.matrix(basis)
   if (
     nrow(basis) != length(x) ||
@@ -620,11 +658,17 @@ predict_sensitivity_basis <- function(basis_spec, x) {
   ) {
     stop("Protein-basis prediction failed validation.", call. = FALSE)
   }
+
   colnames(basis) <- paste0("basis_", seq_len(ncol(basis)))
   basis
 }
 
+# Use study means of the transformed basis values so the decomposition applies
+# to the same nonlinear terms as the fitted curve.
 add_sensitivity_mundlak_basis <- function(data, basis_spec) {
+
+  # Count each arm once so multiple outcome measurements in one arm cannot
+  # shift its study's mean exposure.
   arm_data <- data |>
     dplyr::distinct(study_no, arm_no, protein_intake)
   arm_basis <- predict_sensitivity_basis(
@@ -646,6 +690,7 @@ add_sensitivity_mundlak_basis <- function(data, basis_spec) {
       ~ sub("protein_basis_", "protein_between_", .x, fixed = TRUE),
       dplyr::all_of(basis_names)
     )
+
   arm_data <- arm_data |>
     dplyr::left_join(between, by = "study_no")
 
@@ -655,6 +700,7 @@ add_sensitivity_mundlak_basis <- function(data, basis_spec) {
   between_names <- sub(
     "protein_basis_", "protein_between_", basis_names, fixed = TRUE
   )
+
   for (index in seq_along(basis_names)) {
     arm_data[[within_names[[index]]]] <-
       arm_data[[basis_names[[index]]]] -
@@ -670,6 +716,7 @@ add_sensitivity_mundlak_basis <- function(data, basis_spec) {
       ),
       by = c("study_no", "arm_no")
     )
+
   if (anyNA(output[, c(within_names, between_names), drop = FALSE])) {
     stop("Mundlak basis columns contain missing values.", call. = FALSE)
   }
@@ -684,12 +731,14 @@ make_sensitivity_basis_formula <- function(
     contrast_names = NULL
 ) {
   features <- sensitivity_model_features(specification$model_index)
+
   if (!features$includes_protein) {
     stop("Sensitivity basis formulas require a protein candidate.",
          call. = FALSE)
   }
   mundlak <- !is.null(within_names) && !is.null(between_names)
   contrast <- !is.null(contrast_names)
+
   if (mundlak == contrast) {
     stop("Specify either Mundlak or contrast basis columns.", call. = FALSE)
   }
@@ -700,12 +749,14 @@ make_sensitivity_basis_formula <- function(
     "resistance_exercise_code",
     protein_main
   )
+
   if (features$includes_rt_interaction) {
     terms <- c(
       terms,
       paste0(protein_main, ":resistance_exercise_code")
     )
   }
+
   if (features$includes_moderators) {
     moderator_names <- if (isTRUE(specification$standardised_moderators)) {
       c("duration_outcome_z", "age_outcome_z")
@@ -743,6 +794,7 @@ prepare_sensitivity_basis_priors <- function(
     basis_spec
 ) {
   priors <- normalize_primary_brms_priors(priors)
+
   if (isTRUE(specification$standardised_moderators)) {
     priors <- add_primary_standardised_moderator_priors(priors)
   }
@@ -770,6 +822,7 @@ prepare_sensitivity_basis_priors <- function(
       )
     }
   }
+
   if (family == "thin_plate") {
     scale <- if (
       isTRUE(specification$targeted_smooth_prior) &&
@@ -790,6 +843,7 @@ prepare_sensitivity_basis_priors <- function(
       )
     }
   }
+
   priors
 }
 
@@ -822,6 +876,7 @@ prepare_mundlak_pilot_input <- function(data, specification, priors) {
     output$between_names <- NULL
     return(output)
   }
+
   basis_spec <- make_sensitivity_basis_spec(data, specification)
   data <- add_sensitivity_mundlak_basis(data, basis_spec)
   if (isTRUE(specification$standardised_moderators)) {
@@ -882,6 +937,7 @@ select_pending_mundlak_full_specifications <- function(
   if (is_sensitivity_pilot_skip(reused_fits)) {
     return(new_sensitivity_pilot_skip("mundlak"))
   }
+
   specification_keys <- paste(
     purrr::map_chr(specifications, "outcome"),
     purrr::map_int(specifications, "model_index")
@@ -893,6 +949,7 @@ select_pending_mundlak_full_specifications <- function(
   expected_reused <- paste(
     "whole_body", c(1L, 2L, 3L, 4L, 5L, 13L, 26L)
   )
+
   if (
     length(specifications) != 104L || anyDuplicated(specification_keys) ||
       !setequal(reused_keys, expected_reused) ||
@@ -901,6 +958,7 @@ select_pending_mundlak_full_specifications <- function(
     stop("The full Mundlak specification/reuse set is invalid.",
          call. = FALSE)
   }
+
   specifications[!specification_keys %in% reused_keys]
 }
 
@@ -913,6 +971,7 @@ prepare_mundlak_full_input <- function(
   outcome <- specification$outcome
   data <- data_by_outcome[[outcome]]
   priors <- priors_by_outcome[[outcome]]
+
   if (is.null(data) || is.null(priors) || !outcome %in% config$outcomes) {
     stop("A full Mundlak outcome input is unavailable.", call. = FALSE)
   }
@@ -920,6 +979,7 @@ prepare_mundlak_full_input <- function(
   specification$sensitivity_mundlak_sampling <- paste0(
     config$iter_warmup, "_warmup_", config$iter_sampling, "_sampling"
   )
+
   if (specification$model_index %in% config$regularised_model_indices) {
     specification$regularised_variance_priors <- TRUE
     specification$sensitivity_mundlak_pilot_informed_remedy <-
@@ -928,6 +988,7 @@ prepare_mundlak_full_input <- function(
     specification$sensitivity_mundlak_pilot_informed_remedy <-
       "longer_sampling"
   }
+
   prepare_mundlak_pilot_input(data, specification, priors)
 }
 
@@ -944,6 +1005,7 @@ audit_mundlak_full_expansion <- function(
   ) {
     return(new_sensitivity_pilot_skip("mundlak"))
   }
+
   pending_keys <- paste(
     purrr::map_chr(pending_specifications, "outcome"),
     purrr::map_int(pending_specifications, "model_index")
@@ -972,6 +1034,7 @@ audit_mundlak_full_expansion <- function(
     input$specification$model_index != 4L ||
       isTRUE(input$specification$regularised_variance_priors)
   })
+
   if (
     length(pending_specifications) != 97L || length(inputs) != 97L ||
       length(reused_fits) != 7L || anyDuplicated(pending_keys) ||
@@ -983,6 +1046,7 @@ audit_mundlak_full_expansion <- function(
     stop("The full Mundlak expansion failed its structural audit.",
          call. = FALSE)
   }
+
   tibble::tibble(
     check = c(
       "complete candidate registry",
@@ -1008,6 +1072,7 @@ fit_mundlak_full_candidate <- function(input, enabled, config) {
   if (is.na(outcome_offset)) {
     stop("Unknown outcome in the full Mundlak fit.", call. = FALSE)
   }
+
   local_config <- config
   local_config$seed <- as.integer(
     config$seed + 100L * (outcome_offset - 1L) +
@@ -1033,6 +1098,7 @@ collect_mundlak_full_ensemble <- function(
   ) {
     return(new_sensitivity_pilot_skip("mundlak"))
   }
+
   ensemble <- c(reused_fits, new_fits)
   outcome_levels <- c(
     "whole_body", "hypertrophy", "strength", "function"
@@ -1050,6 +1116,7 @@ collect_mundlak_full_ensemble <- function(
     purrr::map_chr(expected_specifications, "outcome"),
     purrr::map_int(expected_specifications, "model_index")
   )
+
   if (
     length(ensemble) != 104L || anyDuplicated(observed_keys) ||
       !setequal(observed_keys, expected_keys) ||
@@ -1057,6 +1124,7 @@ collect_mundlak_full_ensemble <- function(
   ) {
     stop("The full Mundlak ensemble is incomplete.", call. = FALSE)
   }
+
   ensemble
 }
 
@@ -1086,6 +1154,7 @@ compile_mundlak_full_diagnostic_audit <- function(diagnostics) {
         TRUE ~ "PASS"
       )
     )
+
   keys <- paste(summary$outcome, summary$model_index)
   if (nrow(summary) != 104L || anyDuplicated(keys)) {
     stop("The full Mundlak diagnostic audit is incomplete.", call. = FALSE)
@@ -1098,6 +1167,7 @@ compile_mundlak_full_diagnostic_audit <- function(diagnostics) {
         .before = 1L
       )
   })
+
   list(
     diagnostic_summary = summary,
     parameter_failures = parameter_failures,
@@ -1122,6 +1192,7 @@ select_mundlak_full_remedy_specifications <- function(
       ),
       model_index
     )
+
   selected <- purrr::keep(specifications, function(specification) {
     any(
       failures$outcome == specification$outcome &
@@ -1133,6 +1204,7 @@ select_mundlak_full_remedy_specifications <- function(
     purrr::map_int(selected, "model_index")
   )
   failure_keys <- paste(failures$outcome, failures$model_index)
+
   if (
     nrow(failures) < 1L || length(selected) != nrow(failures) ||
       anyDuplicated(selected_keys) || !setequal(selected_keys, failure_keys)
@@ -1140,6 +1212,7 @@ select_mundlak_full_remedy_specifications <- function(
     stop("The full Mundlak remedy specification set is invalid.",
          call. = FALSE)
   }
+
   selected
 }
 
@@ -1157,12 +1230,14 @@ make_mundlak_full_remedy_config <- function(
   config$max_treedepth_cases <- as.character(max_treedepth_cases)
   config$remedy_max_treedepth <- as.integer(max_treedepth)
   config$seed <- as.integer(full_config$seed + seed_offset)
+
   if (
     config$iter_warmup < 1L || config$iter_sampling < 1L ||
       config$remedy_max_treedepth < full_config$max_treedepth_floor
   ) {
     stop("Invalid full Mundlak remedy configuration.", call. = FALSE)
   }
+
   config
 }
 
@@ -1174,6 +1249,7 @@ prepare_mundlak_full_remedy_input <- function(
 ) {
   key <- paste(specification$outcome, specification$model_index)
   specification$sensitivity_mundlak_full_remedy <- "longer_sampling"
+
   if (key %in% config$max_treedepth_cases) {
     specification$max_treedepth <- max(
       specification$max_treedepth,
@@ -1182,6 +1258,7 @@ prepare_mundlak_full_remedy_input <- function(
     specification$sensitivity_mundlak_full_remedy <-
       "longer_sampling_and_max_treedepth_15"
   }
+
   prepare_mundlak_full_input(
     specification,
     data_by_outcome,
@@ -1223,6 +1300,7 @@ write_sensitivity_fit_file <- function(candidate, stage) {
   if (!inherits(candidate$model, "brmsfit")) {
     stop("Cannot archive an invalid sensitivity fit.", call. = FALSE)
   }
+
   path <- sensitivity_fit_file_path(
     candidate$family,
     candidate$outcome,
@@ -1232,6 +1310,7 @@ write_sensitivity_fit_file <- function(candidate, stage) {
   temporary <- paste0(path, ".tmp")
   on.exit(unlink(temporary, force = TRUE), add = TRUE)
   qs::qsave(candidate, temporary, preset = "high")
+
   if (!file.copy(temporary, path, overwrite = TRUE)) {
     stop("Could not install the sensitivity fit file.",
          call. = FALSE)
@@ -1257,6 +1336,7 @@ read_sensitivity_fit_file <- function(path) {
   ) {
     stop("The sensitivity fit file is unavailable.", call. = FALSE)
   }
+
   candidate <- qs::qread(path)
   if (
     !is.list(candidate) || !inherits(candidate$model, "brmsfit") ||
@@ -1264,6 +1344,7 @@ read_sensitivity_fit_file <- function(path) {
   ) {
     stop("The sensitivity fit file is invalid.", call. = FALSE)
   }
+
   family_suffix <- paste0(" [", candidate$family, "]")
   duplicated_suffix <- paste0(family_suffix, family_suffix)
   if (
@@ -1279,6 +1360,7 @@ read_sensitivity_fit_file <- function(path) {
       nchar(candidate$model_name) - nchar(family_suffix)
     )
   }
+
   candidate
 }
 
@@ -1299,6 +1381,7 @@ combine_mundlak_full_remedy_diagnostic_audit <- function(
     dplyr::filter(!diagnostic_pass) |>
     dplyr::transmute(key = paste(outcome, model_index)) |>
     dplyr::pull(key)
+
   if (
     nrow(remedy_summary) != length(expected_keys) ||
       anyDuplicated(remedy_keys) || !setequal(remedy_keys, expected_keys)
@@ -1306,6 +1389,7 @@ combine_mundlak_full_remedy_diagnostic_audit <- function(
     stop("The full Mundlak remedy diagnostics are incomplete.",
          call. = FALSE)
   }
+
   summary <- initial_audit$diagnostic_summary |>
     dplyr::filter(!paste(outcome, model_index) %in% remedy_keys) |>
     dplyr::bind_rows(remedy_summary) |>
@@ -1324,6 +1408,7 @@ combine_mundlak_full_remedy_diagnostic_audit <- function(
         TRUE ~ "PASS"
       )
     )
+
   remedy_parameter_failures <- purrr::map_dfr(
     remedy_diagnostics,
     function(result) {
@@ -1335,6 +1420,7 @@ combine_mundlak_full_remedy_diagnostic_audit <- function(
         )
     }
   )
+
   parameter_failures <- initial_audit$parameter_failures |>
     dplyr::filter(!paste(outcome, model_index) %in% remedy_keys) |>
     dplyr::bind_rows(remedy_parameter_failures)
@@ -1345,6 +1431,7 @@ combine_mundlak_full_remedy_diagnostic_audit <- function(
     stop("The remedied Mundlak diagnostic audit is incomplete.",
          call. = FALSE)
   }
+
   list(
     diagnostic_summary = summary,
     parameter_failures = parameter_failures,
@@ -1384,6 +1471,7 @@ write_mundlak_full_accepted_fit_file <- function(
     stage = "initial"
 ) {
   candidate <- unwrap_sensitivity_fit_candidate(candidate)
+
   if (!isTRUE(final_diagnostic_audit$all_sampling_diagnostics_pass)) {
     stop("Mundlak fit files cannot be accepted before diagnostics pass.",
          call. = FALSE)
@@ -1391,6 +1479,7 @@ write_mundlak_full_accepted_fit_file <- function(
   key <- paste(candidate$outcome, candidate$model_index)
   remedy_keys <- paste(remedy_manifest$outcome, remedy_manifest$model_index)
   remedy_match <- match(key, remedy_keys)
+
   if (!is.na(remedy_match)) {
     remedy_path <- remedy_manifest$fit_path[[remedy_match]]
     if (!file.exists(remedy_path)) {
@@ -1398,6 +1487,7 @@ write_mundlak_full_accepted_fit_file <- function(
     }
     return(normalizePath(remedy_path, winslash = "/", mustWork = TRUE))
   }
+
   write_sensitivity_fit_file(candidate, stage = stage)
 }
 
@@ -1410,6 +1500,7 @@ combine_mundlak_accepted_fit_manifest <- function(
     stop("Mundlak fits cannot be accepted before all diagnostics pass.",
          call. = FALSE)
   }
+
   remedy_keys <- paste(remedy_manifest$outcome, remedy_manifest$model_index)
   accepted <- original_manifest |>
     dplyr::filter(!paste(outcome, model_index) %in% remedy_keys) |>
@@ -1421,6 +1512,7 @@ combine_mundlak_accepted_fit_manifest <- function(
       ),
       model_index
     )
+
   if (
     nrow(accepted) != 104L ||
       anyDuplicated(paste(accepted$outcome, accepted$model_index)) ||
@@ -1428,6 +1520,7 @@ combine_mundlak_accepted_fit_manifest <- function(
   ) {
     stop("The accepted Mundlak fit manifest is incomplete.", call. = FALSE)
   }
+
   accepted
 }
 
@@ -1437,6 +1530,7 @@ make_mundlak_full_fit_records <- function(accepted_manifest) {
     "fit_path", "bytes", "sha256"
   )
   valid_outcomes <- c("whole_body", "hypertrophy", "strength", "function")
+
   if (
     !is.data.frame(accepted_manifest) ||
       !all(required %in% names(accepted_manifest)) ||
@@ -1451,6 +1545,7 @@ make_mundlak_full_fit_records <- function(accepted_manifest) {
   ) {
     stop("The accepted Mundlak fit manifest is invalid.", call. = FALSE)
   }
+
   ordered <- accepted_manifest |>
     dplyr::arrange(factor(outcome, levels = valid_outcomes), model_index)
   purrr::map(seq_len(nrow(ordered)), function(row) {
@@ -1458,6 +1553,11 @@ make_mundlak_full_fit_records <- function(accepted_manifest) {
   })
 }
 
+# Score accepted fits on aligned observations ----
+
+# Read the saved candidate and compute integrated holdout scores with
+# observation identifiers. Diagnostics and exact corrections are assembled
+# from these compact outputs.
 compute_mundlak_full_file_integrated_loo <- function(
     fit_record,
     loo_draws = 4000L,
@@ -1467,12 +1567,14 @@ compute_mundlak_full_file_integrated_loo <- function(
     slope_description = "mundlak_within_basis_slopes"
 ) {
   fit_path <- fit_record$fit_path
+
   if (
     length(fit_path) != 1L || is.na(fit_path) || !file.exists(fit_path)
   ) {
     stop("The Mundlak LOO fit file is unavailable.", call. = FALSE)
   }
   candidate <- read_sensitivity_fit_file(fit_path)
+
   if (
     !identical(unname(as.character(candidate$family)), family) ||
       !identical(candidate$outcome, fit_record$outcome) ||
@@ -1507,6 +1609,7 @@ compute_mundlak_full_file_integrated_loo <- function(
     reloo = FALSE,
     cores = as.integer(cores)
   )
+
   result <- compute_sensitivity_mundlak_integrated_psis_loo(
     job = list(
       fitted_candidate = candidate,
@@ -1518,6 +1621,7 @@ compute_mundlak_full_file_integrated_loo <- function(
     family = family,
     slope_description = slope_description
   )
+
   result$family <- family
   result$fit_record <- fit_record
   result$loo_draws <- length(draw_ids)
@@ -1534,12 +1638,14 @@ compute_exposure_full_file_integrated_loo <- function(
   if (!family %in% c("achieved", "assignment")) {
     stop("Unknown exposure family for integrated LOO.", call. = FALSE)
   }
+
   fit_path <- fit_record$fit_path
   if (
     length(fit_path) != 1L || is.na(fit_path) || !file.exists(fit_path)
   ) {
     stop("The exposure LOO fit file is unavailable.", call. = FALSE)
   }
+
   candidate <- read_sensitivity_fit_file(fit_path)
   if (
     !identical(unname(as.character(candidate$family)), family) ||
@@ -1554,6 +1660,7 @@ compute_exposure_full_file_integrated_loo <- function(
     stop("The exposure fit file does not match its manifest record.",
          call. = FALSE)
   }
+
   old_mc_cores <- getOption("mc.cores")
   on.exit(options(mc.cores = old_mc_cores), add = TRUE)
   options(mc.cores = 1L)
@@ -1569,6 +1676,7 @@ compute_exposure_full_file_integrated_loo <- function(
     reloo = FALSE,
     cores = as.integer(cores)
   )
+
   result <- compute_sensitivity_exposure_integrated_psis_loo(
     job = list(
       fitted_candidate = candidate,
@@ -1579,6 +1687,7 @@ compute_exposure_full_file_integrated_loo <- function(
     k_threshold = k_threshold,
     cores = cores
   )
+
   result$family <- family
   result$fit_record <- fit_record
   result$loo_draws <- length(draw_ids)
@@ -1600,6 +1709,7 @@ collect_mundlak_full_integrated_loo <- function(
     stop("The full Mundlak integrated-LOO result set is incomplete.",
          call. = FALSE)
   }
+
   keys <- purrr::map_chr(
     results,
     ~ paste(.x$outcome, .x$model_index)
@@ -1612,6 +1722,7 @@ collect_mundlak_full_integrated_loo <- function(
       is.list(result$fit_record) &&
       file.exists(result$fit_record$fit_path)
   })
+
   if (
     anyDuplicated(keys) || !all(valid) ||
       !setequal(keys, as.vector(outer(
@@ -1623,6 +1734,7 @@ collect_mundlak_full_integrated_loo <- function(
     stop("The full Mundlak integrated-LOO results failed validation.",
          call. = FALSE)
   }
+
   results[order(
     match(purrr::map_chr(results, "outcome"), valid_outcomes),
     purrr::map_int(results, "model_index")
@@ -1675,6 +1787,7 @@ audit_mundlak_full_integrated_loo <- function(
         .before = 1L
       )
   })
+
   high_k_cases <- purrr::map_dfr(results, function(result) {
     pareto_k <- as.numeric(loo::pareto_k_values(result$loo))
     observations <- which(pareto_k > k_threshold)
@@ -1697,6 +1810,7 @@ audit_mundlak_full_integrated_loo <- function(
       model_index,
       observation
     )
+
   outcome_summary <- model_summary |>
     dplyr::filter(method == integrated_method) |>
     dplyr::group_by(outcome) |>
@@ -1708,6 +1822,7 @@ audit_mundlak_full_integrated_loo <- function(
       maximum_pareto_k = max(maximum_pareto_k),
       .groups = "drop"
     )
+
   list(
     model_summary = model_summary,
     outcome_summary = outcome_summary,
@@ -1736,6 +1851,7 @@ sensitivity_reduction_file_path <- function(
   )
   dir.create(directory, recursive = TRUE, showWarnings = FALSE)
   filename <- safe(stage)
+
   if (!is.null(suffix) && nzchar(suffix)) {
     filename <- paste(filename, safe(suffix), sep = "_")
   }
@@ -1799,6 +1915,7 @@ make_mundlak_full_integrated_loo_file_manifest <- function(paths) {
       )),
       model_index
     )
+
   if (
     nrow(manifest) != 104L ||
       anyDuplicated(paste(manifest$outcome, manifest$model_index))
@@ -1806,6 +1923,7 @@ make_mundlak_full_integrated_loo_file_manifest <- function(paths) {
     stop("The Mundlak integrated-LOO file manifest is invalid.",
          call. = FALSE)
   }
+
   manifest
 }
 
@@ -1823,6 +1941,7 @@ write_sensitivity_full_integrated_loo_file <- function(result, family) {
   } else {
     identical(result$remedy, "integrated_observation_level_psis")
   }
+
   if (
     !inherits(result$loo, "loo") ||
       !inherits(result$conditional_loo, "loo") ||
@@ -1832,6 +1951,7 @@ write_sensitivity_full_integrated_loo_file <- function(result, family) {
     stop("Cannot archive an invalid integrated sensitivity LOO result.",
          call. = FALSE)
   }
+
   path <- sensitivity_reduction_file_path(
     family = family,
     outcome = result$outcome,
@@ -1855,6 +1975,7 @@ make_sensitivity_full_integrated_loo_file_manifest <- function(
     stop("The integrated sensitivity LOO file set is incomplete.",
          call. = FALSE)
   }
+
   manifest <- purrr::map_dfr(paths, function(path) {
     result <- qs::qread(path)
     if (
@@ -1882,6 +2003,7 @@ make_sensitivity_full_integrated_loo_file_manifest <- function(
       )),
       model_index
     )
+
   if (
     nrow(manifest) != expected_models ||
       anyDuplicated(paste(manifest$outcome, manifest$model_index)) ||
@@ -1900,6 +2022,7 @@ make_sensitivity_full_integrated_loo_file_manifest <- function(
     stop("The integrated sensitivity LOO manifest is invalid.",
          call. = FALSE)
   }
+
   manifest
 }
 
@@ -1918,6 +2041,7 @@ audit_sensitivity_full_integrated_loo_files <- function(
     stop("The integrated sensitivity LOO manifest cannot be audited.",
          call. = FALSE)
   }
+
   results <- purrr::map(manifest$integrated_loo_path, qs::qread)
   valid_family <- purrr::map_lgl(
     results,
@@ -1927,6 +2051,7 @@ audit_sensitivity_full_integrated_loo_files <- function(
     stop("The integrated sensitivity LOO files have mixed families.",
          call. = FALSE)
   }
+
   audit <- audit_mundlak_full_integrated_loo(
     results,
     k_threshold = k_threshold,
@@ -1936,6 +2061,10 @@ audit_sensitivity_full_integrated_loo_files <- function(
   audit
 }
 
+# Exact holdout refits and corrections ----
+
+# Match the high-Pareto-k cases to the accepted fits and held-out
+# observations, then replace their approximate scores with exact predictions.
 make_mundlak_full_exact_loo_records <- function(
     integrated_audit,
     accepted_fit_manifest,
@@ -1943,6 +2072,7 @@ make_mundlak_full_exact_loo_records <- function(
 ) {
   cases <- integrated_audit$high_k_cases
   expected_cases <- as.integer(integrated_audit$exact_refits_required)
+
   if (
     !is.data.frame(cases) || length(expected_cases) != 1L ||
       is.na(expected_cases) || expected_cases < 1L ||
@@ -1950,6 +2080,7 @@ make_mundlak_full_exact_loo_records <- function(
   ) {
     stop("The Mundlak exact-LOO case audit has changed.", call. = FALSE)
   }
+
   fit_lookup <- accepted_fit_manifest |>
     dplyr::select(
       outcome, model_index,
@@ -1981,6 +2112,7 @@ make_mundlak_full_exact_loo_records <- function(
       observation
     ) |>
     dplyr::mutate(case_id = dplyr::row_number(), .before = 1L)
+
   if (
     nrow(records) != expected_cases ||
       anyNA(records$original_fit_path) ||
@@ -1995,6 +2127,7 @@ make_mundlak_full_exact_loo_records <- function(
   ) {
     stop("The Mundlak exact-LOO records are incomplete.", call. = FALSE)
   }
+
   purrr::map(seq_len(nrow(records)), function(row) {
     as.list(records[row, , drop = FALSE])
   })
@@ -2010,6 +2143,7 @@ make_mundlak_full_exact_loo_config <- function(
   config$iter_warmup <- as.integer(iter_warmup)
   config$iter_sampling <- as.integer(iter_sampling)
   config$seed <- as.integer(base_config$seed + seed_offset)
+
   if (
     config$chains != 4L || config$parallel_chains < 1L ||
       config$iter_warmup != 2000L || config$iter_sampling != 6000L
@@ -2017,6 +2151,7 @@ make_mundlak_full_exact_loo_config <- function(
     stop("The full Mundlak exact-LOO configuration is invalid.",
          call. = FALSE)
   }
+
   config
 }
 
@@ -2053,6 +2188,7 @@ fit_mundlak_full_exact_loo_to_file <- function(record, enabled, config) {
     stop("A full Mundlak exact-LOO record failed validation.",
          call. = FALSE)
   }
+
   prediction_data <- candidate$model$data
   training_data <- prediction_data[-observation, , drop = FALSE]
   original_model <- candidate$model
@@ -2077,6 +2213,7 @@ fit_mundlak_full_exact_loo_to_file <- function(record, enabled, config) {
     ),
     save_pars = brms::save_pars(all = TRUE)
   )
+
   archive <- list(
     case_id = as.integer(record$case_id),
     outcome = record$outcome,
@@ -2091,6 +2228,7 @@ fit_mundlak_full_exact_loo_to_file <- function(record, enabled, config) {
     refitted_model = refitted_model,
     refit_seconds = as.numeric(proc.time()[["elapsed"]] - start_time)
   )
+
   write_atomic_qs(archive, mundlak_full_exact_fit_file_path(record))
 }
 
@@ -2126,6 +2264,7 @@ audit_mundlak_full_exact_loo_diagnostics <- function(
       model_index,
       observation
     )
+
   if (
     nrow(summary) != integrated_audit$exact_refits_required ||
       anyDuplicated(paste(summary$outcome, summary$model_index,
@@ -2134,6 +2273,7 @@ audit_mundlak_full_exact_loo_diagnostics <- function(
     stop("The full Mundlak exact-refit diagnostic set is incomplete.",
          call. = FALSE)
   }
+
   list(
     diagnostic_summary = summary,
     exact_refits = nrow(summary),
@@ -2180,6 +2320,7 @@ fit_sensitivity_full_exact_loo_to_file <- function(
     family
 ) {
   if (!isTRUE(enabled)) return(new_sensitivity_pilot_skip(family))
+
   candidate <- read_sensitivity_fit_file(record$original_fit_path)
   integrated_result <- qs::qread(record$integrated_loo_path)
   observation <- as.integer(record$observation)
@@ -2202,6 +2343,7 @@ fit_sensitivity_full_exact_loo_to_file <- function(
     stop("A full sensitivity exact-LOO record failed validation.",
          call. = FALSE)
   }
+
   prediction_data <- candidate$model$data
   training_data <- prediction_data[-observation, , drop = FALSE]
   original_model <- candidate$model
@@ -2232,6 +2374,7 @@ fit_sensitivity_full_exact_loo_to_file <- function(
     ),
     save_pars = brms::save_pars(all = TRUE)
   )
+
   archive <- list(
     family = family,
     case_id = as.integer(record$case_id),
@@ -2247,6 +2390,7 @@ fit_sensitivity_full_exact_loo_to_file <- function(
     refitted_model = refitted_model,
     refit_seconds = as.numeric(proc.time()[["elapsed"]] - start_time)
   )
+
   write_atomic_qs(
     archive,
     sensitivity_full_exact_fit_file_path(record, family)
@@ -2310,6 +2454,7 @@ apply_sensitivity_full_exact_loo_corrections_from_files <- function(
     stop("The integrated sensitivity results are unavailable.",
          call. = FALSE)
   }
+
   integrated_results <- purrr::map(
     integrated_manifest$integrated_loo_path,
     qs::qread
@@ -2332,6 +2477,7 @@ compute_sensitivity_full_outcome_weights <- function(
     stop("The full sensitivity LOO audit is not stacking-ready.",
          call. = FALSE)
   }
+
   outcomes <- c("whole_body", "hypertrophy", "strength", "function")
   weights <- purrr::map_dfr(outcomes, function(outcome) {
     results <- purrr::keep(
@@ -2354,6 +2500,7 @@ compute_sensitivity_full_outcome_weights <- function(
       method = "stacking_exact_corrected_integrated_loo"
     )
   })
+
   if (
     nrow(weights) != length(outcomes) * expected_models_per_outcome ||
       any(abs(tapply(weights$weight, weights$outcome, sum) - 1) > 1e-8)
@@ -2361,6 +2508,7 @@ compute_sensitivity_full_outcome_weights <- function(
     stop("The full sensitivity stacking weights are invalid.",
          call. = FALSE)
   }
+
   weights
 }
 
@@ -2397,6 +2545,7 @@ apply_mundlak_full_exact_loo_corrections <- function(
     )
   }) |>
     dplyr::arrange(outcome, model_index, observation)
+
   exact_cases <- purrr::map_dfr(exact_results, function(result) {
     tibble::tibble(
       outcome = result$outcome,
@@ -2405,12 +2554,14 @@ apply_mundlak_full_exact_loo_corrections <- function(
     )
   }) |>
     dplyr::arrange(outcome, model_index, observation)
+
   if (!identical(warning_cases, exact_cases)) {
     stop("Exact Mundlak corrections do not match the full high-k cases.",
          call. = FALSE)
   }
   final_results <- integrated_results
   keys <- unique(paste(exact_cases$outcome, exact_cases$model_index))
+
   for (key in keys) {
     position <- match(
       key,
@@ -2437,6 +2588,7 @@ apply_mundlak_full_exact_loo_corrections <- function(
     patched$remedy <- "integrated_observation_level_psis_plus_exact"
     final_results[[position]] <- patched
   }
+
   exact_summary <- purrr::map_dfr(exact_results, "exact_refit_summary")
   model_summary <- purrr::map_dfr(final_results, function(result) {
     summarise_primary_loo_method(
@@ -2450,6 +2602,7 @@ apply_mundlak_full_exact_loo_corrections <- function(
         .before = 1L
       )
   })
+
   list(
     results = final_results,
     model_summary = model_summary,
@@ -2467,6 +2620,7 @@ compute_mundlak_full_outcome_weights <- function(
   if (!isTRUE(final_loo_audit$stacking_ready)) {
     stop("The full Mundlak LOO audit is not stacking-ready.", call. = FALSE)
   }
+
   outcomes <- c("whole_body", "hypertrophy", "strength", "function")
   weights <- purrr::map_dfr(outcomes, function(outcome) {
     results <- purrr::keep(
@@ -2488,12 +2642,14 @@ compute_mundlak_full_outcome_weights <- function(
       method = "stacking_exact_corrected_integrated_loo"
     )
   })
+
   if (
     nrow(weights) != length(outcomes) * expected_models_per_outcome ||
       any(abs(tapply(weights$weight, weights$outcome, sum) - 1) > 1e-8)
   ) {
     stop("The full Mundlak stacking weights are invalid.", call. = FALSE)
   }
+
   weights
 }
 
@@ -2505,6 +2661,7 @@ read_mundlak_completed_checkpoint <- function(path) {
       call. = FALSE
     )
   }
+
   checkpoint <- qs::qread(path)
   required <- c(
     "checkpoint_version", "family", "analysis_data_by_outcome",
@@ -2515,6 +2672,7 @@ read_mundlak_completed_checkpoint <- function(path) {
     "exact_loo_correction_summary", "final_loo_model_summary",
     "stacking_weights", "audit"
   )
+
   if (
     !is.list(checkpoint) || !all(required %in% names(checkpoint)) ||
       !identical(checkpoint$checkpoint_version, 1L) ||
@@ -2527,9 +2685,14 @@ read_mundlak_completed_checkpoint <- function(path) {
   ) {
     stop("The completed Mundlak checkpoint is invalid.", call. = FALSE)
   }
+
   checkpoint
 }
 
+# Draw and report the Mundlak ensemble ----
+
+# Combine accepted model records and stacking weights to generate predictions,
+# uncertainty intervals and support summaries from the saved candidates.
 make_mundlak_full_prediction_records <- function(
     accepted_fit_manifest,
     stacking_weights,
@@ -2546,6 +2709,7 @@ make_mundlak_full_prediction_records <- function(
     "outcome", "model_index", "model_name", "weight", "method"
   )
   n_draws <- as.integer(n_draws)
+
   if (
     !is.data.frame(accepted_fit_manifest) ||
       !all(required_fit %in% names(accepted_fit_manifest)) ||
@@ -2559,6 +2723,7 @@ make_mundlak_full_prediction_records <- function(
   ) {
     stop("The full Mundlak prediction inputs are invalid.", call. = FALSE)
   }
+
   fit_manifest <- accepted_fit_manifest |>
     dplyr::select(dplyr::all_of(required_fit)) |>
     dplyr::rename(fit_sha256 = sha256)
@@ -2569,6 +2734,7 @@ make_mundlak_full_prediction_records <- function(
       relationship = "one-to-one"
     ) |>
     dplyr::arrange(factor(outcome, levels = outcomes), model_index)
+
   if (
     anyNA(joined$fit_path) || any(!file.exists(joined$fit_path)) ||
       anyDuplicated(paste(joined$outcome, joined$model_index)) ||
@@ -2578,6 +2744,7 @@ make_mundlak_full_prediction_records <- function(
     stop("The full Mundlak fit and weight registries do not match.",
          call. = FALSE)
   }
+
   outcome_seed <- stats::setNames(seed + seq_along(outcomes) * 10000L,
                                   outcomes)
   allocated <- joined |>
@@ -2601,6 +2768,7 @@ make_mundlak_full_prediction_records <- function(
       protein_min = protein_min,
       grid_step = grid_step
     )
+
   allocation_audit <- allocated |>
     dplyr::group_by(outcome) |>
     dplyr::summarise(
@@ -2608,6 +2776,7 @@ make_mundlak_full_prediction_records <- function(
       selected_models = sum(draw_count > 0L),
       .groups = "drop"
     )
+
   if (any(allocation_audit$allocated_draws != n_draws)) {
     stop("The full Mundlak draw allocation is incomplete.", call. = FALSE)
   }
@@ -2630,6 +2799,7 @@ write_mundlak_full_prediction_draw_file <- function(
   ) {
     stop("A Mundlak prediction record is invalid.", call. = FALSE)
   }
+
   candidate <- read_sensitivity_fit_file(record$fit_path)
   if (
     !identical(unname(as.character(candidate$family)), "mundlak") ||
@@ -2649,6 +2819,7 @@ write_mundlak_full_prediction_draw_file <- function(
     stop("A Mundlak prediction fit does not match its record.",
          call. = FALSE)
   }
+
   checkpoint <- read_mundlak_completed_checkpoint(checkpoint_path)
   prediction_data <- checkpoint$analysis_data_by_outcome[[record$outcome]]
   if (
@@ -2659,6 +2830,7 @@ write_mundlak_full_prediction_draw_file <- function(
     stop("The original Mundlak prediction data are unavailable.",
          call. = FALSE)
   }
+
   grid <- make_mundlak_prediction_newdata(
     fitted_candidate = candidate,
     data = prediction_data,
@@ -2676,6 +2848,7 @@ write_mundlak_full_prediction_draw_file <- function(
     re_formula = NA,
     ndraws = as.integer(record$draw_count)
   ))
+
   if (
     ncol(draws) != nrow(grid$keys) && nrow(draws) == nrow(grid$keys)
   ) {
@@ -2688,6 +2861,7 @@ write_mundlak_full_prediction_draw_file <- function(
     stop("Mundlak prediction draws do not match their allocation.",
          call. = FALSE)
   }
+
   reduction <- list(
     family = "mundlak",
     outcome = record$outcome,
@@ -2707,6 +2881,7 @@ write_mundlak_full_prediction_draw_file <- function(
       prediction_type = "mundlak"
     )
   )
+
   path <- sensitivity_reduction_file_path(
     family = "mundlak",
     outcome = record$outcome,
@@ -2740,6 +2915,7 @@ make_mundlak_full_prediction_file_manifest <- function(paths) {
     stop("The full Mundlak prediction-file set is incomplete.",
          call. = FALSE)
   }
+
   manifest <- purrr::map_dfr(paths, function(path) {
     reduction <- read_mundlak_full_prediction_draw_file(path)
     tibble::tibble(
@@ -2762,6 +2938,7 @@ make_mundlak_full_prediction_file_manifest <- function(paths) {
       )),
       model_index
     )
+
   audit <- manifest |>
     dplyr::group_by(outcome) |>
     dplyr::summarise(
@@ -2769,6 +2946,7 @@ make_mundlak_full_prediction_file_manifest <- function(paths) {
       selected_models = dplyr::n(),
       .groups = "drop"
     )
+
   if (
     nrow(audit) != 4L || any(audit$allocated_draws != 4000L) ||
       anyDuplicated(paste(manifest$outcome, manifest$model_index))
@@ -2776,6 +2954,7 @@ make_mundlak_full_prediction_file_manifest <- function(paths) {
     stop("The full Mundlak prediction-file manifest is invalid.",
          call. = FALSE)
   }
+
   manifest
 }
 
@@ -2785,12 +2964,14 @@ make_mundlak_full_model_average_records <- function(
     seed = 1988L
 ) {
   outcomes <- c("whole_body", "hypertrophy", "strength", "function")
+
   if (
     !is.data.frame(prediction_manifest) ||
       !is.data.frame(stacking_weights) || nrow(stacking_weights) != 104L
   ) {
     stop("The full Mundlak averaging inputs are invalid.", call. = FALSE)
   }
+
   purrr::map(seq_along(outcomes), function(index) {
     outcome <- outcomes[[index]]
     files <- dplyr::filter(
@@ -2827,6 +3008,7 @@ write_mundlak_full_model_average_file <- function(record) {
     read_mundlak_full_prediction_draw_file
   )
   key_reference <- reductions[[1L]]$grid
+
   if (!all(purrr::map_lgl(
     reductions,
     ~ identical(.x$grid, key_reference)
@@ -2834,6 +3016,7 @@ write_mundlak_full_model_average_file <- function(record) {
     stop("Full Mundlak prediction grids do not match within outcome.",
          call. = FALSE)
   }
+
   draws <- do.call(rbind, purrr::map(reductions, "draws"))
   draw_manifest <- purrr::map2_dfr(
     reductions,
@@ -2849,6 +3032,7 @@ write_mundlak_full_model_average_file <- function(record) {
       )
     }
   )
+
   if (
     nrow(draws) != record$n_draws ||
       nrow(draw_manifest) != record$n_draws || anyNA(draws)
@@ -2856,6 +3040,7 @@ write_mundlak_full_model_average_file <- function(record) {
     stop("The full Mundlak posterior mixture is incomplete.",
          call. = FALSE)
   }
+
   set.seed(record$averaging_seed)
   order <- sample(seq_len(record$n_draws))
   draws <- draws[order, , drop = FALSE]
@@ -2874,6 +3059,7 @@ write_mundlak_full_model_average_file <- function(record) {
     model_weights = model_weights,
     settings = settings
   )
+
   class(output) <- c("primary_model_average", class(output))
   path <- sensitivity_reduction_file_path(
     family = "mundlak",
@@ -2911,6 +3097,7 @@ write_mundlak_full_reporting_file <- function(
   model_average <- read_mundlak_full_model_average_file(model_average_path)
   outcome <- model_average$outcome
   data <- data_by_outcome[[outcome]]
+
   if (is.null(data) || !is.data.frame(data)) {
     stop("The Mundlak reporting data are unavailable.", call. = FALSE)
   }
@@ -2949,6 +3136,7 @@ write_mundlak_full_reporting_file <- function(
       list(reference_intake = reference_intake, sesoi = sesoi)
     )
   )
+
   path <- sensitivity_reduction_file_path(
     family = "mundlak",
     outcome = outcome,
@@ -2969,12 +3157,14 @@ read_mundlak_full_reporting_file <- function(path) {
     "pairwise_contrasts", "pairwise_support", "local_equivalence",
     "model_weights", "settings"
   )
+
   if (
     !is.list(report) || !all(required %in% names(report)) ||
       !identical(report$family, "mundlak")
   ) {
     stop("A full Mundlak reporting file is invalid.", call. = FALSE)
   }
+
   report
 }
 
@@ -2984,6 +3174,7 @@ audit_mundlak_full_reporting_files <- function(paths) {
     stop("The full Mundlak reporting-file set is incomplete.",
          call. = FALSE)
   }
+
   summary <- purrr::map_dfr(paths, function(path) {
     report <- read_mundlak_full_reporting_file(path)
     probability_columns <- c(
@@ -3052,6 +3243,7 @@ audit_mundlak_full_reporting_files <- function(paths) {
       outcome,
       levels = c("whole_body", "hypertrophy", "strength", "function")
     ))
+
   if (
     nrow(summary) != 4L || anyDuplicated(summary$outcome) ||
       any(summary$dose_response_rows < 2L) ||
@@ -3064,6 +3256,7 @@ audit_mundlak_full_reporting_files <- function(paths) {
   ) {
     stop("The full Mundlak reporting audit failed.", call. = FALSE)
   }
+
   list(
     summary = summary,
     outcomes = nrow(summary),
@@ -3086,6 +3279,7 @@ write_mundlak_full_verification_bundle <- function(
     stop("The Mundlak family is not ready for verification.",
          call. = FALSE)
   }
+
   reports <- purrr::map(
     reporting_audit$summary$reporting_path,
     read_mundlak_full_reporting_file
@@ -3160,6 +3354,10 @@ write_mundlak_full_verification_bundle <- function(
   )
 }
 
+# Shared reporting for sensitivity ensembles ----
+
+# Load the completed checkpoint and keep the reporting record tied to its
+# analysis family, sample and model weights.
 read_sensitivity_completed_checkpoint <- function(path, family) {
   if (length(path) != 1L || is.na(path) || !file.exists(path)) {
     stop(
@@ -3167,6 +3365,7 @@ read_sensitivity_completed_checkpoint <- function(path, family) {
       call. = FALSE
     )
   }
+
   checkpoint <- qs::qread(path)
   required <- c(
     "checkpoint_version", "family", "analysis_data_by_outcome",
@@ -3177,6 +3376,7 @@ read_sensitivity_completed_checkpoint <- function(path, family) {
     "exact_loo_correction_summary", "final_loo_model_summary",
     "stacking_weights", "audit"
   )
+
   if (
     !is.list(checkpoint) || !all(required %in% names(checkpoint)) ||
       !identical(checkpoint$checkpoint_version, 1L) ||
@@ -3190,6 +3390,7 @@ read_sensitivity_completed_checkpoint <- function(path, family) {
     stop("The completed ", family, " checkpoint is invalid.",
          call. = FALSE)
   }
+
   checkpoint
 }
 
@@ -3209,6 +3410,7 @@ make_sensitivity_full_prediction_records <- function(
        identical(family, prediction_type)) ||
     (family %in% c("achieved", "assignment") &&
        identical(prediction_type, "exposure"))
+
   if (
     !family_prediction_valid ||
       any(accepted_fit_manifest$family != family)
@@ -3216,6 +3418,7 @@ make_sensitivity_full_prediction_records <- function(
     stop("The full sensitivity prediction family is invalid.",
          call. = FALSE)
   }
+
   records <- make_mundlak_full_prediction_records(
     accepted_fit_manifest = accepted_fit_manifest,
     stacking_weights = stacking_weights,
@@ -3224,6 +3427,7 @@ make_sensitivity_full_prediction_records <- function(
     grid_step = grid_step,
     seed = seed
   )
+
   purrr::map(records, function(record) {
     if (!is.null(protein_max_by_outcome)) {
       if (
@@ -3256,6 +3460,7 @@ write_sensitivity_full_prediction_draw_file <- function(
        identical(family, prediction_type)) ||
     (family %in% c("achieved", "assignment") &&
        identical(prediction_type, "exposure"))
+
   if (
     length(record$fit_path) != 1L || is.na(record$fit_path) ||
       !file.exists(record$fit_path) || record$draw_count < 1L ||
@@ -3264,6 +3469,7 @@ write_sensitivity_full_prediction_draw_file <- function(
     stop("A full sensitivity prediction record is invalid.",
          call. = FALSE)
   }
+
   candidate <- read_sensitivity_fit_file(record$fit_path)
   if (
     !identical(unname(as.character(candidate$family)), family) ||
@@ -3283,6 +3489,7 @@ write_sensitivity_full_prediction_draw_file <- function(
     stop("A sensitivity prediction fit does not match its record.",
          call. = FALSE)
   }
+
   checkpoint <- read_sensitivity_completed_checkpoint(
     checkpoint_path, family = family
   )
@@ -3291,6 +3498,7 @@ write_sensitivity_full_prediction_draw_file <- function(
     stop("The original sensitivity prediction data are unavailable.",
          call. = FALSE)
   }
+
   grid <- make_sensitivity_prediction_grid(
     fitted_candidate = candidate,
     data = prediction_data,
@@ -3303,6 +3511,7 @@ write_sensitivity_full_prediction_draw_file <- function(
     },
     grid_step = record$grid_step
   )
+
   old_mc_cores <- getOption("mc.cores")
   on.exit(options(mc.cores = old_mc_cores), add = TRUE)
   options(mc.cores = 1L)
@@ -3313,6 +3522,7 @@ write_sensitivity_full_prediction_draw_file <- function(
     re_formula = NA,
     ndraws = as.integer(record$draw_count)
   ))
+
   if (
     ncol(draws) != nrow(grid$keys) && nrow(draws) == nrow(grid$keys)
   ) {
@@ -3325,6 +3535,7 @@ write_sensitivity_full_prediction_draw_file <- function(
     stop("Sensitivity prediction draws do not match their allocation.",
          call. = FALSE)
   }
+
   reduction <- list(
     family = family,
     outcome = record$outcome,
@@ -3344,6 +3555,7 @@ write_sensitivity_full_prediction_draw_file <- function(
       reference_intake = if (prediction_type == "within") 0.8 else NULL
     )
   )
+
   path <- sensitivity_reduction_file_path(
     family = family,
     outcome = record$outcome,
@@ -3377,6 +3589,7 @@ make_sensitivity_full_prediction_file_manifest <- function(
     expected_draws = 4000L
 ) {
   paths <- unname(unlist(paths, use.names = FALSE))
+
   if (length(paths) < 4L || anyNA(paths) || any(!file.exists(paths))) {
     stop("The full sensitivity prediction-file set is incomplete.",
          call. = FALSE)
@@ -3403,6 +3616,7 @@ make_sensitivity_full_prediction_file_manifest <- function(
       )),
       model_index
     )
+
   audit <- manifest |>
     dplyr::group_by(outcome) |>
     dplyr::summarise(
@@ -3410,6 +3624,7 @@ make_sensitivity_full_prediction_file_manifest <- function(
       selected_models = dplyr::n(),
       .groups = "drop"
     )
+
   if (
     nrow(audit) != 4L || any(audit$allocated_draws != expected_draws) ||
       anyDuplicated(paste(manifest$outcome, manifest$model_index)) ||
@@ -3418,6 +3633,7 @@ make_sensitivity_full_prediction_file_manifest <- function(
     stop("The full sensitivity prediction-file manifest is invalid.",
          call. = FALSE)
   }
+
   manifest
 }
 
@@ -3431,6 +3647,7 @@ make_sensitivity_full_model_average_records <- function(
 ) {
   outcomes <- c("whole_body", "hypertrophy", "strength", "function")
   expected_models_per_outcome <- as.integer(expected_models_per_outcome)
+
   if (
     !is.data.frame(prediction_manifest) ||
       !is.data.frame(stacking_weights) ||
@@ -3444,6 +3661,7 @@ make_sensitivity_full_model_average_records <- function(
     stop("The full sensitivity averaging inputs are invalid.",
          call. = FALSE)
   }
+
   purrr::map(seq_along(outcomes), function(index) {
     outcome <- outcomes[[index]]
     files <- dplyr::filter(
@@ -3484,12 +3702,14 @@ write_sensitivity_full_model_average_file <- function(
     family = family
   )
   key_reference <- reductions[[1L]]$grid
+
   if (!all(purrr::map_lgl(
     reductions, ~ identical(.x$grid, key_reference)
   ))) {
     stop("Full sensitivity prediction grids do not match within outcome.",
          call. = FALSE)
   }
+
   draws <- do.call(rbind, purrr::map(reductions, "draws"))
   draw_manifest <- purrr::map2_dfr(
     reductions,
@@ -3505,6 +3725,7 @@ write_sensitivity_full_model_average_file <- function(
       )
     }
   )
+
   if (
     nrow(draws) != record$n_draws ||
       nrow(draw_manifest) != record$n_draws || anyNA(draws)
@@ -3512,6 +3733,7 @@ write_sensitivity_full_model_average_file <- function(
     stop("The full sensitivity posterior mixture is incomplete.",
          call. = FALSE)
   }
+
   set.seed(record$averaging_seed)
   order <- sample(seq_len(record$n_draws))
   draws <- draws[order, , drop = FALSE]
@@ -3530,6 +3752,7 @@ write_sensitivity_full_model_average_file <- function(
     model_weights = model_weights,
     settings = settings
   )
+
   class(output) <- c("primary_model_average", class(output))
   path <- if (is.null(result_path)) {
     sensitivity_reduction_file_path(
@@ -3542,6 +3765,7 @@ write_sensitivity_full_model_average_file <- function(
     dir.create(dirname(result_path), recursive = TRUE, showWarnings = FALSE)
     result_path
   }
+
   write_atomic_qs(output, path)
 }
 
@@ -3554,6 +3778,7 @@ read_sensitivity_full_model_average_file <- function(path, family) {
   expected_prediction_type <- if (
     family %in% c("achieved", "assignment")
   ) "exposure" else family
+
   if (
     !inherits(model_average, "primary_model_average") ||
       !model_average$outcome %in%
@@ -3568,6 +3793,7 @@ read_sensitivity_full_model_average_file <- function(path, family) {
     stop("A full sensitivity model-average file is invalid.",
          call. = FALSE)
   }
+
   model_average
 }
 
@@ -3584,6 +3810,7 @@ write_sensitivity_full_reporting_file <- function(
   )
   outcome <- model_average$outcome
   data <- data_by_outcome[[outcome]]
+
   if (is.null(data) || !is.data.frame(data)) {
     stop("The sensitivity reporting data are unavailable.", call. = FALSE)
   }
@@ -3610,6 +3837,7 @@ write_sensitivity_full_reporting_file <- function(
     ),
     stop("The sensitivity reporting family is unsupported.", call. = FALSE)
   )
+
   heatmap_data <- if (family == "within") {
     dplyr::mutate(
       data,
@@ -3618,6 +3846,7 @@ write_sensitivity_full_reporting_file <- function(
   } else {
     data
   }
+
   heatmap <- compute_primary_heatmap_contrasts(
     model_average = model_average,
     data = heatmap_data,
@@ -3645,6 +3874,7 @@ write_sensitivity_full_reporting_file <- function(
       list(reference_intake = reference_intake, sesoi = sesoi)
     )
   )
+
   path <- if (is.null(result_path)) {
     sensitivity_reduction_file_path(
       family = family,
@@ -3656,6 +3886,7 @@ write_sensitivity_full_reporting_file <- function(
     dir.create(dirname(result_path), recursive = TRUE, showWarnings = FALSE)
     result_path
   }
+
   write_atomic_qs(report, path)
 }
 
@@ -3671,12 +3902,14 @@ read_sensitivity_full_reporting_file <- function(path, family) {
     "pairwise_contrasts", "pairwise_support", "local_equivalence",
     "model_weights", "settings"
   )
+
   if (
     !is.list(report) || !all(required %in% names(report)) ||
       !identical(report$family, family)
   ) {
     stop("A full sensitivity reporting file is invalid.", call. = FALSE)
   }
+
   report
 }
 
@@ -3686,6 +3919,7 @@ audit_sensitivity_full_reporting_files <- function(paths, family) {
     stop("The full sensitivity reporting-file set is incomplete.",
          call. = FALSE)
   }
+
   summary <- purrr::map_dfr(paths, function(path) {
     report <- read_sensitivity_full_reporting_file(path, family)
     probability_columns <- c(
@@ -3754,6 +3988,7 @@ audit_sensitivity_full_reporting_files <- function(paths, family) {
       outcome,
       levels = c("whole_body", "hypertrophy", "strength", "function")
     ))
+
   if (
     nrow(summary) != 4L || anyDuplicated(summary$outcome) ||
       any(summary$dose_response_rows < 2L) ||
@@ -3766,6 +4001,7 @@ audit_sensitivity_full_reporting_files <- function(paths, family) {
   ) {
     stop("The full sensitivity reporting audit failed.", call. = FALSE)
   }
+
   list(
     family = family,
     summary = summary,
@@ -3801,6 +4037,7 @@ make_exposure_full_comparison_records <- function(
       )
     )
   }
+
   achieved <- make_lookup(achieved_model_average_paths, "achieved") |>
     dplyr::rename(achieved_model_average_path = model_average_path)
   assignment <- make_lookup(assignment_model_average_paths, "assignment") |>
@@ -3821,6 +4058,7 @@ make_exposure_full_comparison_records <- function(
       assignment_reports, by = "outcome", relationship = "one-to-one"
     ) |>
     dplyr::mutate(seed = as.integer(seed + dplyr::row_number()))
+
   path_columns <- grep("_path$", names(records), value = TRUE)
   if (
     nrow(records) != 4L || anyDuplicated(records$outcome) ||
@@ -3833,6 +4071,7 @@ make_exposure_full_comparison_records <- function(
   ) {
     stop("The exposure comparison records are invalid.", call. = FALSE)
   }
+
   purrr::map(seq_len(nrow(records)), function(row) {
     as.list(records[row, , drop = FALSE])
   })
@@ -3856,6 +4095,7 @@ make_exposure_increment_draws <- function(draws, grid, reference_intake) {
       "-"
     )
   }
+
   output
 }
 
@@ -3894,6 +4134,7 @@ write_exposure_full_comparison_file <- function(
   assignment_report <- read_sensitivity_full_reporting_file(
     record$assignment_reporting_path, "assignment"
   )
+
   if (
     !identical(achieved$outcome, record$outcome) ||
       !identical(assignment$outcome, record$outcome) ||
@@ -3904,6 +4145,7 @@ write_exposure_full_comparison_file <- function(
     stop("The paired exposure model averages are misaligned.",
          call. = FALSE)
   }
+
   set.seed(as.integer(record$seed))
   assignment_order <- sample(seq_len(nrow(assignment$draws)))
   achieved_absolute <- achieved$draws
@@ -3940,6 +4182,7 @@ write_exposure_full_comparison_file <- function(
       pairing = "independently_shuffled_posterior_mixture_draws"
     )
   )
+
   path <- sensitivity_reduction_file_path(
     family = "exposure_comparison",
     outcome = record$outcome,
@@ -3960,12 +4203,14 @@ read_exposure_full_comparison_file <- function(path) {
     "achieved_increments", "assignment_increments",
     "assignment_minus_achieved_increment", "settings"
   )
+
   if (
     !is.list(comparison) || !all(required %in% names(comparison)) ||
       !identical(comparison$family, "exposure_comparison")
   ) {
     stop("An exposure comparison file is invalid.", call. = FALSE)
   }
+
   comparison
 }
 
@@ -4023,6 +4268,7 @@ audit_exposure_full_comparison_files <- function(paths) {
       outcome,
       levels = c("whole_body", "hypertrophy", "strength", "function")
     ))
+
   if (
     nrow(summary) != 4L || anyDuplicated(summary$outcome) ||
       !all(summary$aligned_rows) || !all(summary$intervals_valid) ||
@@ -4030,6 +4276,7 @@ audit_exposure_full_comparison_files <- function(paths) {
   ) {
     stop("The exposure comparison audit failed.", call. = FALSE)
   }
+
   list(
     family = "exposure_comparison",
     summary = summary,
@@ -4044,6 +4291,7 @@ write_exposure_full_comparison_verification_bundle <- function(
     stop("The exposure comparison is not ready for verification.",
          call. = FALSE)
   }
+
   comparisons <- purrr::map(
     comparison_audit$summary$comparison_path,
     read_exposure_full_comparison_file
@@ -4095,6 +4343,7 @@ write_sensitivity_full_verification_bundle <- function(
     stop("The sensitivity family is not ready for verification.",
          call. = FALSE)
   }
+
   reports <- purrr::map(
     reporting_audit$summary$reporting_path,
     read_sensitivity_full_reporting_file,
@@ -4119,6 +4368,7 @@ write_sensitivity_full_verification_bundle <- function(
     mundlak = "Complete-case rows supplied to the Mundlak models.",
     "Outcome-specific rows supplied to the sensitivity models."
   )
+
   curve_description <- switch(
     family,
     within = "Model-averaged protein-arm minus comparator-arm curves with comparator fixed at 0.8 g/kg/day.",
@@ -4128,6 +4378,7 @@ write_sensitivity_full_verification_bundle <- function(
     rescor = "Model-averaged dose-response curves allowing estimated within-study sampling-error correlation.",
     "Model-averaged sensitivity dose-response curves."
   )
+
   increment_description <- switch(
     family,
     within = "Paired model-averaged increments from the 0.8 g/kg/day treatment reference.",
@@ -4137,6 +4388,7 @@ write_sensitivity_full_verification_bundle <- function(
     rescor = "Paired residual-correlation model-average increments from 0.8 g/kg/day.",
     "Paired model-average increments from 0.8 g/kg/day."
   )
+
   write_verification_bundle(
     family = family,
     artifacts = list(
@@ -4202,6 +4454,7 @@ read_within_pilot_completed_checkpoint <- function(path) {
       call. = FALSE
     )
   }
+
   checkpoint <- qs::qread(path)
   required <- c(
     "checkpoint_version", "family", "analysis_data_by_outcome",
@@ -4209,6 +4462,7 @@ read_within_pilot_completed_checkpoint <- function(path) {
     "reused_fit_manifest", "pilot_diagnostic_summary",
     "pilot_parameter_failures", "audit"
   )
+
   if (
     !is.list(checkpoint) || !all(required %in% names(checkpoint)) ||
       !identical(checkpoint$checkpoint_version, 1L) ||
@@ -4220,9 +4474,14 @@ read_within_pilot_completed_checkpoint <- function(path) {
     stop("The completed within-pilot checkpoint is invalid.",
          call. = FALSE)
   }
+
   checkpoint
 }
 
+# Expand the strict within-study analysis ----
+
+# Prepare the pairwise arm contrasts separately for each outcome and reuse
+# pilot fits only where their specification and data match.
 make_within_full_contrast_data_by_outcome <- function(
     analysis_data_by_outcome
 ) {
@@ -4234,6 +4493,7 @@ make_within_full_contrast_data_by_outcome <- function(
     stop("The within-contrast source data are incomplete.",
          call. = FALSE)
   }
+
   contrasts <- purrr::map(
     analysis_data_by_outcome[outcomes],
     make_strict_within_study_contrasts
@@ -4248,6 +4508,7 @@ make_within_full_contrast_data_by_outcome <- function(
       all(is.finite(data$yi)) && all(is.finite(data$vi)) &&
       all(data$vi > 0)
   })
+
   if (!all(valid)) {
     stop("An outcome-specific within-contrast data set is invalid.",
          call. = FALSE)
@@ -4270,6 +4531,7 @@ select_pending_within_full_specifications <- function(
   expected_reused <- paste(
     "whole_body", c(1L, 2L, 3L, 4L, 5L, 13L, 26L)
   )
+
   if (
     length(specifications) != 104L || anyDuplicated(specification_keys) ||
       nrow(reused_fit_manifest) != 7L ||
@@ -4280,6 +4542,7 @@ select_pending_within_full_specifications <- function(
     stop("The full within-contrast specification/reuse set is invalid.",
          call. = FALSE)
   }
+
   specifications[!specification_keys %in% reused_keys]
 }
 
@@ -4292,6 +4555,7 @@ prepare_within_full_input <- function(
   outcome <- specification$outcome
   data <- contrast_data_by_outcome[[outcome]]
   priors <- priors_by_outcome[[outcome]]
+
   if (is.null(data) || is.null(priors) || !outcome %in% config$outcomes) {
     stop("A full within-contrast outcome input is unavailable.",
          call. = FALSE)
@@ -4347,6 +4611,7 @@ audit_within_full_expansion <- function(
       )
     }
   )
+
   if (
     length(pending_specifications) != 97L || length(inputs) != 97L ||
       nrow(reused_fit_manifest) != 7L || anyDuplicated(pending_keys) ||
@@ -4359,6 +4624,7 @@ audit_within_full_expansion <- function(
     stop("The full within-contrast expansion failed its structural audit.",
          call. = FALSE)
   }
+
   list(
     checks = tibble::tibble(
       check = c(
@@ -4391,6 +4657,7 @@ fit_within_full_candidate_to_file <- function(
     stage = "initial"
 ) {
   if (!isTRUE(enabled)) return(new_sensitivity_pilot_skip("within"))
+
   outcome_offset <- match(input$specification$outcome, config$outcomes)
   if (is.na(outcome_offset)) {
     stop("Unknown outcome in the full within-contrast fit.",
@@ -4431,6 +4698,7 @@ select_within_full_remedy_specifications <- function(
     purrr::map_chr(selected, "outcome"),
     purrr::map_int(selected, "model_index")
   )
+
   if (
     nrow(failed) < 1L || anyDuplicated(failed$key) ||
       anyDuplicated(specification_keys) ||
@@ -4440,6 +4708,7 @@ select_within_full_remedy_specifications <- function(
     stop("The full within-contrast remedy specification set is invalid.",
          call. = FALSE)
   }
+
   selected
 }
 
@@ -4479,6 +4748,7 @@ combine_within_full_remedy_diagnostic_audit <- function(
     dplyr::filter(!diagnostic_pass) |>
     dplyr::transmute(key = paste(outcome, model_index)) |>
     dplyr::pull(key)
+
   if (
     nrow(remedy_summary) != length(expected_keys) ||
       anyDuplicated(remedy_keys) || !setequal(remedy_keys, expected_keys)
@@ -4486,6 +4756,7 @@ combine_within_full_remedy_diagnostic_audit <- function(
     stop("The full within-contrast remedy diagnostics are incomplete.",
          call. = FALSE)
   }
+
   summary <- initial_audit$diagnostic_summary |>
     dplyr::filter(!paste(outcome, model_index) %in% remedy_keys) |>
     dplyr::bind_rows(remedy_summary) |>
@@ -4504,6 +4775,7 @@ combine_within_full_remedy_diagnostic_audit <- function(
         TRUE ~ "PASS"
       )
     )
+
   remedy_parameter_failures <- purrr::map_dfr(
     remedy_diagnostics,
     function(result) {
@@ -4515,6 +4787,7 @@ combine_within_full_remedy_diagnostic_audit <- function(
         )
     }
   )
+
   parameter_failures <- initial_audit$parameter_failures |>
     dplyr::filter(!paste(outcome, model_index) %in% remedy_keys) |>
     dplyr::bind_rows(remedy_parameter_failures)
@@ -4525,6 +4798,7 @@ combine_within_full_remedy_diagnostic_audit <- function(
     stop("The remedied within-contrast diagnostic audit is incomplete.",
          call. = FALSE)
   }
+
   list(
     family = "within",
     diagnostic_summary = summary,
@@ -4547,6 +4821,7 @@ combine_within_full_accepted_fit_manifest <- function(
     stop("Within-contrast fits cannot be accepted before diagnostics pass.",
          call. = FALSE)
   }
+
   remedy_keys <- paste(remedy_manifest$outcome, remedy_manifest$model_index)
   accepted <- initial_manifest |>
     dplyr::filter(!paste(outcome, model_index) %in% remedy_keys) |>
@@ -4558,6 +4833,7 @@ combine_within_full_accepted_fit_manifest <- function(
       ),
       model_index
     )
+
   if (
     nrow(accepted) != 104L ||
       anyDuplicated(paste(accepted$outcome, accepted$model_index)) ||
@@ -4567,6 +4843,7 @@ combine_within_full_accepted_fit_manifest <- function(
     stop("The accepted within-contrast fit manifest is incomplete.",
          call. = FALSE)
   }
+
   accepted
 }
 
@@ -4578,6 +4855,7 @@ combine_within_full_fit_manifest <- function(
   manifest <- dplyr::bind_rows(reused_manifest, new_manifest) |>
     dplyr::arrange(factor(outcome, levels = outcomes), model_index)
   counts <- table(factor(manifest$outcome, levels = outcomes))
+
   if (
     nrow(manifest) != 104L || anyDuplicated(paste(
       manifest$outcome, manifest$model_index
@@ -4588,6 +4866,7 @@ combine_within_full_fit_manifest <- function(
     stop("The full within-contrast fit manifest is incomplete.",
          call. = FALSE)
   }
+
   manifest
 }
 
@@ -4614,6 +4893,7 @@ diagnose_sensitivity_full_fit_file <- function(
     ppc_draws = 200L
 ) {
   candidate <- read_sensitivity_fit_file(fit_record$fit_path)
+
   if (
     !identical(unname(as.character(candidate$family)), family) ||
       !identical(
@@ -4628,6 +4908,7 @@ diagnose_sensitivity_full_fit_file <- function(
     stop("A full sensitivity fit does not match its manifest record.",
          call. = FALSE)
   }
+
   get_primary_candidate_model_diagnostics(
     candidate,
     ppc_draws = ppc_draws
@@ -4669,6 +4950,7 @@ compile_sensitivity_full_diagnostic_audit <- function(
         TRUE ~ "PASS"
       )
     )
+
   if (
     nrow(summary) != expected_models ||
       anyDuplicated(paste(summary$outcome, summary$model_index))
@@ -4678,6 +4960,7 @@ compile_sensitivity_full_diagnostic_audit <- function(
       call. = FALSE
     )
   }
+
   parameter_failures <- purrr::map_dfr(diagnostics, function(result) {
     result$parameter_failures |>
       dplyr::mutate(
@@ -4686,6 +4969,7 @@ compile_sensitivity_full_diagnostic_audit <- function(
         .before = 1L
       )
   })
+
   list(
     family = family,
     diagnostic_summary = summary,
@@ -4705,6 +4989,7 @@ read_exposure_pilot_completed_checkpoint <- function(path) {
       call. = FALSE
     )
   }
+
   checkpoint <- qs::qread(path)
   required <- c(
     "checkpoint_version", "family", "analysis_data_by_outcome",
@@ -4722,6 +5007,7 @@ read_exposure_pilot_completed_checkpoint <- function(path) {
       ) &&
       all(file.exists(manifest$fit_path))
   }
+
   if (
     !is.list(checkpoint) || !all(required %in% names(checkpoint)) ||
       !identical(checkpoint$checkpoint_version, 1L) ||
@@ -4735,6 +5021,7 @@ read_exposure_pilot_completed_checkpoint <- function(path) {
     stop("The completed exposure-pilot checkpoint is invalid.",
          call. = FALSE)
   }
+
   checkpoint
 }
 
@@ -4749,6 +5036,7 @@ make_exposure_full_data_by_outcome <- function(
   ) {
     stop("The full exposure source data are incomplete.", call. = FALSE)
   }
+
   prepared <- purrr::map(
     analysis_data_by_outcome[outcomes],
     prepare_assignment_exposure_data,
@@ -4783,6 +5071,7 @@ make_exposure_full_data_by_outcome <- function(
       identical_common_sample = identical_sample
     )
   })
+
   valid <- purrr::map2_lgl(achieved, assignment, function(x, y) {
     is.data.frame(x) && is.data.frame(y) && nrow(x) == nrow(y) &&
       nrow(x) > 0L && all(is.finite(x$protein_intake_raw)) &&
@@ -4795,6 +5084,7 @@ make_exposure_full_data_by_outcome <- function(
     stop("The achieved/assignment common samples are invalid.",
          call. = FALSE)
   }
+
   list(
     achieved = achieved,
     assignment = assignment,
@@ -4808,6 +5098,7 @@ make_exposure_full_common_prediction_maxima <- function(
     protein_min = 0.8
 ) {
   outcomes <- c("whole_body", "hypertrophy", "strength", "function")
+
   if (
     !is.list(achieved_data_by_outcome) ||
       !is.list(assignment_data_by_outcome) ||
@@ -4817,6 +5108,7 @@ make_exposure_full_common_prediction_maxima <- function(
     stop("The paired exposure prediction data are incomplete.",
          call. = FALSE)
   }
+
   maxima <- stats::setNames(
     purrr::map_dbl(outcomes, function(outcome) {
       achieved <- achieved_data_by_outcome[[outcome]]
@@ -4835,6 +5127,7 @@ make_exposure_full_common_prediction_maxima <- function(
     }),
     outcomes
   )
+
   if (any(!is.finite(maxima)) || any(maxima <= protein_min)) {
     stop("The common exposure prediction range is invalid.", call. = FALSE)
   }
@@ -4857,6 +5150,7 @@ select_pending_exposure_full_specifications <- function(
   expected_reused <- paste(
     "whole_body", c(1L, 2L, 3L, 4L, 5L, 13L, 26L)
   )
+
   if (
     !family %in% c("achieved", "assignment") ||
       length(specifications) != 104L || anyDuplicated(specification_keys) ||
@@ -4869,6 +5163,7 @@ select_pending_exposure_full_specifications <- function(
     stop("The full exposure specification/reuse set is invalid.",
          call. = FALSE)
   }
+
   specifications[!specification_keys %in% reused_keys]
 }
 
@@ -4882,12 +5177,14 @@ prepare_exposure_full_input <- function(
   outcome <- specification$outcome
   data <- exposure_data_by_outcome[[family]][[outcome]]
   priors <- priors_by_outcome[[outcome]]
+
   if (
     !family %in% c("achieved", "assignment") ||
       is.null(data) || is.null(priors) || !outcome %in% config$outcomes
   ) {
     stop("A full exposure outcome input is unavailable.", call. = FALSE)
   }
+
   specification$sensitivity_exposure_expansion <- TRUE
   specification$sensitivity_exposure_definition <- family
   specification$sensitivity_exposure_sampling <- paste0(
@@ -4936,6 +5233,7 @@ audit_exposure_full_expansion <- function(
       identical(as.integer(counts), c(19L, 26L, 26L, 26L)) &&
       all(valid_inputs)
   }
+
   achieved_valid <- audit_one(
     achieved_pending_specifications, achieved_inputs,
     achieved_reused_fit_manifest, "achieved"
@@ -4944,6 +5242,7 @@ audit_exposure_full_expansion <- function(
     assignment_pending_specifications, assignment_inputs,
     assignment_reused_fit_manifest, "assignment"
   )
+
   if (
     !achieved_valid || !assignment_valid ||
       nrow(exposure_data_by_outcome$audit) != 4L ||
@@ -4953,6 +5252,7 @@ audit_exposure_full_expansion <- function(
     stop("The full exposure expansion failed its structural audit.",
          call. = FALSE)
   }
+
   list(
     checks = tibble::tibble(
       check = c(
@@ -4986,6 +5286,7 @@ fit_exposure_full_candidate_to_file <- function(
     stage = "initial"
 ) {
   if (!isTRUE(enabled)) return(new_sensitivity_pilot_skip(family))
+
   if (!family %in% c("achieved", "assignment")) {
     stop("Unknown full exposure family.", call. = FALSE)
   }
@@ -4993,6 +5294,7 @@ fit_exposure_full_candidate_to_file <- function(
   if (is.na(outcome_offset)) {
     stop("Unknown outcome in the full exposure fit.", call. = FALSE)
   }
+
   family_offset <- if (family == "achieved") 0L else 1000L
   local_config <- config
   local_config$seed <- as.integer(
@@ -5018,6 +5320,7 @@ combine_exposure_full_fit_manifest <- function(
   manifest <- dplyr::bind_rows(reused_manifest, new_manifest) |>
     dplyr::arrange(factor(outcome, levels = outcomes), model_index)
   counts <- table(factor(manifest$outcome, levels = outcomes))
+
   if (
     nrow(manifest) != 104L ||
       anyDuplicated(paste(manifest$outcome, manifest$model_index)) ||
@@ -5027,6 +5330,7 @@ combine_exposure_full_fit_manifest <- function(
   ) {
     stop("The full exposure fit manifest is incomplete.", call. = FALSE)
   }
+
   manifest
 }
 
@@ -5055,6 +5359,7 @@ combine_exposure_full_diagnostic_audits <- function(
     stop("The paired full exposure diagnostic audits are incomplete.",
          call. = FALSE)
   }
+
   summary <- dplyr::bind_rows(
     dplyr::mutate(
       achieved_audit$diagnostic_summary,
@@ -5065,6 +5370,7 @@ combine_exposure_full_diagnostic_audits <- function(
       exposure = "assignment_derived", .before = 1L
     )
   )
+
   list(
     family = "exposure",
     diagnostic_summary = summary,
@@ -5108,6 +5414,7 @@ select_exposure_full_remedy_specifications <- function(
     purrr::map_chr(selected, "outcome"),
     purrr::map_int(selected, "model_index")
   )
+
   if (
     !identical(initial_audit$family, family) || nrow(failed) < 1L ||
       anyDuplicated(failed$key) || anyDuplicated(specification_keys) ||
@@ -5117,6 +5424,7 @@ select_exposure_full_remedy_specifications <- function(
     stop("The full exposure remedy specification set is invalid.",
          call. = FALSE)
   }
+
   selected
 }
 
@@ -5159,6 +5467,7 @@ combine_exposure_full_remedy_diagnostic_audit <- function(
     dplyr::filter(!diagnostic_pass) |>
     dplyr::transmute(key = paste(outcome, model_index)) |>
     dplyr::pull(key)
+
   if (
     !identical(initial_audit$family, family) ||
       nrow(remedy_summary) != length(expected_keys) ||
@@ -5167,6 +5476,7 @@ combine_exposure_full_remedy_diagnostic_audit <- function(
     stop("The full exposure remedy diagnostics are incomplete.",
          call. = FALSE)
   }
+
   summary <- initial_audit$diagnostic_summary |>
     dplyr::filter(!paste(outcome, model_index) %in% remedy_keys) |>
     dplyr::bind_rows(remedy_summary) |>
@@ -5185,6 +5495,7 @@ combine_exposure_full_remedy_diagnostic_audit <- function(
         TRUE ~ "PASS"
       )
     )
+
   remedy_parameter_failures <- purrr::map_dfr(
     remedy_diagnostics,
     function(result) {
@@ -5196,6 +5507,7 @@ combine_exposure_full_remedy_diagnostic_audit <- function(
         )
     }
   )
+
   parameter_failures <- initial_audit$parameter_failures |>
     dplyr::filter(!paste(outcome, model_index) %in% remedy_keys) |>
     dplyr::bind_rows(remedy_parameter_failures)
@@ -5206,6 +5518,7 @@ combine_exposure_full_remedy_diagnostic_audit <- function(
     stop("The remedied exposure diagnostic audit is incomplete.",
          call. = FALSE)
   }
+
   list(
     family = family,
     diagnostic_summary = summary,
@@ -5232,6 +5545,7 @@ combine_exposure_full_accepted_fit_manifest <- function(
     stop("Exposure fits cannot be accepted before diagnostics pass.",
          call. = FALSE)
   }
+
   remedy_keys <- paste(remedy_manifest$outcome, remedy_manifest$model_index)
   accepted <- initial_manifest |>
     dplyr::filter(!paste(outcome, model_index) %in% remedy_keys) |>
@@ -5243,6 +5557,7 @@ combine_exposure_full_accepted_fit_manifest <- function(
       ),
       model_index
     )
+
   if (
     nrow(accepted) != 104L ||
       anyDuplicated(paste(accepted$outcome, accepted$model_index)) ||
@@ -5252,9 +5567,15 @@ combine_exposure_full_accepted_fit_manifest <- function(
     stop("The accepted exposure fit manifest is incomplete.",
          call. = FALSE)
   }
+
   accepted
 }
 
+# Construct exposure and outcome comparisons ----
+
+# Build same-study arm contrasts for the within-study models. The following
+# exposure helpers prepare the assignment-derived dose separately for
+# comparison on a common sample.
 make_strict_within_study_contrasts <- function(data) {
   keys <- c(
     "study_no", "outcome_group", "measurement_method",
@@ -5336,6 +5657,7 @@ prepare_within_contrast_pilot_input <- function(data, specification, priors) {
     output$contrast_names <- NULL
     return(output)
   }
+
   pooled_x <- c(data$protein_intake_treatment, data$protein_intake_comparator)
   basis_data <- tibble::tibble(
     study_no = rep(data$study_no, 2L),
@@ -5359,6 +5681,7 @@ prepare_within_contrast_pilot_input <- function(data, specification, priors) {
   )
   names(contrast_basis) <- contrast_names
   data <- dplyr::bind_cols(data, contrast_basis)
+
   if (isTRUE(specification$standardised_moderators)) {
     data <- add_primary_standardised_moderators(data)
   }
@@ -5401,6 +5724,7 @@ prepare_assignment_exposure_data <- function(
         absolute_protein_dose_g_day_note_if_placebo_condition_then_check_whether_it_includes_any_protein,
       assignment_body_mass_kg = mean_body_mass_kg
     )
+
   output <- data |>
     dplyr::left_join(
       arms,
@@ -5420,6 +5744,7 @@ prepare_assignment_exposure_data <- function(
       assignment_available = is.finite(assigned_protein_intake_raw),
       achieved_available = is.finite(achieved_protein_intake_raw)
     )
+
   if (isTRUE(common_sample)) {
     output <- dplyr::filter(
       output,
@@ -5498,6 +5823,7 @@ prepare_sensitivity_final_candidate <- function(
       fitting_specification$regularised_variance_priors <- FALSE
     }
   }
+
   if (isTRUE(fitting_specification$regularised_variance_priors)) {
     priors <- add_regularised_variance_priors(priors)
   }
@@ -5505,12 +5831,14 @@ prepare_sensitivity_final_candidate <- function(
     data <- add_primary_standardised_moderators(data)
     priors <- add_primary_standardised_moderator_priors(priors)
   }
+
   if (isTRUE(specification$half_unit_protein)) {
     data <- add_primary_half_unit_protein(data)
   }
   if (isTRUE(specification$natural_spline)) {
     priors <- remove_global_primary_prior(priors, "sds")
   }
+
   if (isTRUE(specification$targeted_smooth_prior)) {
     priors <- add_primary_targeted_smooth_prior(
       priors,
@@ -5527,6 +5855,10 @@ prepare_sensitivity_final_candidate <- function(
   )
 }
 
+# Fit and check supplementary brms candidates ----
+
+# Run one selected pilot only when the family is enabled, retaining the
+# candidate configuration and fit for diagnostics.
 fit_sensitivity_brms_pilot <- function(
     input,
     enabled,
@@ -5555,6 +5887,7 @@ fit_sensitivity_brms_pilot <- function(
     ),
     save_pars = brms::save_pars(all = TRUE)
   )
+
   specification <- input$specification
   specification$adapt_delta <- max(
     specification$adapt_delta, config$adapt_delta_floor
@@ -5573,6 +5906,7 @@ fit_sensitivity_brms_pilot <- function(
   } else {
     paste0(specification$model_name, family_suffix)
   }
+
   list(
     outcome = specification$outcome,
     model_index = specification$model_index,
@@ -5620,6 +5954,7 @@ combine_cmdstan_smoke_and_remaining_fits <- function(
   ) {
     return(new_sensitivity_pilot_skip(family))
   }
+
   combined <- c(list(smoke_fit), remaining_fits)
   combined <- combined[order(purrr::map_int(combined, "model_index"))]
   if (!identical(
@@ -5629,6 +5964,7 @@ combine_cmdstan_smoke_and_remaining_fits <- function(
     stop("The CmdStan smoke/full pilot ensemble is incomplete.",
          call. = FALSE)
   }
+
   combined
 }
 
@@ -5639,6 +5975,7 @@ validate_cmdstan_pilot_fits <- function(fits, diagnostics, family) {
   ) {
     return(new_sensitivity_pilot_skip(family))
   }
+
   if (
     nrow(diagnostics) != length(fits) ||
       anyNA(diagnostics$diagnostic_pass) ||
@@ -5649,6 +5986,7 @@ validate_cmdstan_pilot_fits <- function(fits, diagnostics, family) {
       call. = FALSE
     )
   }
+
   fits
 }
 
@@ -5663,6 +6001,7 @@ combine_mundlak_remedy_fits <- function(
   ) {
     return(new_sensitivity_pilot_skip("mundlak"))
   }
+
   remedy_indices <- purrr::map_int(remedy_fits, "model_index")
   retained <- purrr::keep(
     original_fits,
@@ -5670,12 +6009,14 @@ combine_mundlak_remedy_fits <- function(
   )
   combined <- c(retained, remedy_fits)
   combined <- combined[order(purrr::map_int(combined, "model_index"))]
+
   if (!identical(
     unname(purrr::map_int(combined, "model_index")),
     sort(as.integer(expected_model_indices))
   )) {
     stop("The Mundlak remedy ensemble is incomplete.", call. = FALSE)
   }
+
   combined
 }
 
@@ -5691,6 +6032,7 @@ combine_sensitivity_remedy_fits <- function(
   ) {
     return(new_sensitivity_pilot_skip(family))
   }
+
   remedy_indices <- unname(purrr::map_int(remedy_fits, "model_index"))
   retained <- purrr::keep(
     original_fits,
@@ -5698,6 +6040,7 @@ combine_sensitivity_remedy_fits <- function(
   )
   combined <- c(retained, remedy_fits)
   combined <- combined[order(purrr::map_int(combined, "model_index"))]
+
   if (!identical(
     unname(purrr::map_int(combined, "model_index")),
     sort(as.integer(expected_model_indices))
@@ -5707,6 +6050,7 @@ combine_sensitivity_remedy_fits <- function(
       call. = FALSE
     )
   }
+
   combined
 }
 
@@ -5722,6 +6066,7 @@ relabel_sensitivity_fit <- function(candidate, family) {
   ) {
     stop("Cannot relabel an invalid sensitivity fit.", call. = FALSE)
   }
+
   candidate$family <- family
   candidate$model_name <- paste0(
     sub(" \\[[^]]+\\]$", "", candidate$model_name),
@@ -5752,12 +6097,14 @@ compute_sensitivity_brms_weights <- function(fits) {
       length.out = loo_draws
     )) + 1L)
   })
+
   if (
     any(purrr::map_int(draw_ids, length) != loo_draws) ||
       any(purrr::map_int(draw_ids, anyDuplicated) > 0L)
   ) {
     stop("Could not harmonise posterior draws for pilot LOO.", call. = FALSE)
   }
+
   loo_objects <- purrr::map2(fits, draw_ids, ~ brms::loo(
     .x$model,
     draw_ids = .y,
@@ -5789,12 +6136,14 @@ make_sensitivity_loo_draw_ids <- function(n_draws, target_draws) {
   ) {
     stop("Invalid posterior draw counts for sensitivity LOO.", call. = FALSE)
   }
+
   if (n_draws == target_draws) return(seq_len(n_draws))
   ids <- as.integer(floor(seq(
     from = 0,
     to = n_draws - 1,
     length.out = target_draws
   )) + 1L)
+
   if (length(ids) != target_draws || anyDuplicated(ids)) {
     stop("Could not select sensitivity LOO draws.", call. = FALSE)
   }
@@ -5812,6 +6161,7 @@ make_sensitivity_mundlak_integrated_loo_jobs <- function(
   ) {
     return(new_sensitivity_pilot_skip(family))
   }
+
   loo_objects <- conditional_loo$loo
   model_names <- purrr::map_chr(fits, "model_name")
   if (
@@ -5826,6 +6176,7 @@ make_sensitivity_mundlak_integrated_loo_jobs <- function(
       call. = FALSE
     )
   }
+
   purrr::map(fits, function(candidate) {
     list(
       fitted_candidate = candidate,
@@ -5843,6 +6194,7 @@ get_sensitivity_mundlak_integrated_components <- function(
 ) {
   model <- fitted_candidate$model
   manifest <- get_primary_loo_observation_manifest(fitted_candidate)
+
   if (
     !inherits(model, "brmsfit") ||
       !identical(fitted_candidate$family, expected_family)
@@ -5852,6 +6204,7 @@ get_sensitivity_mundlak_integrated_components <- function(
       call. = FALSE
     )
   }
+
   total_draws <- as.integer(brms::ndraws(model))
   draw_ids <- as.integer(draw_ids)
   if (
@@ -5876,6 +6229,7 @@ get_sensitivity_mundlak_integrated_components <- function(
     function(x) length(unique(x)),
     integer(1)
   )
+
   if (any(group_counts != 1L) || any(study_counts != 1L)) {
     stop("Stan study groups do not match the Mundlak data.", call. = FALSE)
   }
@@ -5893,6 +6247,7 @@ get_sensitivity_mundlak_integrated_components <- function(
   ) {
     stop("The Mundlak study covariance design is incomplete.", call. = FALSE)
   }
+
   study_design <- do.call(cbind, lapply(
     design_names,
     function(x) as.numeric(standata[[x]])
@@ -5917,6 +6272,7 @@ get_sensitivity_mundlak_integrated_components <- function(
   uncorrelated_study_effects <- isTRUE(
     fitted_candidate$specification$uncorrelated_study_effects
   )
+
   if (n_coefficients > 1L && !uncorrelated_study_effects) {
     study_covariance <- variance_components$study_no$cov
     if (
@@ -5930,6 +6286,7 @@ get_sensitivity_mundlak_integrated_components <- function(
     }
     covariance_draws <- study_covariance[draw_ids, , , drop = FALSE]
   }
+
   n_draws <- length(draw_ids)
   n_observations <- nrow(manifest)
   if (n_coefficients == 1L || uncorrelated_study_effects) {
@@ -5965,12 +6322,14 @@ get_sensitivity_mundlak_integrated_components <- function(
       }
     }
   }
+
   linear_predictor <- brms::posterior_linpred(
     model,
     transform = FALSE,
     re_formula = NA,
     draw_ids = draw_ids
   )
+
   if (!identical(dim(linear_predictor), c(n_draws, n_observations))) {
     stop("The Mundlak integrated linear predictor is misaligned.",
          call. = FALSE)
@@ -6008,6 +6367,7 @@ compute_sensitivity_mundlak_integrated_psis_loo <- function(
     slope_description = "mundlak_within_basis_slopes"
 ) {
   if (is_sensitivity_pilot_skip(job)) return(job)
+
   candidate <- job$fitted_candidate
   manifest <- get_primary_loo_observation_manifest(candidate)
   conditional_loo <- job$conditional_loo
@@ -6017,6 +6377,7 @@ compute_sensitivity_mundlak_integrated_psis_loo <- function(
   ) {
     stop("The Mundlak conditional LOO object is invalid.", call. = FALSE)
   }
+
   draw_ids <- make_sensitivity_loo_draw_ids(
     brms::ndraws(candidate$model),
     job$loo_draws
@@ -6039,6 +6400,7 @@ compute_sensitivity_mundlak_integrated_psis_loo <- function(
     outcome_intercept_sd = components$outcome_intercept_sd,
     study_basis = components$study_basis
   )
+
   relative_efficiency <- loo::relative_eff(
     exp(integrated_log_lik),
     chain_id = components$chain_id,
@@ -6050,12 +6412,14 @@ compute_sensitivity_mundlak_integrated_psis_loo <- function(
     save_psis = FALSE,
     cores = as.integer(cores)
   )
+
   if (
     !inherits(integrated_loo, "loo") ||
       nrow(integrated_loo$pointwise) != nrow(manifest)
   ) {
     stop("The integrated Mundlak LOO result is invalid.", call. = FALSE)
   }
+
   list(
     outcome = candidate$outcome,
     model_index = candidate$model_index,
@@ -6097,6 +6461,7 @@ get_sensitivity_exposure_integrated_components <- function(
     stop("The exposure family does not match its integrated-LOO job.",
          call. = FALSE)
   }
+
   components <- get_primary_integrated_loo_components(fitted_candidate)
   total_draws <- nrow(components$linear_predictor)
   draw_ids <- as.integer(draw_ids)
@@ -6106,6 +6471,7 @@ get_sensitivity_exposure_integrated_components <- function(
   ) {
     stop("Invalid exposure LOO draw identifiers.", call. = FALSE)
   }
+
   components$linear_predictor <-
     components$linear_predictor[draw_ids, , drop = FALSE]
   components$residual_sd <- components$residual_sd[draw_ids]
@@ -6127,6 +6493,7 @@ compute_sensitivity_exposure_integrated_psis_loo <- function(
     cores = 1L
 ) {
   if (is_sensitivity_pilot_skip(job)) return(job)
+
   candidate <- job$fitted_candidate
   manifest <- get_primary_loo_observation_manifest(candidate)
   conditional_loo <- job$conditional_loo
@@ -6136,6 +6503,7 @@ compute_sensitivity_exposure_integrated_psis_loo <- function(
   ) {
     stop("The exposure conditional LOO object is invalid.", call. = FALSE)
   }
+
   draw_ids <- make_sensitivity_loo_draw_ids(
     brms::ndraws(candidate$model),
     job$loo_draws
@@ -6157,6 +6525,7 @@ compute_sensitivity_exposure_integrated_psis_loo <- function(
     outcome_intercept_sd = components$outcome_intercept_sd,
     study_basis = components$study_basis
   )
+
   relative_efficiency <- loo::relative_eff(
     exp(integrated_log_lik),
     chain_id = components$chain_id,
@@ -6168,12 +6537,14 @@ compute_sensitivity_exposure_integrated_psis_loo <- function(
     save_psis = FALSE,
     cores = as.integer(cores)
   )
+
   if (
     !inherits(integrated_loo, "loo") ||
       nrow(integrated_loo$pointwise) != nrow(manifest)
   ) {
     stop("The integrated exposure LOO result is invalid.", call. = FALSE)
   }
+
   list(
     outcome = candidate$outcome,
     model_index = candidate$model_index,
@@ -6215,6 +6586,7 @@ collect_sensitivity_mundlak_integrated_loo <- function(
   if (all(purrr::map_lgl(results, is_sensitivity_pilot_skip))) {
     return(new_sensitivity_pilot_skip(family))
   }
+
   results <- results[order(purrr::map_int(results, "model_index"))]
   if (
     length(results) < 2L ||
@@ -6226,6 +6598,7 @@ collect_sensitivity_mundlak_integrated_loo <- function(
       call. = FALSE
     )
   }
+
   results
 }
 
@@ -6262,6 +6635,7 @@ select_sensitivity_mundlak_exact_loo_jobs <- function(
   ) {
     return(new_sensitivity_pilot_skip(family))
   }
+
   fitted_indices <- purrr::map_int(fitted_candidates, "model_index")
   cases <- purrr::map_dfr(integrated_results, function(result) {
     observations <- which(loo::pareto_k_values(result$loo) > k_threshold)
@@ -6273,6 +6647,7 @@ select_sensitivity_mundlak_exact_loo_jobs <- function(
   }) |>
     dplyr::arrange(model_index, observation) |>
     dplyr::mutate(case_id = dplyr::row_number(), .before = 1L)
+
   if (nrow(cases) < 1L) return(list())
   purrr::pmap(cases, function(case_id, model_index, observation, pareto_k) {
     fitted_candidate <- fitted_candidates[[match(
@@ -6315,6 +6690,7 @@ fit_sensitivity_mundlak_exact_loo_case <- function(
     family = "mundlak"
 ) {
   if (!isTRUE(enabled)) return(new_sensitivity_pilot_skip(family))
+
   original_model <- job$fitted_candidate$model
   original_data <- original_model$data
   manifest <- job$integrated_result$observation_manifest
@@ -6328,6 +6704,7 @@ fit_sensitivity_mundlak_exact_loo_case <- function(
       call. = FALSE
     )
   }
+
   training_data <- original_data[-job$observation, , drop = FALSE]
   sample_prior <- attr(original_model$prior, "sample_prior")
   original_model$prior <- normalize_primary_brms_priors(
@@ -6351,6 +6728,7 @@ fit_sensitivity_mundlak_exact_loo_case <- function(
     ),
     save_pars = brms::save_pars(all = TRUE)
   )
+
   list(
     case_id = job$case_id,
     outcome = job$outcome,
@@ -6389,6 +6767,7 @@ get_sensitivity_mundlak_exact_components <- function(refit) {
     )
     return(get_primary_integrated_loo_components(candidate))
   }
+
   model <- refit$refitted_model
   prediction_data <- refit$original_data
   manifest <- refit$integrated_result$observation_manifest
@@ -6398,6 +6777,7 @@ get_sensitivity_mundlak_exact_components <- function(refit) {
   coefficient_names <- colnames(study_sd)
   n_coefficients <- ncol(study_sd)
   slope_names <- coefficient_names[coefficient_names != "Intercept"]
+
   if (
     nrow(prediction_data) != nrow(manifest) ||
       nrow(study_sd) != total_draws ||
@@ -6407,6 +6787,7 @@ get_sensitivity_mundlak_exact_components <- function(refit) {
     stop("The exact Mundlak prediction design is incomplete.",
          call. = FALSE)
   }
+
   study_design <- cbind(
     Intercept = 1,
     as.matrix(prediction_data[, slope_names, drop = FALSE])
@@ -6414,6 +6795,7 @@ get_sensitivity_mundlak_exact_components <- function(refit) {
   uncorrelated_study_effects <- isTRUE(
     refit$specification$uncorrelated_study_effects
   )
+
   if (n_coefficients > 1L && !uncorrelated_study_effects) {
     covariance_draws <- variance_components$study_no$cov
   }
@@ -6422,6 +6804,7 @@ get_sensitivity_mundlak_exact_components <- function(refit) {
   ) {
     stop("The exact Mundlak study design is invalid.", call. = FALSE)
   }
+
   if (n_coefficients == 1L || uncorrelated_study_effects) {
     study_basis <- lapply(seq_len(n_coefficients), function(component) {
       outer(study_sd[, component], study_design[, component])
@@ -6460,6 +6843,7 @@ get_sensitivity_mundlak_exact_components <- function(refit) {
       }
     }
   }
+
   common_variables <- c(
     residual = "sigma",
     arm = "sd_arm_no__Intercept",
@@ -6504,6 +6888,7 @@ compute_sensitivity_mundlak_exact_loo_case <- function(refit) {
     outcome_intercept_sd = components$outcome_intercept_sd,
     study_basis = components$study_basis
   )
+
   held_out_log_lik <- integrated_log_lik[, observation]
   maximum_log_lik <- max(held_out_log_lik)
   scaled_likelihood <- exp(held_out_log_lik - maximum_log_lik)
@@ -6519,6 +6904,7 @@ compute_sensitivity_mundlak_exact_loo_case <- function(refit) {
   patched_loo$pointwise[observation, "elpd_loo"] <- exact_elpd
   patched_loo$pointwise[observation, "p_loo"] <- full_data_lpd - exact_elpd
   patched_loo$pointwise[observation, "looic"] <- -2 * exact_elpd
+
   if ("mcse_elpd_loo" %in% colnames(patched_loo$pointwise)) {
     patched_loo$pointwise[observation, "mcse_elpd_loo"] <- exact_mcse
   }
@@ -6527,6 +6913,7 @@ compute_sensitivity_mundlak_exact_loo_case <- function(refit) {
   if (!is.null(patched_loo$diagnostics$n_eff)) {
     patched_loo$diagnostics$n_eff[[observation]] <- NA_real_
   }
+
   patched_loo <- update_primary_exact_loo_estimates(patched_loo)
   exact_diagnostics <- summarise_primary_exact_loo_refit_diagnostics(refit) |>
     dplyr::mutate(
@@ -6536,6 +6923,7 @@ compute_sensitivity_mundlak_exact_loo_case <- function(refit) {
       exact_minus_psis_elpd = exact_elpd - old_elpd,
       exact_elpd_mcse = exact_mcse
     )
+
   list(
     case_id = refit$case_id,
     outcome = refit$outcome,
@@ -6576,12 +6964,14 @@ collect_sensitivity_mundlak_exact_results <- function(
   if (is_sensitivity_pilot_skip(jobs)) {
     return(new_sensitivity_pilot_skip(family))
   }
+
   if (length(results) != length(jobs)) {
     stop(
       paste0("The ", family, " exact-result set is incomplete."),
       call. = FALSE
     )
   }
+
   results <- results[order(purrr::map_int(results, "case_id"))]
   expected <- sort(purrr::map_int(jobs, "case_id"))
   if (!identical(unname(purrr::map_int(results, "case_id")), expected)) {
@@ -6590,6 +6980,7 @@ collect_sensitivity_mundlak_exact_results <- function(
       call. = FALSE
     )
   }
+
   results
 }
 
@@ -6604,6 +6995,7 @@ apply_sensitivity_mundlak_exact_corrections <- function(
   ) {
     return(new_sensitivity_pilot_skip(family))
   }
+
   final_results <- integrated_results
   warning_cases <- purrr::map_dfr(integrated_results, function(result) {
     observations <- which(loo::pareto_k_values(result$loo) > 0.7)
@@ -6613,12 +7005,14 @@ apply_sensitivity_mundlak_exact_corrections <- function(
     )
   }) |>
     dplyr::arrange(model_index, observation)
+
   exact_cases <- tibble::tibble(
     model_index = unname(purrr::map_int(exact_results, "model_index")),
     observation = unname(purrr::map_int(exact_results, ~
       .x$exact_refit_summary$observation[[1L]]))
   ) |>
     dplyr::arrange(model_index, observation)
+
   if (!identical(warning_cases, exact_cases)) {
     stop(
       paste0(
@@ -6628,6 +7022,7 @@ apply_sensitivity_mundlak_exact_corrections <- function(
       call. = FALSE
     )
   }
+
   corrected_models <- unique(unname(purrr::map_int(
     exact_results,
     "model_index"
@@ -6677,6 +7072,7 @@ apply_sensitivity_mundlak_exact_corrections <- function(
       )
     final_results[[position]] <- patched_result
   }
+
   exact_refit_summary <- purrr::map_dfr(
     exact_results,
     "exact_refit_summary"
@@ -6711,6 +7107,7 @@ compute_sensitivity_integrated_weights <- function(
     }
     results <- results$results
   }
+
   high_k <- purrr::map_int(
     results,
     ~ sum(loo::pareto_k_values(.x$loo) > 0.7, na.rm = TRUE)
@@ -6722,6 +7119,7 @@ compute_sensitivity_integrated_weights <- function(
       call. = FALSE
     )
   }
+
   loo_objects <- purrr::map(results, "loo")
   names(loo_objects) <- purrr::map_chr(results, "model_name")
   weights <- loo::loo_model_weights(loo_objects, method = "stacking")
@@ -6747,6 +7145,7 @@ make_mundlak_prediction_newdata <- function(
     data, protein_min, protein_max, grid_step
   )
   basis_spec <- fitted_candidate$basis_spec
+
   if (is.null(basis_spec)) return(grid)
   if (is.null(study_mean_raw)) study_mean_raw <- grid$protein_median
   varied <- predict_sensitivity_basis(
@@ -6758,6 +7157,7 @@ make_mundlak_prediction_newdata <- function(
     study_mean_raw - grid$protein_median
   )
   held <- matrix(held, nrow = nrow(varied), ncol = ncol(varied), byrow = TRUE)
+
   for (index in seq_len(ncol(varied))) {
     grid$newdata[[fitted_candidate$within_names[[index]]]] <-
       varied[, index] - held[, index]
@@ -6766,6 +7166,11 @@ make_mundlak_prediction_newdata <- function(
   grid
 }
 
+# Predict within-study dose contrasts ----
+
+# Pair each proposed dose with the reference dose in the model's contrast
+# representation. The reporting helpers then compare the resulting curves
+# across exposure definitions.
 make_within_prediction_newdata <- function(
     fitted_candidate,
     data,
@@ -6779,6 +7184,7 @@ make_within_prediction_newdata <- function(
       data$protein_intake_raw_comparator),
     na.rm = TRUE
   )
+
   if (is.null(protein_max)) protein_max <- observed_max
   if (is.null(reference_raw)) reference_raw <- protein_min
   if (
@@ -6788,6 +7194,7 @@ make_within_prediction_newdata <- function(
     stop("The within-study prediction reference is outside the grid.",
          call. = FALSE)
   }
+
   protein_values <- sort(unique(c(
     round(seq(protein_min, protein_max, by = grid_step), 10),
     reference_raw
@@ -6800,6 +7207,7 @@ make_within_prediction_newdata <- function(
     rep(1L, nrow(keys)), , drop = FALSE
   ]
   newdata$resistance_exercise_code <- keys$resistance_exercise_code
+
   if ("resistance_exercise_factor" %in% names(newdata)) {
     labels <- ifelse(keys$resistance_exercise_code == 0, "yes", "no")
     newdata$resistance_exercise_factor <- factor(
@@ -6807,6 +7215,7 @@ make_within_prediction_newdata <- function(
       levels = levels(fitted_candidate$model$data$resistance_exercise_factor)
     )
   }
+
   if (!is.null(fitted_candidate$basis_spec)) {
     internal_unit <- get_primary_protein_internal_unit_for_contrasts(data)
     centring_constant <- get_primary_protein_median_for_contrasts(data)
@@ -6829,6 +7238,7 @@ make_within_prediction_newdata <- function(
         varied[, index] - held[, index]
     }
   }
+
   if ("age_centre" %in% names(newdata)) newdata$age_centre <- 0
   if ("duration_centre" %in% names(newdata)) newdata$duration_centre <- 0
   if ("age_outcome_z" %in% names(newdata)) {
@@ -6841,6 +7251,7 @@ make_within_prediction_newdata <- function(
       (0 - centres[["duration_centre"]]) /
         scales[["duration_centre"]]
   }
+
   list(
     newdata = newdata,
     keys = tibble::tibble(
@@ -6879,6 +7290,7 @@ get_primary_protein_median_for_contrasts <- function(data) {
   values <- values[is.finite(values)]
   centre <- stats::median(values)
   tolerance <- 1e-10 * max(1, abs(centre))
+
   if (
     length(values) < 1L || !is.finite(centre) ||
       any(abs(values - centre) > tolerance)
@@ -6886,6 +7298,7 @@ get_primary_protein_median_for_contrasts <- function(data) {
     stop("Within-study contrasts do not share one centring constant.",
          call. = FALSE)
   }
+
   if ("absolute_exposure_reference_g_day" %in% names(data)) {
     references <- unique(as.numeric(data$absolute_exposure_reference_g_day))
     references <- references[is.finite(references)]
@@ -6898,6 +7311,7 @@ get_primary_protein_median_for_contrasts <- function(data) {
     }
     return(references[[1L]])
   }
+
   centre
 }
 
@@ -6942,6 +7356,7 @@ build_sensitivity_brms_model_average <- function(
     seed = 1988L
 ) {
   if (is_sensitivity_pilot_skip(fits)) return(fits)
+
   weights <- weight_result$weights
   models <- purrr::map(fits, "model")
   names(models) <- purrr::map_chr(fits, "model_name")
@@ -6960,12 +7375,14 @@ build_sensitivity_brms_model_average <- function(
       grid_step = grid_step
     )
   )
+
   key_reference <- grids[[1L]]$keys
   if (!all(purrr::map_lgl(grids, ~ identical(.x$keys, key_reference)))) {
     stop("Sensitivity prediction grids do not match across models.",
          call. = FALSE)
   }
   draws <- matrix(NA_real_, nrow = n_draws, ncol = nrow(key_reference))
+
   for (index in seq_along(fits)) {
     rows <- which(allocation == index)
     if (!length(rows)) next
@@ -6977,6 +7394,7 @@ build_sensitivity_brms_model_average <- function(
     )
     draws[rows, ] <- as.matrix(model_draws)
   }
+
   output <- list(
     draws = draws,
     grid = key_reference,
@@ -6995,6 +7413,7 @@ build_sensitivity_brms_model_average <- function(
       grid_step = grids[[1L]]$grid_step
     )
   )
+
   class(output) <- c("primary_model_average", class(output))
   output
 }
@@ -7020,6 +7439,7 @@ summarise_sensitivity_exposure_support <- function(data) {
       resistance_exercise_code,
       protein_intake_support
     )
+
   if (
     nrow(arms) != dplyr::n_distinct(
       interaction(arms$study_no, arms$arm_no, drop = TRUE)
@@ -7029,6 +7449,7 @@ summarise_sensitivity_exposure_support <- function(data) {
     stop("The sensitivity arm-level exposure support is invalid.",
          call. = FALSE)
   }
+
   by_group <- arms |>
     dplyr::group_by(resistance_exercise_code) |>
     dplyr::summarise(
@@ -7053,6 +7474,7 @@ summarise_sensitivity_exposure_support <- function(data) {
       ),
       .after = resistance_exercise_code
     )
+
   if (nrow(by_group) != 2L) {
     stop("Expected both resistance-exercise support groups.",
          call. = FALSE)
@@ -7063,6 +7485,7 @@ summarise_sensitivity_exposure_support <- function(data) {
     common_central_90_minimum = max(by_group$central_90_minimum),
     common_central_90_maximum = min(by_group$central_90_maximum)
   )
+
   if (
     common$common_observed_minimum > common$common_observed_maximum ||
       common$common_central_90_minimum > common$common_central_90_maximum
@@ -7070,6 +7493,7 @@ summarise_sensitivity_exposure_support <- function(data) {
     stop("Resistance-exercise exposure supports do not overlap.",
          call. = FALSE)
   }
+
   list(by_group = by_group, common = common, arms = arms)
 }
 
@@ -7090,6 +7514,7 @@ summarise_sensitivity_within_support <- function(
       dose_difference =
         protein_intake_raw_treatment - protein_intake_raw_comparator
     )
+
   required <- c(
     "protein_intake_raw_treatment",
     "protein_intake_raw_comparator",
@@ -7098,6 +7523,7 @@ summarise_sensitivity_within_support <- function(
   if (nrow(pairs) < 1L || anyNA(pairs[, required, drop = FALSE])) {
     stop("The within-contrast exposure support is invalid.", call. = FALSE)
   }
+
   by_group <- pairs |>
     dplyr::group_by(resistance_exercise_code) |>
     dplyr::summarise(
@@ -7145,6 +7571,7 @@ summarise_sensitivity_within_support <- function(
           reference_intake <= comparator_central_90_maximum,
       .after = resistance_exercise_code
     )
+
   if (nrow(by_group) != 2L) {
     stop("Expected both within-contrast exercise groups.", call. = FALSE)
   }
@@ -7154,12 +7581,14 @@ summarise_sensitivity_within_support <- function(
     common_central_90_minimum = max(by_group$central_90_minimum),
     common_central_90_maximum = min(by_group$central_90_maximum)
   )
+
   if (
     common$common_observed_minimum > common$common_observed_maximum ||
       common$common_central_90_minimum > common$common_central_90_maximum
   ) {
     stop("Within-contrast treatment supports do not overlap.", call. = FALSE)
   }
+
   list(by_group = by_group, common = common, pairs = pairs)
 }
 
@@ -7192,6 +7621,7 @@ annotate_sensitivity_curve_support <- function(curve, support) {
         TRUE ~ "extrapolation"
       )
     )
+
   if (anyNA(output$support_region)) {
     stop("Sensitivity support annotation failed.", call. = FALSE)
   }
@@ -7204,6 +7634,7 @@ summarise_sensitivity_model_average_increments <- function(
     reference_intake = 0.8
 ) {
   if (is_sensitivity_pilot_skip(model_average)) return(model_average)
+
   grid <- model_average$grid
   increment_draws <- model_average$draws
   groups <- sort(unique(grid$resistance_exercise_code))
@@ -7223,6 +7654,7 @@ summarise_sensitivity_model_average_increments <- function(
       FUN = "-"
     )
   }
+
   increment_average <- model_average
   increment_average$draws <- increment_draws
   output <- summarise_primary_dose_response(increment_average) |>
@@ -7327,6 +7759,7 @@ compare_sensitivity_exposure_curves <- function(
   ) {
     return(new_sensitivity_pilot_skip("exposure"))
   }
+
   keys <- intersect(
     c("resistance_exercise_code", "resistance_exercise_label",
       "resistance_exercise", "protein_intake"),
@@ -7406,6 +7839,7 @@ make_rcs_orthogonal_spec <- function(
     }
     knots <- support[selected]
   }
+
   if (any(!is.finite(knots)) || any(diff(knots) <= 0)) {
     stop("Restricted cubic-spline knots are not distinct.", call. = FALSE)
   }
@@ -7420,6 +7854,7 @@ make_rcs_orthogonal_spec <- function(
     )
     sweep(d[, 1:2, drop = FALSE], 1L, d[, 3L], "-")
   }
+
   h <- raw_basis(x_obs)
   linear_design <- cbind(1, x_obs)
   projection <- qr.solve(linear_design, h)
@@ -7428,6 +7863,7 @@ make_rcs_orthogonal_spec <- function(
   if (qr_h$rank < 2L) {
     stop("Restricted cubic-spline basis is rank deficient.", call. = FALSE)
   }
+
   transform <- solve(qr.R(qr_h)) * sqrt(nrow(residual))
   list(
     rcs_knots = knots,
@@ -7445,6 +7881,7 @@ make_eiv_candidate_data <- function(data, specification, priors) {
     "protein_median"
   )
   missing <- setdiff(required, names(data))
+
   if (length(missing) > 0L) {
     stop("EIV data are missing: ", paste(missing, collapse = ", "), ".",
          call. = FALSE)
@@ -7468,6 +7905,7 @@ make_eiv_candidate_data <- function(data, specification, priors) {
         study_no, arm_no, outcome_no, drop = TRUE
       ))
     )
+
   arm_data <- data |>
     dplyr::distinct(
       study_no, arm_no, arm_index, protein_intake, protein_intake_se
@@ -7476,6 +7914,7 @@ make_eiv_candidate_data <- function(data, specification, priors) {
   arm_check <- arm_data |>
     dplyr::count(study_no, arm_no) |>
     dplyr::filter(n != 1L)
+
   if (nrow(arm_check) > 0L) {
     stop("EIV study-arms do not have unique exposure summaries.",
          call. = FALSE)
@@ -7496,6 +7935,7 @@ make_eiv_candidate_data <- function(data, specification, priors) {
     features$protein_family == "spline" &&
       isTRUE(specification$half_unit_protein)
   ) 0.5 else 1
+
   if (basis_type == 3L) {
     rcs_probs <- if (isTRUE(specification$natural_spline)) {
       c(0, 1 / 3, 2 / 3, 1)
@@ -7532,6 +7972,7 @@ make_eiv_candidate_data <- function(data, specification, priors) {
   stan_priors <- make_stan_priors(priors)
   k_study <- 1L + as.integer(features$includes_random_slope) * k_basis
   coefficient_scales <- rep(1, k_basis)
+
   if (basis_type == 3L && !isTRUE(specification$natural_spline)) {
     coefficient_scales[-1L] <- 0.5
   }
@@ -7539,6 +7980,7 @@ make_eiv_candidate_data <- function(data, specification, priors) {
     isTRUE(specification$regularised_variance_priors)
   ) 1 else 2.5
   study_sd_scales <- rep(variance_scale, k_study)
+
   if (features$includes_random_slope && basis_type == 3L) {
     study_sd_scales[-1L] <- 0.5
   }
@@ -7626,6 +8068,7 @@ make_sensitivity_cmdstan_output_dir <- function(
     path_component(outcome),
     paste0("model_", as.integer(model_index))
   )
+
   dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
   normalizePath(output_dir, winslash = "/", mustWork = TRUE)
 }
@@ -7659,6 +8102,7 @@ fit_eiv_cmdstan_pilot <- function(input, model, enabled, config) {
     refresh = 100,
     output_dir = output_dir
   )
+
   list(
     family = "eiv",
     outcome = input$specification$outcome,
@@ -7682,6 +8126,7 @@ diagnose_cmdstan_pilot_fit <- function(candidate) {
         "study_effect|study_correlation)"
       )
     ))
+
   features <- sensitivity_model_features(candidate$model_index)
   if (!features$includes_protein) {
     parameter_summary <- dplyr::filter(
@@ -7689,18 +8134,21 @@ diagnose_cmdstan_pilot_fit <- function(candidate) {
       !stringr::str_detect(variable, "^b_protein($|\\[)")
     )
   }
+
   if (!features$includes_rt_interaction) {
     parameter_summary <- dplyr::filter(
       parameter_summary,
       !stringr::str_detect(variable, "^b_protein_rt($|\\[)")
     )
   }
+
   if (!features$includes_moderators) {
     parameter_summary <- dplyr::filter(
       parameter_summary,
       !stringr::str_detect(variable, "^b_moderator($|\\[)")
     )
   }
+
   if (
     candidate$family %in% c(
       "eiv", "rescor", "total_rescor", "supplement_rescor"
@@ -7737,6 +8185,7 @@ diagnose_cmdstan_pilot_fit <- function(candidate) {
         )
       )
   }
+
   energy_by_chain <- sampler |>
     dplyr::group_by(.chain) |>
     dplyr::summarise(
@@ -7794,6 +8243,7 @@ summarise_residual_correlation_pilot <- function(candidate) {
     "sd_arm",
     "sd_outcome"
   )
+
   draws <- posterior::as_draws_matrix(candidate$fit$draws(variables))
   purrr::map_dfr(colnames(draws), function(variable) {
     values <- draws[, variable]
@@ -7830,6 +8280,7 @@ summarise_eiv_candidate_pilot <- function(candidate) {
     "sd_arm",
     "sd_outcome"
   )
+
   draws <- posterior::as_draws_matrix(candidate$fit$draws(variables))
   features <- sensitivity_model_features(candidate$model_index)
   active <- rep(TRUE, ncol(draws))
@@ -7839,18 +8290,21 @@ summarise_eiv_candidate_pilot <- function(candidate) {
       "^b_protein($|\\[)"
     )
   }
+
   if (!features$includes_rt_interaction) {
     active <- active & !stringr::str_detect(
       colnames(draws),
       "^b_protein_rt($|\\[)"
     )
   }
+
   if (!features$includes_moderators) {
     active <- active & !stringr::str_detect(
       colnames(draws),
       "^b_moderator($|\\[)"
     )
   }
+
   draws <- draws[, active, drop = FALSE]
   purrr::map_dfr(colnames(draws), function(variable) {
     values <- draws[, variable]
@@ -7907,6 +8361,7 @@ extract_cmdstan_indexed_draw_matrix <- function(
   variables <- variables[valid]
   indices <- indices[valid]
   expected_length <- as.integer(expected_length)
+
   if (
     expected_length < 1L || length(variables) != expected_length ||
       anyDuplicated(indices) ||
@@ -7917,6 +8372,7 @@ extract_cmdstan_indexed_draw_matrix <- function(
       call. = FALSE
     )
   }
+
   output <- as.matrix(draws[, variables[order(indices)], drop = FALSE])
   storage.mode(output) <- "double"
   if (anyNA(output) || any(!is.finite(output))) {
@@ -7947,6 +8403,7 @@ extract_cmdstan_matrix_draw_array <- function(
   nrow_matrix <- as.integer(nrow_matrix)
   ncol_matrix <- as.integer(ncol_matrix)
   key <- (column_index - 1L) * nrow_matrix + row_index
+
   if (
     length(variables) != nrow_matrix * ncol_matrix ||
       anyNA(row_index) || anyNA(column_index) || anyDuplicated(key) ||
@@ -7957,12 +8414,14 @@ extract_cmdstan_matrix_draw_array <- function(
       call. = FALSE
     )
   }
+
   ordered <- variables[order(key)]
   values <- as.matrix(draws[, ordered, drop = FALSE])
   storage.mode(values) <- "double"
   if (anyNA(values) || any(!is.finite(values))) {
     stop("The CmdStan matrix draws are non-finite.", call. = FALSE)
   }
+
   array(
     values,
     dim = c(nrow(values), nrow_matrix, ncol_matrix)
@@ -8009,6 +8468,7 @@ evaluate_eiv_stan_basis <- function(x, stan_data) {
   } else {
     stop("Unknown EIV protein basis type.", call. = FALSE)
   }
+
   if (
     length(basis) != k_basis ||
       any(vapply(basis, function(value) {
@@ -8018,6 +8478,7 @@ evaluate_eiv_stan_basis <- function(x, stan_data) {
   ) {
     stop("The reconstructed EIV basis is invalid.", call. = FALSE)
   }
+
   basis
 }
 
@@ -8033,6 +8494,7 @@ make_eiv_integrated_loo_jobs <- function(
   ) {
     return(new_sensitivity_pilot_skip("eiv"))
   }
+
   fit_indices <- unname(purrr::map_int(fits, "model_index"))
   input_indices <- unname(purrr::map_int(
     inputs, ~ as.integer(.x$specification$model_index)
@@ -8043,6 +8505,7 @@ make_eiv_integrated_loo_jobs <- function(
   ) {
     stop("The EIV fit/input ensemble is misaligned.", call. = FALSE)
   }
+
   fit_draws <- purrr::map_int(fits, function(candidate) {
     posterior::ndraws(candidate$fit$draws("b_intercept"))
   })
@@ -8064,6 +8527,7 @@ get_eiv_integrated_loo_components <- function(
 ) {
   candidate <- job$fitted_candidate
   stan_data <- job$input$stan_data
+
   if (
     !candidate$family %in% c("eiv", "total_eiv") ||
       candidate$model_index != job$input$specification$model_index ||
@@ -8071,6 +8535,7 @@ get_eiv_integrated_loo_components <- function(
   ) {
     stop("Invalid EIV integrated-LOO job.", call. = FALSE)
   }
+
   variables <- c(
     if (isTRUE(include_conditional_log_lik)) "log_lik_y" else character(),
     "x_true", "b_intercept", "b_rt", "b_protein",
@@ -8109,6 +8574,7 @@ get_eiv_integrated_loo_components <- function(
         basis[[component]] * b_protein[, component]
     }
   }
+
   if (as.integer(stan_data$include_rt_interaction) == 1L) {
     b_interaction <- extract_cmdstan_indexed_draw_matrix(
       draws, "b_protein_rt", k_basis
@@ -8124,6 +8590,7 @@ get_eiv_integrated_loo_components <- function(
         rt * basis[[component]] * b_interaction[, component]
     }
   }
+
   if (as.integer(stan_data$include_moderators) == 1L) {
     moderator_covariates <- list(
       as.numeric(stan_data$duration_z),
@@ -8161,6 +8628,7 @@ get_eiv_integrated_loo_components <- function(
     list(matrix(1, n_draws, n_observations)),
     if (as.integer(stan_data$include_random_slope) == 1L) basis else list()
   )
+
   if (length(study_design) != k_study) {
     stop("The EIV study design is inconsistent.", call. = FALSE)
   }
@@ -8174,6 +8642,7 @@ get_eiv_integrated_loo_components <- function(
   } else {
     l_study <- NULL
   }
+
   study_basis <- lapply(
     seq_len(k_study),
     function(component) matrix(NA_real_, n_draws, n_observations)
@@ -8202,6 +8671,7 @@ get_eiv_integrated_loo_components <- function(
     arm_no = as.character(stan_data$arm),
     outcome_no = as.character(stan_data$outcome)
   )
+
   list(
     linear_predictor = linear_predictor,
     residual_sd = rep(0, n_draws),
@@ -8239,6 +8709,7 @@ compute_eiv_integrated_psis_loo <- function(
     cores = 1L
 ) {
   if (is_sensitivity_pilot_skip(job)) return(job)
+
   candidate <- job$fitted_candidate
   components <- get_eiv_integrated_loo_components(job)
   integrated_log_lik <- integrate_primary_study_basis_log_lik(
@@ -8253,6 +8724,7 @@ compute_eiv_integrated_psis_loo <- function(
     outcome_intercept_sd = components$outcome_intercept_sd,
     study_basis = components$study_basis
   )
+
   make_loo <- function(log_lik) {
     relative_efficiency <- loo::relative_eff(
       exp(log_lik),
@@ -8266,6 +8738,7 @@ compute_eiv_integrated_psis_loo <- function(
       cores = as.integer(cores)
     )
   }
+
   conditional_loo <- make_loo(components$conditional_log_lik)
   integrated_loo <- make_loo(integrated_log_lik)
   comparison <- dplyr::bind_rows(
@@ -8288,6 +8761,7 @@ compute_eiv_integrated_psis_loo <- function(
       loo_draws = as.integer(job$loo_draws),
       .before = 1L
     )
+
   list(
     family = candidate$family,
     outcome = candidate$outcome,
@@ -8330,6 +8804,7 @@ select_eiv_exact_loo_jobs <- function(
   ) {
     return(new_sensitivity_pilot_skip("eiv"))
   }
+
   fitted_indices <- unname(purrr::map_int(
     fitted_candidates, "model_index"
   ))
@@ -8339,6 +8814,7 @@ select_eiv_exact_loo_jobs <- function(
   result_indices <- unname(purrr::map_int(
     integrated_results, "model_index"
   ))
+
   if (
     anyDuplicated(fitted_indices) || anyDuplicated(input_indices) ||
       anyDuplicated(result_indices) ||
@@ -8347,6 +8823,7 @@ select_eiv_exact_loo_jobs <- function(
   ) {
     stop("The EIV exact-LOO inputs are misaligned.", call. = FALSE)
   }
+
   cases <- purrr::map_dfr(integrated_results, function(result) {
     pareto_k <- loo::pareto_k_values(result$loo)
     observations <- which(pareto_k > k_threshold)
@@ -8358,6 +8835,7 @@ select_eiv_exact_loo_jobs <- function(
   }) |>
     dplyr::arrange(model_index, observation) |>
     dplyr::mutate(case_id = dplyr::row_number(), .before = 1L)
+
   if (nrow(cases) < 1L) return(list())
   purrr::pmap(cases, function(
       case_id,
@@ -8410,6 +8888,10 @@ summarise_eiv_exact_loo_jobs <- function(jobs) {
   })
 }
 
+# Exact EIV holdouts ----
+
+# Prepare Stan data with one outcome observation held out, preserving the
+# inputs required to evaluate its predictive density under the refit.
 make_eiv_leave_one_out_stan_data <- function(stan_data, observation) {
   observation <- as.integer(observation)
   n_observations <- as.integer(stan_data$N)
@@ -8419,6 +8901,7 @@ make_eiv_leave_one_out_stan_data <- function(stan_data, observation) {
   ) {
     stop("Invalid EIV held-out observation.", call. = FALSE)
   }
+
   row_fields <- c(
     "y", "se_y", "arm", "study", "outcome",
     "resistance_exercise_code", "age_z", "duration_z"
@@ -8426,12 +8909,14 @@ make_eiv_leave_one_out_stan_data <- function(stan_data, observation) {
   if ("body_mass_z" %in% names(stan_data)) {
     row_fields <- c(row_fields, "body_mass_z")
   }
+
   if (
     !all(row_fields %in% names(stan_data)) ||
       any(vapply(stan_data[row_fields], length, integer(1)) != n_observations)
   ) {
     stop("The EIV row-level Stan data are incomplete.", call. = FALSE)
   }
+
   stan_data$N <- n_observations - 1L
   for (field in row_fields) {
     stan_data[[field]] <- stan_data[[field]][-observation]
@@ -8473,6 +8958,7 @@ fit_eiv_exact_loo_case <- function(job, model, enabled, config) {
     refresh = 100,
     output_dir = output_dir
   )
+
   candidate <- list(
     family = "eiv",
     outcome = job$outcome,
@@ -8483,6 +8969,7 @@ fit_eiv_exact_loo_case <- function(job, model, enabled, config) {
     output_dir = output_dir,
     fit = fit
   )
+
   list(
     case_id = job$case_id,
     family = "eiv",
@@ -8522,6 +9009,7 @@ compute_eiv_exact_loo_case <- function(refit, loo_draws = 4000L) {
       )
     )
   )
+
   components <- get_eiv_integrated_loo_components(
     prediction_job,
     include_conditional_log_lik = FALSE
@@ -8538,6 +9026,7 @@ compute_eiv_exact_loo_case <- function(refit, loo_draws = 4000L) {
     outcome_intercept_sd = components$outcome_intercept_sd,
     study_basis = components$study_basis
   )
+
   observation <- as.integer(refit$observation)
   held_out_log_lik <- integrated_log_lik[, observation]
   maximum_log_lik <- max(held_out_log_lik)
@@ -8555,6 +9044,7 @@ compute_eiv_exact_loo_case <- function(refit, loo_draws = 4000L) {
   patched_loo$pointwise[observation, "p_loo"] <-
     full_data_lpd - exact_elpd
   patched_loo$pointwise[observation, "looic"] <- -2 * exact_elpd
+
   if ("mcse_elpd_loo" %in% colnames(patched_loo$pointwise)) {
     patched_loo$pointwise[observation, "mcse_elpd_loo"] <- exact_mcse
   }
@@ -8562,6 +9052,7 @@ compute_eiv_exact_loo_case <- function(refit, loo_draws = 4000L) {
   if (!is.null(patched_loo$diagnostics$n_eff)) {
     patched_loo$diagnostics$n_eff[[observation]] <- NA_real_
   }
+
   patched_loo <- update_primary_exact_loo_estimates(patched_loo)
   exact_refit_summary <- summarise_eiv_exact_loo_refit(refit) |>
     dplyr::mutate(
@@ -8593,6 +9084,7 @@ build_cmdstan_pilot_model_average <- function(
     seed = 1988L
 ) {
   if (is_sensitivity_pilot_skip(fits)) return(fits)
+
   weights <- weight_result$weights
   counts <- allocate_primary_mixture_models(weights, n_draws)
   set.seed(seed)
@@ -8601,6 +9093,7 @@ build_cmdstan_pilot_model_average <- function(
   if (!all(purrr::map_lgl(fits, ~ identical(.x$grid, grid)))) {
     stop("CmdStan prediction grids do not match.", call. = FALSE)
   }
+
   draws <- matrix(NA_real_, n_draws, nrow(grid))
   for (index in seq_along(fits)) {
     rows <- which(allocation == index)
@@ -8612,6 +9105,7 @@ build_cmdstan_pilot_model_average <- function(
                        replace = nrow(model_draws) < length(rows))
     draws[rows, ] <- model_draws[selected, , drop = FALSE]
   }
+
   output <- list(
     draws = draws,
     grid = dplyr::transmute(
@@ -8626,6 +9120,7 @@ build_cmdstan_pilot_model_average <- function(
     settings = list(n_draws = n_draws, seed = seed,
                     prediction_type = "eiv")
   )
+
   class(output) <- c("primary_model_average", class(output))
   output
 }
@@ -8643,6 +9138,7 @@ make_residual_correlation_stan_data <- function(
     stop("The residual-correlation pilot uses a fixed-slope linear candidate.",
          call. = FALSE)
   }
+
   data <- add_primary_standardised_moderators(data)
   cluster_id <- if (cluster == "study") {
     data$study_no
@@ -8660,6 +9156,7 @@ make_residual_correlation_stan_data <- function(
       ))
     ) |>
     dplyr::arrange(residual_cluster)
+
   runs <- rle(data$residual_cluster)
   cluster_end <- cumsum(runs$lengths)
   cluster_start <- c(1L, utils::head(cluster_end, -1L) + 1L)
@@ -8670,6 +9167,7 @@ make_residual_correlation_stan_data <- function(
       call. = FALSE
     )
   }
+
   rho_lower <- -1 / (max_cluster_size - 1) + 1e-8
   rho_raw_prior_location <- stats::qlogis(
     -rho_lower / (1 - rho_lower)
@@ -8717,6 +9215,7 @@ fit_residual_correlation_cmdstan_pilot <- function(
     config
 ) {
   if (!isTRUE(enabled)) return(new_sensitivity_pilot_skip("rescor"))
+
   specification <- input$specification
   specification$adapt_delta <- max(
     specification$adapt_delta, config$adapt_delta_floor
@@ -8741,6 +9240,7 @@ fit_residual_correlation_cmdstan_pilot <- function(
     refresh = 100,
     output_dir = output_dir
   )
+
   list(
     family = "rescor",
     outcome = input$specification$outcome,
@@ -8793,6 +9293,7 @@ audit_sensitivity_pilot_structure <- function(
     eiv_inputs,
     ~ "prior_residual_sd_scale" %in% names(.x$stan_data)
   ))
+
   if (
     nrow(final_table) != 104L ||
       !all(protein_pilot_indices %in% comparison_pilot_indices) ||
@@ -8816,6 +9317,7 @@ audit_sensitivity_pilot_structure <- function(
     stop("The sensitivity pilot structure failed its dry-run audit.",
          call. = FALSE)
   }
+
   tibble::tibble(
     check = c(
       "final candidate registry",
@@ -8856,6 +9358,8 @@ audit_sensitivity_pilot_structure <- function(
 
 # Full Stan errors-in-variables expansion -----------------------------------
 
+# Extend the pilot's sampling settings for the full measurement-error ensemble
+# and its diagnostic refits.
 make_eiv_full_expansion_config <- function(
     base_config,
     iter_warmup = 1500L,
@@ -8870,12 +9374,14 @@ make_eiv_full_expansion_config <- function(
   config$iter_warmup <- as.integer(iter_warmup)
   config$iter_sampling <- as.integer(iter_sampling)
   config$seed <- as.integer(base_config$seed + seed_offset)
+
   if (
     config$chains != 4L || config$parallel_chains < 1L ||
       config$iter_warmup != 1500L || config$iter_sampling != 2000L
   ) {
     stop("Invalid full EIV expansion configuration.", call. = FALSE)
   }
+
   config
 }
 
@@ -8893,6 +9399,7 @@ make_eiv_full_remedy_config <- function(
   config$adapt_delta_floor <- as.numeric(adapt_delta)
   config$max_treedepth_floor <- as.integer(max_treedepth)
   config$seed <- as.integer(full_config$seed + seed_offset)
+
   if (
     config$iter_warmup < full_config$iter_warmup ||
       config$iter_sampling <= full_config$iter_sampling ||
@@ -8903,6 +9410,7 @@ make_eiv_full_remedy_config <- function(
   ) {
     stop("Invalid full EIV remedy configuration.", call. = FALSE)
   }
+
   config
 }
 
@@ -8922,6 +9430,7 @@ read_eiv_pilot_completed_checkpoint <- function(path) {
       manifest$sha256[[index]]
     )
   }
+
   if (
     !is.list(checkpoint) || !identical(checkpoint$family, "eiv") ||
       !is.data.frame(manifest) || !all(required %in% names(manifest)) ||
@@ -8938,6 +9447,7 @@ read_eiv_pilot_completed_checkpoint <- function(path) {
   ) {
     stop("The completed EIV pilot checkpoint is invalid.", call. = FALSE)
   }
+
   checkpoint
 }
 
@@ -8966,12 +9476,14 @@ select_pending_eiv_full_inputs <- function(inputs, reused_manifest) {
     pending,
     ~ paste(.x$specification$outcome, .x$specification$model_index)
   )
+
   if (
     length(inputs) != 104L || length(pending) != 97L ||
       anyDuplicated(input_keys) || anyDuplicated(pending_keys)
   ) {
     stop("The pending full EIV input set is invalid.", call. = FALSE)
   }
+
   pending
 }
 
@@ -8984,6 +9496,7 @@ read_eiv_fit_file <- function(path) {
     candidate$fit$output_files(),
     error = function(e) character()
   )
+
   if (
     !is.list(candidate) || !identical(candidate$family, "eiv") ||
       !inherits(candidate$fit, "CmdStanMCMC") ||
@@ -8993,6 +9506,7 @@ read_eiv_fit_file <- function(path) {
     stop("The EIV fit file is invalid or its CmdStan CSV files are missing.",
          call. = FALSE)
   }
+
   candidate
 }
 
@@ -9028,6 +9542,7 @@ fit_eiv_full_candidate_to_file <- function(
     stage = "initial"
 ) {
   if (!isTRUE(enabled)) return(new_sensitivity_pilot_skip("eiv"))
+
   if (is_sensitivity_pilot_skip(model)) {
     stop("The EIV Stan model was not compiled.", call. = FALSE)
   }
@@ -9047,6 +9562,7 @@ fit_eiv_full_candidate_to_file <- function(
   } else {
     NULL
   }
+
   if (
     !is.null(existing_candidate) &&
       identical(existing_candidate$outcome, specification$outcome) &&
@@ -9057,6 +9573,7 @@ fit_eiv_full_candidate_to_file <- function(
   ) {
     return(normalizePath(existing_path, winslash = "/", mustWork = TRUE))
   }
+
   specification$adapt_delta <- max(
     specification$adapt_delta, config$adapt_delta_floor
   )
@@ -9082,6 +9599,7 @@ fit_eiv_full_candidate_to_file <- function(
     refresh = 100,
     output_dir = output_dir
   )
+
   candidate <- list(
     family = "eiv",
     outcome = specification$outcome,
@@ -9092,6 +9610,7 @@ fit_eiv_full_candidate_to_file <- function(
     output_dir = output_dir,
     fit = fit
   )
+
   write_eiv_fit_file(candidate, stage = stage)
 }
 
@@ -9104,6 +9623,7 @@ make_eiv_fit_file_manifest <- function(paths, stage) {
       bytes = double(), sha256 = character()
     ))
   }
+
   if (anyNA(paths) || any(!file.exists(paths))) {
     stop("The EIV fit-file set is incomplete.", call. = FALSE)
   }
@@ -9120,6 +9640,7 @@ make_eiv_fit_file_manifest <- function(paths, stage) {
       sha256 = digest::digest(path, file = TRUE, algo = "sha256")
     )
   })
+
   if (anyDuplicated(paste(manifest$outcome, manifest$model_index))) {
     stop("The EIV fit-file manifest contains duplicate models.", call. = FALSE)
   }
@@ -9156,6 +9677,7 @@ audit_eiv_full_expansion <- function(
       all(is.finite(input$stan_data$x_se)) &&
       all(input$stan_data$x_se > 0)
   })
+
   if (
     length(inputs) != 104L || length(pending_inputs) != 97L ||
       nrow(reused) != 7L || anyDuplicated(input_keys) ||
@@ -9167,6 +9689,7 @@ audit_eiv_full_expansion <- function(
   ) {
     stop("The full EIV expansion failed its structural audit.", call. = FALSE)
   }
+
   tibble::tibble(
     check = c(
       "complete candidate registry",
@@ -9210,6 +9733,7 @@ make_eiv_full_fit_records <- function(fit_manifest, inputs) {
     ~ paste(.x$specification$outcome, .x$specification$model_index)
   )
   manifest_keys <- paste(fit_manifest$outcome, fit_manifest$model_index)
+
   if (
     nrow(fit_manifest) != 104L || length(inputs) != 104L ||
       anyDuplicated(input_keys) || anyDuplicated(manifest_keys) ||
@@ -9217,6 +9741,7 @@ make_eiv_full_fit_records <- function(fit_manifest, inputs) {
   ) {
     stop("The full EIV fit/input registry is misaligned.", call. = FALSE)
   }
+
   purrr::map(seq_len(nrow(fit_manifest)), function(row) {
     record <- purrr::map(as.list(fit_manifest[row, , drop = FALSE]), unname)
     record$input <- inputs[[match(manifest_keys[[row]], input_keys)]]
@@ -9244,12 +9769,14 @@ compile_eiv_full_diagnostic_audit <- function(
         diagnostic_pass, "PASS", "REQUIRES REMEDIATION"
       )
     )
+
   if (
     nrow(summary) != expected_models || any(summary$family != "eiv") ||
       anyDuplicated(paste(summary$outcome, summary$model_index))
   ) {
     stop("The full EIV diagnostic audit is incomplete.", call. = FALSE)
   }
+
   list(
     family = "eiv",
     diagnostic_summary = summary,
@@ -9275,6 +9802,7 @@ select_eiv_full_remedy_inputs <- function(inputs, initial_audit) {
     selected,
     ~ paste(.x$specification$outcome, .x$specification$model_index)
   )
+
   if (
     !identical(initial_audit$family, "eiv") ||
       anyDuplicated(failed_keys) || length(selected) != length(failed_keys) ||
@@ -9282,6 +9810,7 @@ select_eiv_full_remedy_inputs <- function(inputs, initial_audit) {
   ) {
     stop("The full EIV remedy input set is invalid.", call. = FALSE)
   }
+
   selected
 }
 
@@ -9291,6 +9820,7 @@ combine_eiv_full_remedy_diagnostic_audit <- function(
 ) {
   failed <- dplyr::filter(initial_audit$diagnostic_summary, !diagnostic_pass)
   if (nrow(failed) == 0L) return(initial_audit)
+
   remedy <- dplyr::bind_rows(remedy_diagnostics) |>
     dplyr::mutate(
       status = dplyr::if_else(
@@ -9299,12 +9829,14 @@ combine_eiv_full_remedy_diagnostic_audit <- function(
     )
   failed_keys <- paste(failed$outcome, failed$model_index)
   remedy_keys <- paste(remedy$outcome, remedy$model_index)
+
   if (
     nrow(remedy) != nrow(failed) || anyDuplicated(remedy_keys) ||
       !setequal(failed_keys, remedy_keys)
   ) {
     stop("The full EIV remedy diagnostics are incomplete.", call. = FALSE)
   }
+
   summary <- initial_audit$diagnostic_summary |>
     dplyr::filter(!paste(outcome, model_index) %in% remedy_keys) |>
     dplyr::bind_rows(remedy) |>
@@ -9314,6 +9846,7 @@ combine_eiv_full_remedy_diagnostic_audit <- function(
       )),
       model_index
     )
+
   list(
     family = "eiv",
     diagnostic_summary = summary,
@@ -9344,6 +9877,7 @@ combine_eiv_full_accepted_fit_manifest <- function(
       )),
       model_index
     )
+
   if (
     !isTRUE(final_audit$all_sampling_diagnostics_pass) ||
       nrow(accepted) != 104L || any(accepted$family != "eiv") ||
@@ -9352,6 +9886,7 @@ combine_eiv_full_accepted_fit_manifest <- function(
   ) {
     stop("The accepted full EIV fit manifest is invalid.", call. = FALSE)
   }
+
   accepted
 }
 
@@ -9366,6 +9901,7 @@ combine_eiv_remedy_fit_manifests <- function(first, second) {
       )),
       model_index
     )
+
   if (
     any(combined$family != "eiv") ||
       anyDuplicated(paste(combined$outcome, combined$model_index)) ||
@@ -9373,6 +9909,7 @@ combine_eiv_remedy_fit_manifests <- function(first, second) {
   ) {
     stop("The combined EIV remedy manifest is invalid.", call. = FALSE)
   }
+
   combined
 }
 
@@ -9384,12 +9921,14 @@ compute_eiv_full_file_integrated_loo <- function(
 ) {
   candidate <- read_eiv_fit_file(record$fit_path)
   input <- record$input
+
   if (
     candidate$model_index != input$specification$model_index ||
       !identical(candidate$outcome, input$specification$outcome)
   ) {
     stop("The full EIV fit record is misaligned.", call. = FALSE)
   }
+
   available_draws <- posterior::ndraws(
     candidate$fit$draws("b_intercept")
   )
@@ -9427,6 +9966,7 @@ fit_eiv_full_exact_loo_to_file <- function(
     config
 ) {
   if (!isTRUE(enabled)) return(new_sensitivity_pilot_skip("eiv"))
+
   if (is_sensitivity_pilot_skip(model)) {
     stop("The EIV Stan model was not compiled.", call. = FALSE)
   }
@@ -9439,6 +9979,7 @@ fit_eiv_full_exact_loo_to_file <- function(
   } else {
     NULL
   }
+
   if (
     !is.null(existing_refit) &&
       identical(as.integer(existing_refit$case_id), as.integer(record$case_id)) &&
@@ -9454,6 +9995,7 @@ fit_eiv_full_exact_loo_to_file <- function(
   ) {
     return(normalizePath(existing_path, winslash = "/", mustWork = TRUE))
   }
+
   candidate <- read_eiv_fit_file(record$original_fit_path)
   integrated_result <- qs::qread(record$integrated_loo_path)
   input <- integrated_result$input
@@ -9464,6 +10006,7 @@ fit_eiv_full_exact_loo_to_file <- function(
   ) {
     stop("The full EIV exact-refit record is invalid.", call. = FALSE)
   }
+
   training_data <- make_eiv_leave_one_out_stan_data(
     input$stan_data, record$observation
   )
@@ -9492,6 +10035,7 @@ fit_eiv_full_exact_loo_to_file <- function(
     refresh = 100,
     output_dir = output_dir
   )
+
   fitted_candidate <- list(
     family = "eiv",
     outcome = record$outcome,
@@ -9502,6 +10046,7 @@ fit_eiv_full_exact_loo_to_file <- function(
     output_dir = output_dir,
     fit = fit
   )
+
   refit <- list(
     case_id = as.integer(record$case_id),
     family = "eiv",
@@ -9515,6 +10060,7 @@ fit_eiv_full_exact_loo_to_file <- function(
     integrated_result = integrated_result,
     refit_seconds = proc.time()[["elapsed"]] - start_time
   )
+
   write_atomic_qs(refit, existing_path)
 }
 
@@ -9563,6 +10109,7 @@ make_eiv_full_prediction_records <- function(
     grid_step = 0.02,
     seed = seed
   )
+
   purrr::map(records, function(record) {
     record$family <- "eiv"
     record$prediction_type <- "eiv"
@@ -9581,6 +10128,7 @@ write_eiv_full_prediction_draw_file <- function(record, checkpoint_path) {
   ) {
     stop("A full EIV prediction record is invalid.", call. = FALSE)
   }
+
   checkpoint <- read_sensitivity_completed_checkpoint(
     checkpoint_path, family = "eiv"
   )
@@ -9593,6 +10141,7 @@ write_eiv_full_prediction_draw_file <- function(record, checkpoint_path) {
   ) {
     stop("A full EIV prediction fit does not match its record.", call. = FALSE)
   }
+
   all_draws <- posterior::as_draws_matrix(
     candidate$fit$draws("mu_grid")
   )
@@ -9611,12 +10160,14 @@ write_eiv_full_prediction_draw_file <- function(record, checkpoint_path) {
       ),
       protein_intake = protein_intake_raw
     )
+
   if (
     nrow(draws) != record$draw_count || ncol(draws) != nrow(grid) ||
       anyNA(draws) || any(!is.finite(draws))
   ) {
     stop("The full EIV prediction draws are incomplete.", call. = FALSE)
   }
+
   reduction <- list(
     family = "eiv",
     outcome = record$outcome,
@@ -9636,6 +10187,7 @@ write_eiv_full_prediction_draw_file <- function(record, checkpoint_path) {
       reference_intake = NULL
     )
   )
+
   path <- sensitivity_reduction_file_path(
     family = "eiv",
     outcome = record$outcome,

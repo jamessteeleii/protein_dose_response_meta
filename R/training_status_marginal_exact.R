@@ -1,3 +1,8 @@
+# Marginalized Stan program for exact holdouts ----
+
+# Derive the Stan code used to refit selected training-status holdouts with
+# the Gaussian group effects integrated in the likelihood.
+
 # Pilot for the two archived supplementation-strength smooth models only.
 # Condition on the accepted spline design and marginalise independent Gaussian
 # study-smooth, arm and outcome coefficients. Keep every remaining brms prior.
@@ -24,6 +29,7 @@ tst_marginal_stan_code <- function(code, model_index) {
     "    }",
     "    target += normal_lpdf(Y | mu, se);",
     "  }"), collapse = "\n")
+
   if (!grepl("real sigma = 0;", code, fixed = TRUE)) stop("Expected known sampling variances only.")
   scales <- sprintf("append_row(sds_%d, append_row(sd_1, sd_2))", study_spline)
   likelihood <- paste(c(
@@ -38,6 +44,7 @@ tst_marginal_stan_code <- function(code, model_index) {
     "      target += multi_normal_cholesky_lpdf(Y[idx] | mu[idx], L);",
     "    }",
     "  }"), collapse = "\n")
+
   code <- replace_once(code, original_likelihood, likelihood)
   # Each removed independent standard-normal latent has its declaration,
   # deterministic scaled assignment, and unit-normal prior in the saved code.
@@ -56,6 +63,7 @@ tst_marginal_stan_code <- function(code, model_index) {
     }
     drop <- drop | raw_lines | scaled_lines
   }
+
   code <- paste(lines[!drop], collapse = "\n")
   code <- replace_once(code, "functions {\n}", paste(c(
     "functions {",
@@ -66,6 +74,7 @@ tst_marginal_stan_code <- function(code, model_index) {
     "    return V;",
     "  }",
     "}"), collapse = "\n"))
+
   code <- replace_once(code, "  int prior_only;", paste(c(
     "  int<lower=1> tst_studies;",
     "  array[tst_studies] int<lower=1, upper=N> tst_first;",
@@ -74,6 +83,7 @@ tst_marginal_stan_code <- function(code, model_index) {
     "  int<lower=1, upper=tst_studies> tst_held_study;",
     "  array[5] matrix[N, N] tst_kernels;",
     "  int prior_only;"), collapse = "\n"))
+
   replace_once(code, "generated quantities {\n}", paste(c(
     "generated quantities {",
     "  real tst_held_log_lik;",
@@ -91,6 +101,8 @@ tst_marginal_stan_code <- function(code, model_index) {
     "}"), collapse = "\n"))
 }
 
+# Translate one holdout record into the inputs for the marginalized Stan
+# program and retain the identifiers needed for scoring.
 tst_prepare_marginal_exact <- function(record) {
   stopifnot(record$family == "supplement", record$outcome == "strength",
     record$model_index %in% c(14L, 26L), record$observation %in% c(80L, 81L))
@@ -120,6 +132,7 @@ tst_prepare_marginal_exact <- function(record) {
     identical(outcome_kernel, outer(manifest$outcome_no, manifest$outcome_no, `==`) * 1))
   kernels <- c(lapply(designs, tcrossprod), list(arm_kernel, outcome_kernel))
   cross_study <- outer(manifest$study_no, manifest$study_no, `!=`)
+
   if (any(vapply(kernels, function(k) any(k[cross_study] != 0), logical(1))))
     stop("Study blocks are not independent in the saved design.")
   groups <- split(seq_len(d$N), manifest$study_no)
@@ -150,6 +163,7 @@ tst_prepare_marginal_exact <- function(record) {
     z <- forwardsolve(L, d$Y[idx] - mu[idx])
     abs(reference - (stats::dnorm(z[last], log = TRUE) - log(L[last, last])))
   }, numeric(1))
+
   if (any(!is.finite(score_errors)) || max(score_errors) > 1e-8)
     stop("Marginal score differs from the existing integrated scorer.")
   code <- tst_marginal_stan_code(brms::stancode(model), record$model_index)
@@ -204,6 +218,10 @@ tst_fit_marginal_exact <- function(input, iter_sampling, syntax = NULL) {
   result
 }
 
+# Score and select marginal refits ----
+
+# Package the held-out score and diagnostics, then use the reviewed pilot and
+# replacement paths to determine which results can enter the final audit.
 tst_marginal_compact <- function(result, record, integrated) {
   d <- result$diagnostics
   ll <- result$held_log_lik
@@ -233,6 +251,7 @@ tst_marginal_compact <- function(result, record, integrated) {
     d$divergent_transitions == 0L && d$maximum_treedepth_transitions == 0L && d$minimum_ebfmi >= .30 &&
     d$maximum_rhat <= 1.01 && d$minimum_bulk_ess >= 400 && d$minimum_tail_ess >= 400
   correction <- NULL
+
   if (isTRUE(d$diagnostic_pass)) {
     obs <- as.integer(record$observation)
     correction <- integrated
@@ -249,6 +268,7 @@ tst_marginal_compact <- function(result, record, integrated) {
     correction$loo <- update_primary_exact_loo_estimates(correction$loo)
     correction$exact_refit_summary <- d
   }
+
   list(compact = TRUE, interaction_record = record, diagnostics = d, correction = correction,
     code_sha256 = result$code_sha256, score_error = result$score_error)
 }
@@ -262,18 +282,21 @@ tst_marginal_exact_checkpoint <- function(plan, pilot_file) {
   path <- iad_path(record$family, record$outcome, "loo", "exact_checkpoints", "marginal_gaussian", name, archive = TRUE)
   input <- tst_prepare_marginal_exact(record)
   code_sha256 <- digest::digest(input$code, algo = "sha256")
+
   if (file.exists(path)) {
     saved <- qs::qread(path)
     stopifnot(identical(saved$interaction_record, record), identical(saved$code_sha256, code_sha256),
       identical(saved$initial_checkpoint_sha256, plan$initial_sha256))
     return(normalizePath(path, winslash = "/", mustWork = TRUE))
   }
+
   reuse_pilot <- record$model_index == 26L && record$observation == 80L
   result <- if (reuse_pilot) qs::qread(pilot_file) else
     tst_fit_marginal_exact(input, if (record$model_index == 14L) 12000L else 6000L)
   stopifnot(identical(result$code_sha256, code_sha256))
   saved <- tst_marginal_compact(result, record, qs::qread(record$loo_path))
   if (reuse_pilot && !isTRUE(saved$diagnostics$diagnostic_pass)) stop("The marginal pilot has not passed.")
+
   saved$initial_checkpoint_sha256 <- plan$initial_sha256
   saved$diagnostics$initial_checkpoint_sha256 <- plan$initial_sha256
   saved$diagnostics$reused_marginal_pilot <- reuse_pilot
@@ -289,6 +312,7 @@ tst_select_marginal_exact_paths <- function(initial_paths, replacement_paths) {
   initial <- lapply(initial_paths, qs::qread); replacements <- lapply(replacement_paths, qs::qread)
   keys <- vapply(initial, key, character(1)); new_keys <- vapply(replacements, key, character(1))
   failed <- !vapply(initial, function(x) isTRUE(x$diagnostics$diagnostic_pass), logical(1))
+
   if (anyDuplicated(keys) || anyDuplicated(new_keys) || !setequal(keys[failed], new_keys))
     stop("Marginal replacement keys do not match precisely the failed exact cases.")
   for (i in seq_along(replacements)) {
@@ -297,5 +321,6 @@ tst_select_marginal_exact_paths <- function(initial_paths, replacement_paths) {
       identical(iad_hash(initial_paths[j]), replacements[[i]]$initial_checkpoint_sha256))
     initial_paths[j] <- replacement_paths[i]
   }
+
   initial_paths
 }

@@ -1,5 +1,9 @@
 # Full residual-correlation sensitivity family -----------------------------
 
+# Study-level residual correlation settings ----
+
+# Specify sampling controls for the expansion and subsequent remedies
+# separately so accepted fits can be traced to their settings.
 make_rescor_full_expansion_config <- function(
     base_config,
     iter_warmup = 1500L,
@@ -14,12 +18,14 @@ make_rescor_full_expansion_config <- function(
   config$iter_warmup <- as.integer(iter_warmup)
   config$iter_sampling <- as.integer(iter_sampling)
   config$seed <- as.integer(base_config$seed + seed_offset)
+
   if (
     config$chains != 4L || config$parallel_chains < 1L ||
       config$iter_warmup != 1500L || config$iter_sampling != 2000L
   ) {
     stop("Invalid full residual-correlation configuration.", call. = FALSE)
   }
+
   config
 }
 
@@ -37,6 +43,7 @@ make_rescor_full_remedy_config <- function(
   config$adapt_delta_floor <- as.numeric(adapt_delta)
   config$max_treedepth_floor <- as.integer(max_treedepth)
   config$seed <- as.integer(full_config$seed + seed_offset)
+
   if (
     config$iter_warmup < full_config$iter_warmup ||
       config$iter_sampling <= full_config$iter_sampling ||
@@ -48,6 +55,7 @@ make_rescor_full_remedy_config <- function(
     stop("Invalid residual-correlation remedy configuration.",
          call. = FALSE)
   }
+
   config
 }
 
@@ -65,6 +73,7 @@ make_rescor_full_third_remedy_config <- function(
   config$adapt_delta_floor <- as.numeric(adapt_delta)
   config$max_treedepth_floor <- as.integer(max_treedepth)
   config$seed <- as.integer(second_remedy_config$seed + seed_offset)
+
   if (
     config$iter_warmup <= second_remedy_config$iter_warmup ||
       config$iter_sampling <= second_remedy_config$iter_sampling ||
@@ -78,6 +87,7 @@ make_rescor_full_third_remedy_config <- function(
     stop("Invalid residual-correlation third-remedy configuration.",
          call. = FALSE)
   }
+
   config
 }
 
@@ -114,6 +124,7 @@ make_rescor_observation_exact_remedy_config <- function(
   config$adapt_delta_floor <- as.numeric(adapt_delta)
   config$max_treedepth_floor <- as.integer(max_treedepth)
   config$seed <- as.integer(exact_config$seed + seed_offset)
+
   if (
     config$iter_warmup <= exact_config$iter_warmup ||
       config$iter_sampling <= exact_config$iter_sampling ||
@@ -125,6 +136,7 @@ make_rescor_observation_exact_remedy_config <- function(
     stop("Invalid residual-correlation exact-refit remedy configuration.",
          call. = FALSE)
   }
+
   config
 }
 
@@ -142,6 +154,7 @@ make_rescor_observation_exact_second_remedy_config <- function(
   config$adapt_delta_floor <- as.numeric(adapt_delta)
   config$max_treedepth_floor <- as.integer(max_treedepth)
   config$seed <- as.integer(remedy_config$seed + seed_offset)
+
   if (
     config$iter_warmup <= remedy_config$iter_warmup ||
       config$iter_sampling <= remedy_config$iter_sampling ||
@@ -155,9 +168,14 @@ make_rescor_observation_exact_second_remedy_config <- function(
       call. = FALSE
     )
   }
+
   config
 }
 
+# Prepare the correlated likelihood inputs ----
+
+# Translate the analysis rows and candidate basis into Stan arrays with the
+# study grouping required by the residual-correlation likelihood.
 make_rescor_candidate_data <- function(
     data,
     specification,
@@ -172,6 +190,7 @@ make_rescor_candidate_data <- function(
     "duration_centre", "protein_intake_raw", "protein_median"
   )
   missing <- setdiff(required, names(data))
+
   if (length(missing) > 0L) {
     stop(
       "Residual-correlation data are missing: ",
@@ -179,6 +198,7 @@ make_rescor_candidate_data <- function(
       call. = FALSE
     )
   }
+
   data <- data |>
     dplyr::filter(
       is.finite(yi), is.finite(vi), vi > 0,
@@ -200,6 +220,7 @@ make_rescor_candidate_data <- function(
       )),
       stan_row = dplyr::row_number()
     )
+
   arm_data <- data |>
     dplyr::distinct(
       study_no, arm_no, arm_index, protein_intake
@@ -208,6 +229,7 @@ make_rescor_candidate_data <- function(
   arm_check <- arm_data |>
     dplyr::count(study_no, arm_no) |>
     dplyr::filter(n != 1L)
+
   if (nrow(arm_check) > 0L) {
     stop("Study arms do not have unique protein-intake values.",
          call. = FALSE)
@@ -222,6 +244,7 @@ make_rescor_candidate_data <- function(
   ) {
     stop("Residual-correlation study clusters are invalid.", call. = FALSE)
   }
+
   cluster_manifest <- tibble::tibble(
     observation = seq_along(runs$lengths),
     study_no = vapply(
@@ -233,6 +256,7 @@ make_rescor_candidate_data <- function(
     cluster_end = as.integer(cluster_end),
     cluster_size = as.integer(runs$lengths)
   )
+
   rho_lower <- -1 / (max(runs$lengths) - 1) + 1e-8
   rho_raw_prior_location <- stats::qlogis(
     -rho_lower / (1 - rho_lower)
@@ -253,6 +277,7 @@ make_rescor_candidate_data <- function(
     features$protein_family == "spline" &&
       isTRUE(specification$half_unit_protein)
   ) 0.5 else 1
+
   if (basis_type == 3L) {
     rcs_probs <- if (isTRUE(specification$natural_spline)) {
       c(0, 1 / 3, 2 / 3, 1)
@@ -290,6 +315,7 @@ make_rescor_candidate_data <- function(
   stan_priors <- make_stan_priors(priors)
   k_study <- 1L + as.integer(features$includes_random_slope) * k_basis
   coefficient_scales <- rep(1, k_basis)
+
   if (basis_type == 3L && !isTRUE(specification$natural_spline)) {
     coefficient_scales[-1L] <- 0.5
   }
@@ -297,6 +323,7 @@ make_rescor_candidate_data <- function(
     isTRUE(specification$regularised_variance_priors)
   ) 1 else 2.5
   study_sd_scales <- rep(variance_scale, k_study)
+
   if (features$includes_random_slope && basis_type == 3L) {
     study_sd_scales[-1L] <- 0.5
   }
@@ -400,6 +427,7 @@ audit_rescor_full_expansion <- function(inputs, config) {
       abs(prior_median) < 1e-10 &&
       all(is.finite(data$se_y)) && all(data$se_y > 0)
   })
+
   if (
     length(inputs) != 104L || anyDuplicated(keys) ||
       !setequal(keys, expected) || !all(valid) ||
@@ -408,6 +436,7 @@ audit_rescor_full_expansion <- function(inputs, config) {
     stop("The full residual-correlation expansion failed its audit.",
          call. = FALSE)
   }
+
   tibble::tibble(
     check = c(
       "complete candidate registry",
@@ -440,6 +469,7 @@ read_rescor_fit_file <- function(path) {
     candidate$fit$output_files(),
     error = function(e) character()
   )
+
   if (
     !is.list(candidate) || !identical(candidate$family, "rescor") ||
       !inherits(candidate$fit, "CmdStanMCMC") ||
@@ -451,6 +481,7 @@ read_rescor_fit_file <- function(path) {
       call. = FALSE
     )
   }
+
   candidate
 }
 
@@ -465,6 +496,8 @@ make_rescor_full_cmdstan_output_dir <- function(stage, outcome, model_index) {
   normalizePath(path, winslash = "/", mustWork = TRUE)
 }
 
+# Fit a prepared candidate only when enabled and return its saved artifact for
+# the diagnostic and acceptance stages.
 fit_rescor_full_candidate_to_file <- function(
     input,
     model,
@@ -473,12 +506,14 @@ fit_rescor_full_candidate_to_file <- function(
     stage = "initial"
 ) {
   if (!isTRUE(enabled)) return(new_sensitivity_pilot_skip("rescor"))
+
   if (is_sensitivity_pilot_skip(model)) {
     stop("The full residual-correlation Stan model was not compiled.",
          call. = FALSE)
   }
   specification <- input$specification
   outcome_offset <- match(specification$outcome, config$outcomes)
+
   if (is.na(outcome_offset)) {
     stop("Unknown outcome in the residual-correlation fit.", call. = FALSE)
   }
@@ -490,6 +525,7 @@ fit_rescor_full_candidate_to_file <- function(
   } else {
     NULL
   }
+
   if (
     !is.null(existing) &&
       identical(existing$outcome, specification$outcome) &&
@@ -500,6 +536,7 @@ fit_rescor_full_candidate_to_file <- function(
   ) {
     return(normalizePath(existing_path, winslash = "/", mustWork = TRUE))
   }
+
   specification$adapt_delta <- max(
     specification$adapt_delta, config$adapt_delta_floor
   )
@@ -525,6 +562,7 @@ fit_rescor_full_candidate_to_file <- function(
     refresh = 100,
     output_dir = output_dir
   )
+
   candidate <- list(
     family = "rescor",
     outcome = specification$outcome,
@@ -538,6 +576,7 @@ fit_rescor_full_candidate_to_file <- function(
     output_dir = output_dir,
     fit = fit
   )
+
   write_atomic_qs(candidate, existing_path)
 }
 
@@ -550,6 +589,7 @@ make_rescor_fit_file_manifest <- function(paths, stage) {
       bytes = double(), sha256 = character()
     ))
   }
+
   if (anyNA(paths) || any(!file.exists(paths))) {
     stop("The residual-correlation fit set is incomplete.", call. = FALSE)
   }
@@ -566,6 +606,7 @@ make_rescor_fit_file_manifest <- function(paths, stage) {
       sha256 = digest::digest(path, file = TRUE, algo = "sha256")
     )
   })
+
   if (anyDuplicated(paste(manifest$outcome, manifest$model_index))) {
     stop("The residual-correlation manifest contains duplicate models.",
          call. = FALSE)
@@ -579,6 +620,7 @@ make_rescor_full_fit_records <- function(fit_manifest, inputs) {
     ~ paste(.x$specification$outcome, .x$specification$model_index)
   )
   manifest_keys <- paste(fit_manifest$outcome, fit_manifest$model_index)
+
   if (
     nrow(fit_manifest) != 104L || length(inputs) != 104L ||
       anyDuplicated(input_keys) || anyDuplicated(manifest_keys) ||
@@ -587,6 +629,7 @@ make_rescor_full_fit_records <- function(fit_manifest, inputs) {
     stop("The residual-correlation fit/input registry is misaligned.",
          call. = FALSE)
   }
+
   purrr::map(seq_len(nrow(fit_manifest)), function(row) {
     record <- purrr::map(as.list(fit_manifest[row, , drop = FALSE]), unname)
     record$input <- inputs[[match(manifest_keys[[row]], input_keys)]]
@@ -634,6 +677,7 @@ compile_rescor_full_diagnostic_audit <- function(
         diagnostic_pass, "PASS", "REQUIRES REMEDIATION"
       )
     )
+
   if (
     nrow(summary) != expected_models || any(summary$family != "rescor") ||
       anyDuplicated(paste(summary$outcome, summary$model_index))
@@ -641,6 +685,7 @@ compile_rescor_full_diagnostic_audit <- function(
     stop("The residual-correlation diagnostic audit is incomplete.",
          call. = FALSE)
   }
+
   list(
     family = "rescor",
     diagnostic_summary = summary,
@@ -666,6 +711,7 @@ select_rescor_full_remedy_inputs <- function(inputs, audit) {
     selected,
     ~ paste(.x$specification$outcome, .x$specification$model_index)
   )
+
   if (
     !identical(audit$family, "rescor") || anyDuplicated(failed_keys) ||
       length(selected) != length(failed_keys) ||
@@ -674,6 +720,7 @@ select_rescor_full_remedy_inputs <- function(inputs, audit) {
     stop("The residual-correlation remedy inputs are invalid.",
          call. = FALSE)
   }
+
   selected
 }
 
@@ -683,6 +730,7 @@ select_rescor_full_uncorrelated_remedy_inputs <- function(inputs, audit) {
     selected,
     ~ paste(.x$specification$outcome, .x$specification$model_index)
   )
+
   if (
     length(selected) != 1L ||
       !identical(unname(keys), "function 23") ||
@@ -694,6 +742,7 @@ select_rescor_full_uncorrelated_remedy_inputs <- function(inputs, audit) {
       call. = FALSE
     )
   }
+
   purrr::map(selected, function(input) {
     input$specification$uncorrelated_study_effects <- TRUE
     input$specification$newly_uncorrelated_study_effects <- TRUE
@@ -710,6 +759,7 @@ combine_rescor_full_remedy_diagnostic_audit <- function(
 ) {
   failed <- dplyr::filter(initial_audit$diagnostic_summary, !diagnostic_pass)
   if (nrow(failed) == 0L) return(initial_audit)
+
   remedy <- dplyr::bind_rows(remedy_diagnostics) |>
     dplyr::mutate(
       status = dplyr::if_else(
@@ -718,6 +768,7 @@ combine_rescor_full_remedy_diagnostic_audit <- function(
     )
   failed_keys <- paste(failed$outcome, failed$model_index)
   remedy_keys <- paste(remedy$outcome, remedy$model_index)
+
   if (
     nrow(remedy) != nrow(failed) || anyDuplicated(remedy_keys) ||
       !setequal(failed_keys, remedy_keys)
@@ -725,6 +776,7 @@ combine_rescor_full_remedy_diagnostic_audit <- function(
     stop("Residual-correlation remedy diagnostics are incomplete.",
          call. = FALSE)
   }
+
   summary <- initial_audit$diagnostic_summary |>
     dplyr::filter(!paste(outcome, model_index) %in% remedy_keys) |>
     dplyr::bind_rows(remedy) |>
@@ -734,6 +786,7 @@ combine_rescor_full_remedy_diagnostic_audit <- function(
       )),
       model_index
     )
+
   list(
     family = "rescor",
     diagnostic_summary = summary,
@@ -756,6 +809,7 @@ combine_rescor_remedy_fit_manifests <- function(first, second) {
       )),
       model_index
     )
+
   if (
     any(combined$family != "rescor") ||
       anyDuplicated(paste(combined$outcome, combined$model_index)) ||
@@ -764,6 +818,7 @@ combine_rescor_remedy_fit_manifests <- function(first, second) {
     stop("The combined residual-correlation remedy manifest is invalid.",
          call. = FALSE)
   }
+
   combined
 }
 
@@ -786,6 +841,7 @@ combine_rescor_full_accepted_fit_manifest <- function(
       )),
       model_index
     )
+
   if (
     !isTRUE(final_audit$all_sampling_diagnostics_pass) ||
       nrow(accepted) != 104L || any(accepted$family != "rescor") ||
@@ -795,9 +851,15 @@ combine_rescor_full_accepted_fit_manifest <- function(
     stop("The accepted residual-correlation manifest is invalid.",
          call. = FALSE)
   }
+
   accepted
 }
 
+# Study-cluster and observation-level scoring ----
+
+# The study-cluster score and the observation-level score have different
+# holdout units. Use the observation-level results when comparing against
+# candidates scored per observation.
 compute_rescor_full_file_integrated_loo <- function(
     record,
     loo_draws = 4000L,
@@ -806,6 +868,7 @@ compute_rescor_full_file_integrated_loo <- function(
 ) {
   candidate <- read_rescor_fit_file(record$fit_path)
   input <- record$input
+
   if (
     candidate$model_index != input$specification$model_index ||
       !identical(candidate$outcome, input$specification$outcome)
@@ -813,6 +876,7 @@ compute_rescor_full_file_integrated_loo <- function(
     stop("The residual-correlation LOO record is misaligned.",
          call. = FALSE)
   }
+
   available <- posterior::ndraws(candidate$fit$draws("b_intercept"))
   draw_ids <- make_sensitivity_loo_draw_ids(
     available, min(as.integer(loo_draws), available)
@@ -823,6 +887,7 @@ compute_rescor_full_file_integrated_loo <- function(
   integrated_log_lik <- posterior::as_draws_matrix(
     candidate$fit$draws("log_lik_cluster_integrated")
   )[draw_ids, , drop = FALSE]
+
   if (
     ncol(integrated_log_lik) != nrow(input$cluster_manifest) ||
       anyNA(integrated_log_lik) || any(!is.finite(integrated_log_lik))
@@ -830,6 +895,7 @@ compute_rescor_full_file_integrated_loo <- function(
     stop("Integrated residual-correlation log likelihood is invalid.",
          call. = FALSE)
   }
+
   conditional_loo <- loo::loo(conditional_log_lik, cores = as.integer(cores))
   integrated_loo <- loo::loo(integrated_log_lik, cores = as.integer(cores))
   list(
@@ -865,6 +931,7 @@ select_rescor_full_gq_draws <- function(fit, loo_draws = 4000L) {
     format = "draws_array"
   )
   dimensions <- dim(draws)
+
   if (
     length(dimensions) != 3L || dimensions[[1L]] < 1L ||
       dimensions[[2L]] < 1L
@@ -872,12 +939,14 @@ select_rescor_full_gq_draws <- function(fit, loo_draws = 4000L) {
     stop("Residual-correlation posterior draws are invalid.",
          call. = FALSE)
   }
+
   requested <- min(as.integer(loo_draws), prod(dimensions[1:2]))
   draws_per_chain <- requested %/% dimensions[[2L]]
   if (draws_per_chain < 1L) {
     stop("Too few draws for the residual-correlation LOO audit.",
          call. = FALSE)
   }
+
   draw_ids <- make_sensitivity_loo_draw_ids(
     dimensions[[1L]],
     min(draws_per_chain, dimensions[[1L]])
@@ -897,6 +966,7 @@ make_rescor_full_observation_manifest <- function(input) {
     stop("Residual-correlation observation clusters are misaligned.",
          call. = FALSE)
   }
+
   cluster <- rep(seq_len(data$N_cluster), cluster_sizes)
   tibble::tibble(
     observation = seq_len(data$N),
@@ -924,6 +994,7 @@ compute_rescor_full_file_observation_loo <- function(
     stop("The residual-correlation LOO model was not compiled.",
          call. = FALSE)
   }
+
   candidate <- read_rescor_fit_file(record$fit_path)
   input <- record$input
   if (
@@ -933,6 +1004,7 @@ compute_rescor_full_file_observation_loo <- function(
     stop("The residual-correlation observation-LOO record is misaligned.",
          call. = FALSE)
   }
+
   selected_draws <- select_rescor_full_gq_draws(
     candidate$fit, loo_draws = loo_draws
   )
@@ -966,6 +1038,7 @@ compute_rescor_full_file_observation_loo <- function(
       as.integer(parallel_chains), dim(selected_draws)[[2L]]
     )
   )
+
   observation_log_lik <- posterior::as_draws_matrix(
     generated$draws(
       "log_lik_observation_conditional_integrated",
@@ -973,6 +1046,7 @@ compute_rescor_full_file_observation_loo <- function(
     )
   )
   observation_manifest <- make_rescor_full_observation_manifest(input)
+
   if (
     nrow(observation_log_lik) !=
       dim(selected_draws)[[1L]] * dim(selected_draws)[[2L]] ||
@@ -983,6 +1057,7 @@ compute_rescor_full_file_observation_loo <- function(
     stop("Conditional observation-level log likelihood is invalid.",
          call. = FALSE)
   }
+
   observation_loo <- loo::loo(
     observation_log_lik, cores = as.integer(cores)
   )
@@ -1019,6 +1094,7 @@ write_rescor_full_observation_loo_file <- function(result) {
     stop("Cannot archive an invalid observation-level LOO result.",
          call. = FALSE)
   }
+
   path <- sensitivity_reduction_file_path(
     family = "rescor",
     outcome = result$outcome,
@@ -1040,6 +1116,7 @@ audit_rescor_full_observation_loo_files <- function(
     stop("The observation-level residual-correlation LOO files cannot be audited.",
          call. = FALSE)
   }
+
   results <- purrr::map(manifest$integrated_loo_path, qs::qread)
   valid <- purrr::map_lgl(results, function(result) {
     identical(result$family, "rescor") &&
@@ -1055,6 +1132,7 @@ audit_rescor_full_observation_loo_files <- function(
     seq_len(26L),
     paste
   ))
+
   if (!all(valid) || anyDuplicated(keys) || !setequal(keys, expected_keys)) {
     stop("The observation-level residual-correlation LOO set is invalid.",
          call. = FALSE)
@@ -1076,6 +1154,7 @@ audit_rescor_full_observation_loo_files <- function(
       )),
       model_index
     )
+
   high_k_cases <- purrr::map_dfr(results, function(result) {
     pareto_k <- as.numeric(loo::pareto_k_values(result$loo))
     observations <- which(pareto_k > k_threshold)
@@ -1097,6 +1176,7 @@ audit_rescor_full_observation_loo_files <- function(
       model_index,
       observation
     )
+
   outcome_summary <- model_summary |>
     dplyr::group_by(outcome) |>
     dplyr::summarise(
@@ -1107,6 +1187,7 @@ audit_rescor_full_observation_loo_files <- function(
       maximum_pareto_k = max(maximum_pareto_k),
       .groups = "drop"
     )
+
   list(
     model_summary = model_summary,
     outcome_summary = outcome_summary,
@@ -1128,6 +1209,7 @@ make_rescor_full_observation_exact_records <- function(
 ) {
   cases <- observation_audit$high_k_cases
   expected <- as.integer(observation_audit$exact_refits_required)
+
   if (
     !identical(observation_audit$loo_unit,
                "observation_conditional_on_study") ||
@@ -1136,6 +1218,7 @@ make_rescor_full_observation_exact_records <- function(
     stop("The residual-correlation observation exact cases are invalid.",
          call. = FALSE)
   }
+
   fit_lookup <- accepted_fit_manifest |>
     dplyr::select(
       outcome, model_index,
@@ -1171,6 +1254,7 @@ make_rescor_full_observation_exact_records <- function(
       observation
     ) |>
     dplyr::mutate(case_id = dplyr::row_number(), .before = 1L)
+
   valid_hash <- function(path, expected_hash) {
     file.exists(path) && identical(
       digest::digest(path, file = TRUE, algo = "sha256"),
@@ -1190,6 +1274,7 @@ make_rescor_full_observation_exact_records <- function(
     },
     logical(1)
   )
+
   if (
     nrow(records) != expected ||
       anyDuplicated(paste(
@@ -1200,11 +1285,16 @@ make_rescor_full_observation_exact_records <- function(
     stop("The residual-correlation exact-record registry is invalid.",
          call. = FALSE)
   }
+
   purrr::map(seq_len(nrow(records)), function(index) {
     purrr::map(as.list(records[index, , drop = FALSE]), unname)
   })
 }
 
+# Exact observation holdouts ----
+
+# Leave out an individual observation while preserving its study context for
+# the conditional predictive density.
 make_rescor_leave_one_observation_out_data <- function(
     stan_data,
     observation
@@ -1217,6 +1307,7 @@ make_rescor_leave_one_observation_out_data <- function(
     stop("Invalid held-out residual-correlation observation.",
          call. = FALSE)
   }
+
   keep <- setdiff(seq_len(stan_data$N), observation)
   row_fields <- c(
     "y", "se_y", "x", "study", "arm", "outcome",
@@ -1228,6 +1319,7 @@ make_rescor_leave_one_observation_out_data <- function(
   ) {
     stop("Residual-correlation row data are incomplete.", call. = FALSE)
   }
+
   for (field in row_fields) {
     stan_data[[field]] <- stan_data[[field]][keep]
   }
@@ -1277,6 +1369,7 @@ rescor_held_out_conditional_integrated_log_lik <- function(
     observation >= data$cluster_start &
       observation <= data$cluster_end
   )
+
   if (length(cluster) != 1L) {
     stop("The held-out observation does not identify one study cluster.",
          call. = FALSE)
@@ -1307,12 +1400,14 @@ rescor_held_out_conditional_integrated_log_lik <- function(
   ) + outer(
     as.numeric(draws$b_rt), data$resistance_exercise_code[rows]
   )
+
   if (data$include_protein == 1L) {
     coefficient <- extract_cmdstan_indexed_draw_matrix(
       draws, "b_protein", k_basis
     )
     fixed_mean <- fixed_mean + coefficient %*% t(basis)
   }
+
   if (data$include_rt_interaction == 1L) {
     coefficient <- extract_cmdstan_indexed_draw_matrix(
       draws, "b_protein_rt", k_basis
@@ -1326,6 +1421,7 @@ rescor_held_out_conditional_integrated_log_lik <- function(
         byrow = TRUE
       )
   }
+
   if (data$include_moderators == 1L) {
     moderators <- extract_cmdstan_indexed_draw_matrix(
       draws, "b_moderator", 2L
@@ -1334,6 +1430,7 @@ rescor_held_out_conditional_integrated_log_lik <- function(
       outer(moderators[, 1L], data$duration_z[rows]) +
       outer(moderators[, 2L], data$age_z[rows])
   }
+
   study_design <- if (data$include_random_slope == 1L) {
     cbind(1, basis)
   } else {
@@ -1358,6 +1455,7 @@ rescor_held_out_conditional_integrated_log_lik <- function(
   held_out_log_lik <- numeric(n_draws)
   held_basis <- numeric(length(rows))
   held_basis[[held_position]] <- 1
+
   for (draw in seq_len(n_draws)) {
     study_covariance <- if (data$correlated_study_effects == 1L) {
       scaled_cholesky <- diag(study_sd[draw, ], nrow = k_study) %*%
@@ -1393,12 +1491,14 @@ rescor_held_out_conditional_integrated_log_lik <- function(
       log = TRUE
     )
   }
+
   if (
     anyNA(held_out_log_lik) || any(!is.finite(held_out_log_lik))
   ) {
     stop("The exact conditional held-out likelihood is invalid.",
          call. = FALSE)
   }
+
   held_out_log_lik
 }
 
@@ -1432,6 +1532,7 @@ make_rescor_observation_exact_correction <- function(
   patched_loo$pointwise[observation, "p_loo"] <-
     full_data_lpd - exact_elpd
   patched_loo$pointwise[observation, "looic"] <- -2 * exact_elpd
+
   if ("mcse_elpd_loo" %in% colnames(patched_loo$pointwise)) {
     patched_loo$pointwise[observation, "mcse_elpd_loo"] <- exact_mcse
   }
@@ -1439,6 +1540,7 @@ make_rescor_observation_exact_correction <- function(
   if (!is.null(patched_loo$diagnostics$n_eff)) {
     patched_loo$diagnostics$n_eff[[observation]] <- NA_real_
   }
+
   patched_loo <- update_primary_exact_loo_estimates(patched_loo)
   exact_refit_summary <- diagnostic |>
     dplyr::mutate(
@@ -1454,6 +1556,7 @@ make_rescor_observation_exact_correction <- function(
       exact_elpd_mcse = exact_mcse,
       .before = 1L
     )
+
   list(
     case_id = as.integer(record$case_id),
     family = "rescor",
@@ -1480,6 +1583,7 @@ fit_and_score_rescor_observation_exact_to_file <- function(
     result_path = NULL
 ) {
   if (!isTRUE(enabled)) return(new_sensitivity_pilot_skip("rescor"))
+
   if (is_sensitivity_pilot_skip(model)) {
     stop("The residual-correlation Stan model was not compiled.",
          call. = FALSE)
@@ -1497,6 +1601,7 @@ fit_and_score_rescor_observation_exact_to_file <- function(
     dir.create(dirname(result_path), recursive = TRUE, showWarnings = FALSE)
     result_path
   }
+
   config_signature <- list(
     stage = as.character(stage),
     chains = as.integer(config$chains),
@@ -1506,6 +1611,7 @@ fit_and_score_rescor_observation_exact_to_file <- function(
     max_treedepth_floor = as.integer(config$max_treedepth_floor),
     loo_draws = as.integer(loo_draws)
   )
+
   if (file.exists(output_path)) {
     existing <- tryCatch(qs::qread(output_path), error = function(e) NULL)
     existing_stage <- if (
@@ -1540,6 +1646,7 @@ fit_and_score_rescor_observation_exact_to_file <- function(
       return(normalizePath(output_path, winslash = "/", mustWork = TRUE))
     }
   }
+
   original <- read_rescor_fit_file(record$original_fit_path)
   integrated_result <- qs::qread(record$observation_loo_path)
   if (
@@ -1552,6 +1659,7 @@ fit_and_score_rescor_observation_exact_to_file <- function(
     stop("The observation exact-refit record is misaligned.",
          call. = FALSE)
   }
+
   training_data <- make_rescor_leave_one_observation_out_data(
     integrated_result$input$stan_data,
     record$observation
@@ -1573,6 +1681,7 @@ fit_and_score_rescor_observation_exact_to_file <- function(
   stale_directories <- stale_directories[startsWith(
     basename(stale_directories), paste0("case_", record$case_id, "_")
   )]
+
   if (length(stale_directories)) {
     unlink(stale_directories, recursive = TRUE, force = TRUE)
   }
@@ -1595,6 +1704,7 @@ fit_and_score_rescor_observation_exact_to_file <- function(
     refresh = 500,
     output_dir = output_dir
   )
+
   refit_seconds <- proc.time()[["elapsed"]] - start_time
   candidate <- list(
     family = "rescor",
@@ -1606,6 +1716,7 @@ fit_and_score_rescor_observation_exact_to_file <- function(
     output_dir = output_dir,
     fit = fit
   )
+
   diagnostic <- diagnose_cmdstan_pilot_fit(candidate)
   correction <- if (isTRUE(diagnostic$diagnostic_pass[[1L]])) {
     make_rescor_observation_exact_correction(
@@ -1619,6 +1730,7 @@ fit_and_score_rescor_observation_exact_to_file <- function(
   } else {
     NULL
   }
+
   diagnostic <- diagnostic |>
     dplyr::mutate(
       case_id = as.integer(record$case_id),
@@ -1627,6 +1739,7 @@ fit_and_score_rescor_observation_exact_to_file <- function(
       refit_seconds = as.numeric(refit_seconds),
       .before = 1L
     )
+
   compact_result <- list(
     case_id = as.integer(record$case_id),
     family = "rescor",
@@ -1641,6 +1754,7 @@ fit_and_score_rescor_observation_exact_to_file <- function(
     original_fit_sha256 = record$original_fit_sha256,
     observation_loo_sha256 = record$observation_loo_sha256
   )
+
   write_atomic_qs(compact_result, output_path)
 }
 
@@ -1684,6 +1798,7 @@ select_rescor_observation_exact_remedy_records <- function(
     )
   }) |>
     dplyr::arrange(case_id)
+
   failed <- dplyr::arrange(failed, case_id)
   if (
     nrow(failed) < 1L || length(selected) != nrow(failed) ||
@@ -1692,6 +1807,7 @@ select_rescor_observation_exact_remedy_records <- function(
     stop("The observation exact-refit remedy selection is invalid.",
          call. = FALSE)
   }
+
   selected
 }
 
@@ -1702,6 +1818,7 @@ combine_rescor_observation_exact_result_files <- function(
 ) {
   initial_paths <- unname(unlist(initial_paths, use.names = FALSE))
   remedy_paths <- unname(unlist(remedy_paths, use.names = FALSE))
+
   if (
     length(initial_paths) != expected_cases ||
       length(remedy_paths) < 1L ||
@@ -1710,6 +1827,7 @@ combine_rescor_observation_exact_result_files <- function(
     stop("The observation exact-refit result files are incomplete.",
          call. = FALSE)
   }
+
   initial <- purrr::map(
     initial_paths, read_rescor_observation_exact_result_file
   )
@@ -1726,6 +1844,7 @@ combine_rescor_observation_exact_result_files <- function(
   )
   combined <- combined[order(purrr::map_int(combined, "case_id"))]
   case_ids <- purrr::map_int(combined, "case_id")
+
   if (
     length(combined) != expected_cases || anyDuplicated(case_ids) ||
       !identical(unname(case_ids), seq_len(expected_cases))
@@ -1733,6 +1852,7 @@ combine_rescor_observation_exact_result_files <- function(
     stop("The combined observation exact-refit set is invalid.",
          call. = FALSE)
   }
+
   purrr::map(combined, function(result) {
     normalizePath(
       if (result$case_id %in% remedy_ids) {
@@ -1761,6 +1881,7 @@ collect_rescor_observation_exact_corrections <- function(
     stop("Observation exact corrections require passing diagnostics.",
          call. = FALSE)
   }
+
   paths <- unname(unlist(paths, use.names = FALSE))
   if (length(paths) != length(records) || any(!file.exists(paths))) {
     stop("The observation exact-result file set is incomplete.",
@@ -1769,6 +1890,7 @@ collect_rescor_observation_exact_corrections <- function(
   results <- purrr::map(paths, read_rescor_observation_exact_result_file)
   results <- results[order(purrr::map_int(results, "case_id"))]
   expected <- sort(purrr::map_int(records, "case_id"))
+
   if (
     !identical(unname(purrr::map_int(results, "case_id")), expected) ||
       any(!purrr::map_lgl(results, ~ is.list(.x$correction)))
@@ -1776,9 +1898,12 @@ collect_rescor_observation_exact_corrections <- function(
     stop("The observation exact corrections are incomplete.",
          call. = FALSE)
   }
+
   purrr::map(results, "correction")
 }
 
+# Replace only the matching pointwise scores and retain the observation
+# manifest for downstream comparison.
 apply_rescor_observation_exact_corrections <- function(
     observation_loo_manifest,
     exact_results
@@ -1790,6 +1915,7 @@ apply_rescor_observation_exact_corrections <- function(
   initial_keys <- purrr::map_chr(
     initial_results, ~ paste(.x$outcome, .x$model_index)
   )
+
   if (
     length(initial_results) != 104L || anyDuplicated(initial_keys) ||
       any(!purrr::map_lgl(
@@ -1800,6 +1926,7 @@ apply_rescor_observation_exact_corrections <- function(
     stop("The initial observation-level LOO set is invalid.",
          call. = FALSE)
   }
+
   warning_cases <- purrr::map_dfr(initial_results, function(result) {
     pareto_k <- as.numeric(loo::pareto_k_values(result$loo))
     tibble::tibble(
@@ -1809,6 +1936,7 @@ apply_rescor_observation_exact_corrections <- function(
     )
   }) |>
     dplyr::arrange(outcome, model_index, observation)
+
   exact_cases <- purrr::map_dfr(exact_results, function(result) {
     tibble::tibble(
       outcome = result$outcome,
@@ -1817,12 +1945,14 @@ apply_rescor_observation_exact_corrections <- function(
     )
   }) |>
     dplyr::arrange(outcome, model_index, observation)
+
   if (!identical(warning_cases, exact_cases)) {
     stop("Exact observation corrections do not match the high-k cases.",
          call. = FALSE)
   }
   final_results <- initial_results
   keys <- unique(paste(exact_cases$outcome, exact_cases$model_index))
+
   for (key in keys) {
     position <- match(key, initial_keys)
     patched <- final_results[[position]]
@@ -1844,6 +1974,7 @@ apply_rescor_observation_exact_corrections <- function(
       "correlated_conditional_observation_level_psis_plus_exact"
     final_results[[position]] <- patched
   }
+
   exact_summary <- purrr::map_dfr(exact_results, "exact_refit_summary")
   model_summary <- purrr::map_dfr(final_results, function(result) {
     summarise_primary_loo_method(
@@ -1857,6 +1988,7 @@ apply_rescor_observation_exact_corrections <- function(
         .before = 1L
       )
   })
+
   list(
     family = "rescor",
     results = final_results,
@@ -1870,6 +2002,11 @@ apply_rescor_observation_exact_corrections <- function(
   )
 }
 
+# Exact study holdouts and reporting ----
+
+# Hold out the entire study cluster for the separate study-level check. Later
+# reporting reads the accepted fit and checkpoint to generate prediction
+# draws.
 make_rescor_leave_one_study_out_data <- function(stan_data, cluster) {
   cluster <- as.integer(cluster)
   if (
@@ -1878,6 +2015,7 @@ make_rescor_leave_one_study_out_data <- function(stan_data, cluster) {
   ) {
     stop("Invalid held-out residual-correlation study.", call. = FALSE)
   }
+
   first <- stan_data$cluster_start[[cluster]]
   last <- stan_data$cluster_end[[cluster]]
   keep <- setdiff(seq_len(stan_data$N), seq.int(first, last))
@@ -1885,12 +2023,14 @@ make_rescor_leave_one_study_out_data <- function(stan_data, cluster) {
     "y", "se_y", "x", "study", "arm", "outcome",
     "resistance_exercise_code", "age_z", "duration_z"
   )
+
   if (
     !all(row_fields %in% names(stan_data)) ||
       any(vapply(stan_data[row_fields], length, integer(1)) != stan_data$N)
   ) {
     stop("Residual-correlation row data are incomplete.", call. = FALSE)
   }
+
   for (field in row_fields) {
     stan_data[[field]] <- stan_data[[field]][keep]
   }
@@ -1908,6 +2048,7 @@ make_rescor_leave_one_study_out_data <- function(stan_data, cluster) {
   stan_data$cluster_start <- as.integer(c(
     1L, utils::head(stan_data$cluster_end, -1L) + 1L
   ))
+
   if (max(runs$lengths) <= 1L) {
     stop("The training data cannot identify residual correlation.",
          call. = FALSE)
@@ -1939,6 +2080,7 @@ read_rescor_full_exact_loo_file <- function(path) {
     refit$fitted_candidate$fit$output_files(),
     error = function(e) character()
   )
+
   if (
     !is.list(refit) || !identical(refit$family, "rescor") ||
       !inherits(refit$fitted_candidate$fit, "CmdStanMCMC") ||
@@ -1947,6 +2089,7 @@ read_rescor_full_exact_loo_file <- function(path) {
     stop("The residual-correlation exact-refit file is invalid.",
          call. = FALSE)
   }
+
   refit
 }
 
@@ -1957,6 +2100,7 @@ fit_rescor_full_exact_loo_to_file <- function(
     config
 ) {
   if (!isTRUE(enabled)) return(new_sensitivity_pilot_skip("rescor"))
+
   if (is_sensitivity_pilot_skip(model)) {
     stop("The residual-correlation Stan model was not compiled.",
          call. = FALSE)
@@ -1970,6 +2114,7 @@ fit_rescor_full_exact_loo_to_file <- function(
   } else {
     NULL
   }
+
   if (
     !is.null(existing) &&
       identical(as.integer(existing$case_id), as.integer(record$case_id)) &&
@@ -1983,6 +2128,7 @@ fit_rescor_full_exact_loo_to_file <- function(
   ) {
     return(normalizePath(existing_path, winslash = "/", mustWork = TRUE))
   }
+
   integrated_result <- qs::qread(record$integrated_loo_path)
   input <- integrated_result$input
   if (
@@ -1992,6 +2138,7 @@ fit_rescor_full_exact_loo_to_file <- function(
     stop("The residual-correlation exact-refit record is invalid.",
          call. = FALSE)
   }
+
   training_data <- make_rescor_leave_one_study_out_data(
     input$stan_data, record$observation
   )
@@ -2020,6 +2167,7 @@ fit_rescor_full_exact_loo_to_file <- function(
     refresh = 100,
     output_dir = output_dir
   )
+
   fitted_candidate <- list(
     family = "rescor",
     outcome = record$outcome,
@@ -2030,6 +2178,7 @@ fit_rescor_full_exact_loo_to_file <- function(
     output_dir = output_dir,
     fit = fit
   )
+
   refit <- list(
     case_id = as.integer(record$case_id),
     family = "rescor",
@@ -2043,6 +2192,7 @@ fit_rescor_full_exact_loo_to_file <- function(
     integrated_result = integrated_result,
     refit_seconds = proc.time()[["elapsed"]] - start_time
   )
+
   write_atomic_qs(refit, existing_path)
 }
 
@@ -2079,12 +2229,14 @@ rescor_held_out_integrated_log_lik <- function(
   ) + outer(
     as.numeric(draws$b_rt), data$resistance_exercise_code[rows]
   )
+
   if (data$include_protein == 1L) {
     coefficient <- extract_cmdstan_indexed_draw_matrix(
       draws, "b_protein", k_basis
     )
     fixed_mean <- fixed_mean + coefficient %*% t(basis)
   }
+
   if (data$include_rt_interaction == 1L) {
     coefficient <- extract_cmdstan_indexed_draw_matrix(
       draws, "b_protein_rt", k_basis
@@ -2098,6 +2250,7 @@ rescor_held_out_integrated_log_lik <- function(
         byrow = TRUE
       )
   }
+
   if (data$include_moderators == 1L) {
     moderators <- extract_cmdstan_indexed_draw_matrix(
       draws, "b_moderator", 2L
@@ -2106,6 +2259,7 @@ rescor_held_out_integrated_log_lik <- function(
       outer(moderators[, 1L], data$duration_z[rows]) +
       outer(moderators[, 2L], data$age_z[rows])
   }
+
   study_design <- if (data$include_random_slope == 1L) {
     cbind(1, basis)
   } else {
@@ -2128,6 +2282,7 @@ rescor_held_out_integrated_log_lik <- function(
   residual_scale <- outer(data$se_y[rows], data$se_y[rows])
   observed <- data$y[rows]
   output <- numeric(n_draws)
+
   for (draw in seq_len(n_draws)) {
     study_covariance <- if (data$correlated_study_effects == 1L) {
       scaled_cholesky <- diag(study_sd[draw, ], nrow = k_study) %*%
@@ -2151,6 +2306,7 @@ rescor_held_out_integrated_log_lik <- function(
         sum(standardised^2)
     )
   }
+
   output
 }
 
@@ -2187,6 +2343,7 @@ compute_rescor_full_exact_loo_file <- function(path, diagnostic_audit) {
   patched_loo$pointwise[observation, "p_loo"] <-
     full_data_lpd - exact_elpd
   patched_loo$pointwise[observation, "looic"] <- -2 * exact_elpd
+
   if ("mcse_elpd_loo" %in% colnames(patched_loo$pointwise)) {
     patched_loo$pointwise[observation, "mcse_elpd_loo"] <- exact_mcse
   }
@@ -2194,6 +2351,7 @@ compute_rescor_full_exact_loo_file <- function(path, diagnostic_audit) {
   if (!is.null(patched_loo$diagnostics$n_eff)) {
     patched_loo$diagnostics$n_eff[[observation]] <- NA_real_
   }
+
   patched_loo <- update_primary_exact_loo_estimates(patched_loo)
   cluster_row <- refit$input$cluster_manifest[observation, , drop = FALSE]
   exact_refit_summary <- summarise_eiv_exact_loo_refit(refit) |>
@@ -2205,6 +2363,7 @@ compute_rescor_full_exact_loo_file <- function(path, diagnostic_audit) {
       exact_minus_psis_elpd = exact_elpd - old_elpd,
       exact_elpd_mcse = exact_mcse
     )
+
   list(
     case_id = refit$case_id,
     family = "rescor",
@@ -2239,6 +2398,7 @@ apply_rescor_full_exact_loo_corrections <- function(
     }
     result
   })
+
   audit
 }
 
@@ -2256,6 +2416,7 @@ make_rescor_full_prediction_records <- function(
     grid_step = 0.02,
     seed = seed
   )
+
   purrr::map(records, function(record) {
     record$family <- "rescor"
     record$prediction_type <- "rescor"
@@ -2279,6 +2440,7 @@ write_rescor_full_prediction_draw_file <- function(
     stop("A residual-correlation prediction record is invalid.",
          call. = FALSE)
   }
+
   checkpoint <- if (is.null(checkpoint_path)) {
     NULL
   } else {
@@ -2287,6 +2449,7 @@ write_rescor_full_prediction_draw_file <- function(
     )
   }
   candidate <- read_rescor_fit_file(record$fit_path)
+
   if (
     candidate$model_index != record$model_index ||
       !identical(candidate$outcome, record$outcome) ||
@@ -2297,6 +2460,7 @@ write_rescor_full_prediction_draw_file <- function(
     stop("A residual-correlation prediction fit does not match its record.",
          call. = FALSE)
   }
+
   all_draws <- posterior::as_draws_matrix(
     candidate$fit$draws("mu_grid")
   )
@@ -2315,6 +2479,7 @@ write_rescor_full_prediction_draw_file <- function(
     ),
     protein_intake = protein_intake_raw
   )
+
   if (
     nrow(draws) != record$draw_count || ncol(draws) != nrow(grid) ||
       anyNA(draws) || any(!is.finite(draws))
@@ -2322,6 +2487,7 @@ write_rescor_full_prediction_draw_file <- function(
     stop("Residual-correlation prediction draws are incomplete.",
          call. = FALSE)
   }
+
   reduction <- list(
     family = "rescor",
     outcome = record$outcome,
@@ -2341,6 +2507,7 @@ write_rescor_full_prediction_draw_file <- function(
       reference_intake = NULL
     )
   )
+
   path <- if (is.null(result_path)) {
     sensitivity_reduction_file_path(
       family = "rescor",
@@ -2352,5 +2519,6 @@ write_rescor_full_prediction_draw_file <- function(
     dir.create(dirname(result_path), recursive = TRUE, showWarnings = FALSE)
     result_path
   }
+
   write_atomic_qs(reduction, path)
 }

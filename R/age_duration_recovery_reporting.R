@@ -5,6 +5,10 @@ iad_recovery_reporting_inputs <- function() {
     c("manifest.csv", "stacking_weights.csv.gz", "dose_response_predictions.csv.gz"))
 }
 
+# Reporting records for recovered parents ----
+
+# Join the recovery acceptance mapping to the frozen parent data and weights
+# before checking that each recovered ensemble can support reporting.
 iad_recovery_reporting_records <- function(accepted_path, checkpoints, source_files) {
   iad_require_phase("recover_report")
   if (!all(file.exists(source_files))) stop("Missing historical reporting inputs.")
@@ -55,6 +59,8 @@ iad_recovery_model_average <- function(record, grid, draws) {
     class = "primary_model_average")
 }
 
+# Compare the recovered total-intake ensemble with the historical curve on
+# the same reference grid and write an audit for this outcome.
 iad_recovery_report_scope <- function(record, checkpoints) {
   iad_require_phase("recover_report")
   outcome <- record$outcome; models <- record$models
@@ -63,6 +69,7 @@ iad_recovery_report_scope <- function(record, checkpoints) {
   n_draws <- 4000L
   allocation <- iad_model_allocation(models, n_draws, record$seed)
   draws <- matrix(NA_real_, n_draws, nrow(grid$newdata))
+
   for (i in seq_len(nrow(models))) {
     selected <- which(allocation == i)
     if (!length(selected)) next
@@ -81,6 +88,7 @@ iad_recovery_report_scope <- function(record, checkpoints) {
     draws[selected, ] <- prediction
     rm(candidate, prediction); gc(verbose = FALSE)
   }
+
   if (anyNA(draws)) stop("Incomplete recovered posterior mixture.")
   average <- iad_recovery_model_average(record, grid, draws)
   dose <- summarise_primary_dose_response(average)
@@ -92,6 +100,7 @@ iad_recovery_report_scope <- function(record, checkpoints) {
     if (length(reference) != 1L) stop("Missing unique recovery reference dose.")
     increments[, columns] <- sweep(draws[, columns, drop = FALSE], 1L, draws[, reference], "-")
   }
+
   contrasts <- compute_primary_heatmap_contrasts(average, data, protein_min = grid$protein_min)
   previous <- record$historical_dose
   keys <- c("resistance_exercise_code", "protein_intake")
@@ -99,6 +108,7 @@ iad_recovery_report_scope <- function(record, checkpoints) {
   comparison <- dplyr::left_join(dose, previous, by = keys, suffix = c("_recovered", "_historical"))
   if (nrow(comparison) != nrow(dose) || nrow(previous) != nrow(dose) ||
       anyNA(comparison$estimate_historical)) stop("Historical and recovered reporting grids differ.")
+
   comparison$estimate_difference <- comparison$estimate_recovered - comparison$estimate_historical
   checks <- tibble::tibble(check = c("18 accepted primary candidates", "4000 finite mixture draws",
     "weights sum to one", "age 25 and duration 12", "body mass at outcome mean",
@@ -108,6 +118,7 @@ iad_recovery_report_scope <- function(record, checkpoints) {
       all(grid$newdata$age_centre == 0 & grid$newdata$duration_centre == 0),
       all(grid$newdata$body_mass_outcome_z == 0), nrow(comparison) == nrow(previous),
       all(increments[, abs(grid$keys$protein_intake - grid$reference_g_day) < 1e-10] == 0)))
+
   if (!all(checks$passed)) stop("Recovery reporting checks failed.")
   allocation_table <- dplyr::mutate(models, draws = tabulate(allocation, nrow(models)),
     weight_difference = stacking_weight - historical_weight)
@@ -130,6 +141,10 @@ iad_recovery_report_scope <- function(record, checkpoints) {
   c(unname(paths), iad_csv(file_manifest, file.path(root, "file_manifest.csv")))
 }
 
+# Audit and reporting gate ----
+
+# Collect the recovery report results so the interaction workflow can check
+# the accepted recovery mapping before proceeding.
 iad_recovery_reporting_audit <- function(paths, accepted_path) {
   paths <- unname(unlist(paths))
   manifests <- paths[basename(paths) == "file_manifest.csv"]
@@ -146,6 +161,7 @@ iad_recovery_reporting_audit <- function(paths, accepted_path) {
       file_manifest = path, sha256 = iad_hash(path),
       accepted_manifest_sha256 = settings$accepted_manifest_sha256)
   })
+
   rows <- dplyr::bind_rows(rows)
   if (!setequal(rows$outcome, iad_outcomes()) || anyDuplicated(rows$outcome)) stop("Missing recovery outcome.")
   iad_csv(rows, iad_path("recovery", "reporting", "audit.csv"))

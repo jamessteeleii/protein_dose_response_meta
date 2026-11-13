@@ -1,5 +1,10 @@
 # Incremental systematic-review update -------------------------------------
 
+# Workbook integration and preparation audit ----
+
+# Start from the canonical and update workbooks, join records by their
+# extraction keys, and check the combined analysis against the reviewed
+# decisions and frozen original sample.
 update_2026_outcome_names <- function() {
   c(
     whole_body = "whole body lean mass",
@@ -33,6 +38,8 @@ harmonise_workbook_table_types <- function(x, y) {
   list(x = x, y = y)
 }
 
+# Merge the canonical and update sheets while checking that existing records
+# retain their identities and each sheet still has unique keys.
 combine_protein_workbooks <- function(canonical_data, update_data) {
   required_sheets <- c(
     "study_characteristics",
@@ -131,6 +138,7 @@ prepare_update_2026_systematic_review_audit_data <- function(reviewed_data) {
     "analysis_exclusion_count", "analysis_exclusion_reasons"
   )
   missing <- setdiff(required, names(reviewed_data))
+
   if (length(missing)) {
     stop(
       "Combined review data are missing columns: ",
@@ -138,6 +146,7 @@ prepare_update_2026_systematic_review_audit_data <- function(reviewed_data) {
       call. = FALSE
     )
   }
+
   reviewed_data |>
     dplyr::mutate(
       exclusion_author_decision = !.data$include_quantitative,
@@ -217,6 +226,8 @@ validate_combined_primary_preparation <- function(
     dplyr::filter(!has_change_sd, !is.na(r)) |>
     dplyr::count(r, sort = TRUE)
 
+  # Treat agreement with the frozen sample as a prerequisite for the updated
+  # primary fits.
   checks <- tibble::tibble(
     check = c(
       "combined workbook contains all source study rows",
@@ -334,6 +345,11 @@ write_combined_primary_preparation_audit <- function(
     unname()
 }
 
+# Fit the updated primary ensemble ----
+
+# Expand the primary candidate registry across outcome groups. Prepare inputs,
+# fit individual candidates, and record which initial or remedied fits are
+# accepted.
 make_update_2026_primary_fit_specifications <- function(
   primary_specifications,
   first_remedy_specifications,
@@ -739,6 +755,11 @@ write_update_2026_primary_accepted_fit_manifest <- function(
   output_file
 }
 
+# Integrated and exact leave-one-out scoring ----
+
+# Match the accepted fits to their observation-level records for integrated
+# PSIS-LOO. Cases flagged by Pareto k proceed to exact holdout scoring before
+# stacking.
 make_update_2026_primary_loo_records <- function(accepted_fit_manifest) {
   required <- c("outcome", "model_index", "fit_path", "stage")
   if (
@@ -761,6 +782,7 @@ make_update_2026_primary_loo_records <- function(accepted_fit_manifest) {
       )
     }
   )
+
   names(records) <- paste0(
     accepted_fit_manifest$outcome,
     "_model_",
@@ -827,6 +849,7 @@ compute_update_2026_primary_integrated_loo_to_file <- function(
   temporary_file <- paste0(output_file, ".tmp-", Sys.getpid())
   on.exit(unlink(temporary_file, force = TRUE), add = TRUE)
   qs::qsave(integrated, temporary_file, preset = "high")
+
   if (!file.copy(temporary_file, output_file, overwrite = TRUE)) {
     stop("Could not finalise an updated primary LOO reduction.", call. = FALSE)
   }
@@ -858,6 +881,7 @@ audit_update_2026_primary_integrated_loo_files <- function(
       result$model_index %in% seq_len(26L) &&
       nrow(result$observation_manifest) == nrow(result$loo$pointwise)
   })
+
   keys <- purrr::map_chr(
     results,
     ~ paste(.x$outcome, .x$model_index, sep = "|")
@@ -867,6 +891,7 @@ audit_update_2026_primary_integrated_loo_files <- function(
     seq_len(26L),
     function(outcome, model_index) paste(outcome, model_index, sep = "|")
   ))
+
   if (!all(valid) || anyDuplicated(keys) || !setequal(keys, expected_keys)) {
     stop("The updated primary integrated-LOO set is invalid.", call. = FALSE)
   }
@@ -885,6 +910,7 @@ audit_update_2026_primary_integrated_loo_files <- function(
       ),
       model_index
     )
+
   high_k_cases <- observation_diagnostics |>
     dplyr::filter(integrated_pareto_k > k_threshold) |>
     dplyr::arrange(
@@ -895,6 +921,7 @@ audit_update_2026_primary_integrated_loo_files <- function(
       model_index,
       observation
     )
+
   outcome_summary <- model_summary |>
     dplyr::group_by(outcome) |>
     dplyr::summarise(
@@ -906,6 +933,7 @@ audit_update_2026_primary_integrated_loo_files <- function(
       stacking_ready = all(n_pareto_k_gt_threshold == 0L),
       .groups = "drop"
     )
+
   reduction_manifest <- purrr::map2_dfr(
     paths,
     results,
@@ -972,6 +1000,7 @@ write_update_2026_primary_integrated_loo_audit <- function(
     ),
     high_k_cases = file.path(output_dir, "high_k_cases.csv")
   )
+
   readr::write_csv(audit$reduction_manifest, paths[["reduction_manifest"]])
   readr::write_csv(audit$model_summary, paths[["model_summary"]])
   readr::write_csv(audit$outcome_summary, paths[["outcome_summary"]])
@@ -1013,6 +1042,7 @@ make_update_2026_primary_exact_loo_records <- function(integrated_loo_audit) {
   )
   observed <- cases |>
     dplyr::select(outcome, model_index, observation)
+
   if (
     !isTRUE(all.equal(observed, expected, check.attributes = FALSE)) ||
       anyNA(cases$fit_path) || anyNA(cases$integrated_loo_path) ||
@@ -1088,6 +1118,7 @@ validate_update_2026_primary_exact_loo_inputs <- function(records) {
       valid = valid
     )
   })
+
   if (nrow(checks) != 3L || !all(checks$valid)) {
     stop("The updated primary exact-LOO input preflight failed.",
          call. = FALSE)
@@ -1110,6 +1141,9 @@ write_update_2026_primary_exact_loo_input_preflight <- function(
   output_file
 }
 
+# Reconstruct the held-out observation's predictor and variance components
+# from the refit and the original rows, keeping their model and observation
+# indices aligned.
 get_update_2026_primary_exact_components <- function(
   refitted_model,
   original_data,
@@ -1123,6 +1157,7 @@ get_update_2026_primary_exact_components <- function(
   linear_slope_indices <- c(9L, 12L, 21L, 24L)
   spline_slope_indices <- c(10L, 13L, 22L, 25L)
   factor_smooth_indices <- c(11L, 14L, 23L, 26L)
+
   if (model_index %in% factor_smooth_indices) {
     stop("Updated exact scoring for factor smooths is not required by this audit.",
          call. = FALSE)
@@ -1139,6 +1174,7 @@ get_update_2026_primary_exact_components <- function(
   } else {
     "Intercept"
   }
+
   study_design <- if (length(coefficient_labels) == 1L) {
     matrix(1, nrow = nrow(original_data), ncol = 1L)
   } else if (model_index %in% linear_slope_indices) {
@@ -1149,6 +1185,7 @@ get_update_2026_primary_exact_components <- function(
       as.matrix(lspline::lspline(original_data$protein_intake, 0.5))
     )
   }
+
   if (
     nrow(study_design) != nrow(original_data) ||
       ncol(study_design) != length(coefficient_labels) ||
@@ -1184,6 +1221,7 @@ get_update_2026_primary_exact_components <- function(
       }
     }
   }
+
   expected_correlations <-
     length(coefficient_labels) * (length(coefficient_labels) - 1L) / 2L
   if (
@@ -1204,6 +1242,7 @@ get_update_2026_primary_exact_components <- function(
     seq_len(n_coefficients),
     function(x) matrix(NA_real_, n_draws, nrow(original_data))
   )
+
   if (n_coefficients == 1L) {
     study_basis[[1L]] <- outer(
       draws[[study_sd_variables[[1L]]]],
@@ -1257,6 +1296,7 @@ get_update_2026_primary_exact_components <- function(
     transform = FALSE,
     allow_new_levels = TRUE
   )
+
   if (
     !identical(dim(linear_predictor), c(n_draws, nrow(original_data))) ||
       anyNA(linear_predictor) || any(!is.finite(linear_predictor))
@@ -1292,6 +1332,7 @@ compute_update_2026_primary_exact_loo_case <- function(refit, components = NULL)
       model_index = as.integer(refit$model_index)
     )
   }
+
   if (!identical(components$structure, integrated_result$study_structure)) {
     stop("The exact-LOO study structure changed during refitting.",
          call. = FALSE)
@@ -1308,6 +1349,7 @@ compute_update_2026_primary_exact_loo_case <- function(refit, components = NULL)
     outcome_intercept_sd = components$outcome_intercept_sd,
     study_basis = components$study_basis
   )
+
   held_out_log_lik <- integrated_log_lik[, observation]
   maximum_log_lik <- max(held_out_log_lik)
   scaled_likelihood <- exp(held_out_log_lik - maximum_log_lik)
@@ -1324,6 +1366,7 @@ compute_update_2026_primary_exact_loo_case <- function(refit, components = NULL)
   patched_loo$pointwise[observation, "elpd_loo"] <- exact_elpd
   patched_loo$pointwise[observation, "p_loo"] <- full_data_lpd - exact_elpd
   patched_loo$pointwise[observation, "looic"] <- -2 * exact_elpd
+
   if ("mcse_elpd_loo" %in% colnames(patched_loo$pointwise)) {
     patched_loo$pointwise[observation, "mcse_elpd_loo"] <- exact_mcse
   }
@@ -1335,6 +1378,7 @@ compute_update_2026_primary_exact_loo_case <- function(refit, components = NULL)
   ) {
     patched_loo$diagnostics$n_eff[[observation]] <- NA_real_
   }
+
   patched_loo <- update_primary_exact_loo_estimates(patched_loo)
 
   initial_summary <- integrated_result$comparison |>
@@ -1356,6 +1400,7 @@ compute_update_2026_primary_exact_loo_case <- function(refit, components = NULL)
       exact_loo_refits = 1L,
       exact_refit_seconds = refit$refit_seconds
     )
+
   comparison <- dplyr::bind_rows(
     dplyr::mutate(
       initial_summary,
@@ -1371,6 +1416,7 @@ compute_update_2026_primary_exact_loo_case <- function(refit, components = NULL)
       study_structure = integrated_result$study_structure,
       .before = 1L
     )
+
   observation_diagnostics <- integrated_result$observation_diagnostics |>
     dplyr::mutate(
       exact_loo_refit = dplyr::row_number() == observation,
@@ -1392,6 +1438,7 @@ compute_update_2026_primary_exact_loo_case <- function(refit, components = NULL)
         exact_loo_refit, FALSE, integrated_new_warning
       )
     )
+
   diagnostics <- summarise_primary_exact_loo_refit_diagnostics(refit)
   exact_summary <- diagnostics |>
     dplyr::mutate(
@@ -1462,6 +1509,7 @@ fit_and_score_update_2026_primary_exact_loo_to_file <- function(record) {
     fitted_candidate = candidate,
     integrated_result = integrated_result
   )
+
   refit <- fit_primary_integrated_exact_loo_case(job)
   correction <- compute_update_2026_primary_exact_loo_case(refit)
 
@@ -1473,6 +1521,7 @@ fit_and_score_update_2026_primary_exact_loo_to_file <- function(record) {
     stop("Could not finalise an updated primary exact-LOO correction.",
          call. = FALSE)
   }
+
   unlink(temporary_file, force = TRUE)
   normalizePath(output_file, winslash = "/", mustWork = TRUE)
 }
@@ -1486,6 +1535,7 @@ audit_update_2026_primary_exact_loo_files <- function(paths) {
     stop("The updated primary exact-LOO files are incomplete.",
          call. = FALSE)
   }
+
   corrections <- purrr::map(paths, qs::qread)
   diagnostic_summary <- purrr::map_dfr(
     corrections,
@@ -1496,6 +1546,7 @@ audit_update_2026_primary_exact_loo_files <- function(paths) {
       model_index,
       observation
     )
+
   correction_manifest <- purrr::map2_dfr(
     paths,
     corrections,
@@ -1514,6 +1565,7 @@ audit_update_2026_primary_exact_loo_files <- function(paths) {
       )
     }
   )
+
   if (
     nrow(diagnostic_summary) != 3L ||
       nrow(correction_manifest) != 3L ||
@@ -1560,6 +1612,7 @@ make_update_2026_primary_final_loo_manifest <- function(
     stop("Final LOO assembly requires all exact refits to pass.",
          call. = FALSE)
   }
+
   exact <- exact_loo_audit$correction_manifest |>
     dplyr::select(
       outcome, model_index, observation, study_structure,
@@ -1591,6 +1644,7 @@ make_update_2026_primary_final_loo_manifest <- function(
       ),
       model_index
     )
+
   if (
     nrow(manifest) != 104L ||
       sum(manifest$loo_source == "exact_correction") != 3L ||
@@ -1601,6 +1655,7 @@ make_update_2026_primary_final_loo_manifest <- function(
     stop("The updated primary final LOO manifest is invalid.",
          call. = FALSE)
   }
+
   manifest
 }
 
@@ -1627,6 +1682,7 @@ audit_update_2026_primary_final_loo <- function(
       ) &&
       nrow(result$loo$pointwise) == nrow(result$observation_manifest)
   })
+
   if (!all(valid) || !identical(keys, manifest_keys)) {
     stop("A final updated primary LOO object failed validation.",
          call. = FALSE)
@@ -1641,6 +1697,7 @@ audit_update_2026_primary_final_loo <- function(
         exact_refit_seconds, 0
       )
     )
+
   observation_diagnostics <- purrr::map_dfr(
     results,
     function(result) {
@@ -1656,6 +1713,7 @@ audit_update_2026_primary_final_loo <- function(
       diagnostics
     }
   )
+
   remaining_high_k <- observation_diagnostics |>
     dplyr::filter(integrated_pareto_k > k_threshold)
   exact_refit_summary <- exact_loo_audit$diagnostic_summary
@@ -1689,6 +1747,7 @@ audit_update_2026_primary_final_loo <- function(
       stacking_ready =
         stacking_ready & exact_refit_diagnostics_pass
     )
+
   stacking_ready <-
     nrow(remaining_high_k) == 0L &&
     all(exact_refit_summary$diagnostic_pass) &&
@@ -1736,6 +1795,7 @@ write_update_2026_primary_final_loo_audit <- function(
     ),
     exact_refit_summary = file.path(output_dir, "exact_refit_summary.csv")
   )
+
   readr::write_csv(audit$final_loo_manifest, paths[["final_loo_manifest"]])
   readr::write_csv(audit$model_summary, paths[["model_summary"]])
   readr::write_csv(audit$outcome_summary, paths[["outcome_summary"]])
@@ -1769,6 +1829,7 @@ compute_update_2026_primary_stacking_weights <- function(final_loo_audit) {
     }
     purrr::map(records$final_loo_path, qs::qread)
   })
+
   names(final_results) <- outcomes
   compute_primary_stacking_weights(final_results)
 }
@@ -1787,6 +1848,7 @@ write_update_2026_primary_stacking_weights <- function(
       nonzero_models = sum(stacking_weight > 1e-12),
       .groups = "drop"
     )
+
   if (
     nrow(summary) != 104L || nrow(audit) != 4L ||
       any(abs(audit$weight_sum - 1) > 1e-8)
@@ -1794,11 +1856,16 @@ write_update_2026_primary_stacking_weights <- function(
     stop("Updated primary stacking weights failed validation.",
          call. = FALSE)
   }
+
   dir.create(dirname(output_file), recursive = TRUE, showWarnings = FALSE)
   readr::write_csv(summary, output_file)
   output_file
 }
 
+# Primary ensemble predictions and reports ----
+
+# Join accepted fit paths to their final stacking weights, then generate
+# population and arm-conditional summaries for each outcome.
 make_update_2026_primary_reporting_records <- function(
   accepted_fit_manifest,
   stacking_weights_summary
@@ -1820,6 +1887,7 @@ make_update_2026_primary_reporting_records <- function(
       ),
       model_index
     )
+
   if (
     nrow(records) != 104L || anyNA(records$stacking_weight) ||
       any(!file.exists(records$fit_path))
@@ -1851,6 +1919,7 @@ make_update_2026_primary_reporting_records <- function(
       models = table
     )
   })
+
   names(output) <- names(seeds)
   output
 }
@@ -1932,6 +2001,7 @@ build_update_2026_primary_model_average_to_file <- function(
     rm(candidate, draw_matrix)
     gc(verbose = FALSE)
   }
+
   if (anyNA(averaged_draws)) {
     stop("The updated posterior mixture is incomplete.", call. = FALSE)
   }
@@ -1955,6 +2025,7 @@ build_update_2026_primary_model_average_to_file <- function(
       seed = record$seed
     )
   )
+
   class(output) <- c("primary_model_average", class(output))
 
   dir.create(dirname(output_file), recursive = TRUE, showWarnings = FALSE)
@@ -1965,6 +2036,7 @@ build_update_2026_primary_model_average_to_file <- function(
     stop("Could not finalise an updated primary model average.",
          call. = FALSE)
   }
+
   unlink(temporary_file, force = TRUE)
   normalizePath(output_file, winslash = "/", mustWork = TRUE)
 }
@@ -1977,6 +2049,7 @@ make_primary_arm_re_formula <- function(model) {
   if (is.null(random_terms) || !nrow(random_terms)) {
     stop("A primary model has no group-level terms.", call. = FALSE)
   }
+
   random_terms <- random_terms |>
     dplyr::filter(.data$group %in% c("study_no", "arm_no"))
   if (!nrow(random_terms) || !"arm_no" %in% random_terms$group) {
@@ -1997,6 +2070,7 @@ make_primary_arm_re_formula <- function(model) {
       random_terms$group[[index]]
     )
   }, character(1L))
+
   stats::as.formula(
     paste("~", paste(formula_parts, collapse = " + ")),
     env = environment(model$formula)
@@ -2009,6 +2083,7 @@ make_primary_arm_prediction_ids <- function(data) {
     "resistance_exercise_code", "duration_centre", "age_centre"
   )
   missing_columns <- setdiff(key_columns, names(data))
+
   if (length(missing_columns)) {
     stop(
       "Primary arm-prediction data are missing columns: ",
@@ -2016,6 +2091,7 @@ make_primary_arm_prediction_ids <- function(data) {
       call. = FALSE
     )
   }
+
   keys <- lapply(data[key_columns], function(column) {
     if (is.numeric(column)) {
       return(ifelse(is.na(column), "<NA>", sprintf("%.17g", column)))
@@ -2034,6 +2110,7 @@ validate_primary_arm_candidate_data <- function(candidate_data, data) {
   # checked too whenever the candidate retained it.
   required_key_columns <- c("arm_no", "outcome_no")
   optional_key_columns <- "study_no"
+
   if (
     nrow(candidate_data) != nrow(data) ||
       !all(required_key_columns %in% names(candidate_data)) ||
@@ -2042,6 +2119,7 @@ validate_primary_arm_candidate_data <- function(candidate_data, data) {
     stop("An archived fit does not align with its primary data.",
          call. = FALSE)
   }
+
   key_columns <- c(
     required_key_columns,
     intersect(optional_key_columns, names(candidate_data))
@@ -2052,6 +2130,7 @@ validate_primary_arm_candidate_data <- function(candidate_data, data) {
       as.character(data[[variable]])
     )
   }, logical(1L))
+
   if (!all(aligned)) {
     stop(
       "An archived fit has misaligned primary observations: ",
@@ -2059,6 +2138,7 @@ validate_primary_arm_candidate_data <- function(candidate_data, data) {
       call. = FALSE
     )
   }
+
   invisible(TRUE)
 }
 
@@ -2071,6 +2151,9 @@ update_2026_primary_arm_conditional_file_path <- function(outcome) {
   file.path(directory, paste0(outcome, ".qs"))
 }
 
+# Generate predictions conditional on observed study and arm effects. The
+# separate population curve averages over those effects for a different
+# reporting quantity.
 build_update_2026_primary_arm_conditional_to_file <- function(
     record,
     data_by_outcome,
@@ -2079,6 +2162,7 @@ build_update_2026_primary_arm_conditional_to_file <- function(
 ) {
   data <- data_by_outcome[[record$outcome]]
   table <- record$models
+
   if (
     is.null(data) || !nrow(data) || nrow(table) != 26L ||
       length(n_draws) != 1L || !is.finite(n_draws) || n_draws < 1L ||
@@ -2088,6 +2172,7 @@ build_update_2026_primary_arm_conditional_to_file <- function(
     stop("An updated primary arm-conditional input is invalid.",
          call. = FALSE)
   }
+
   n_draws <- as.integer(n_draws)
   weights <- table$stacking_weight
   if (any(!is.finite(weights)) || any(weights < 0) ||
@@ -2095,6 +2180,7 @@ build_update_2026_primary_arm_conditional_to_file <- function(
     stop("Primary arm-conditional stacking weights are invalid.",
          call. = FALSE)
   }
+
   counts <- allocate_primary_mixture_models(weights, n_draws)
   set.seed(record$seed)
   allocation <- sample(rep(seq_along(weights), times = counts))
@@ -2144,6 +2230,7 @@ build_update_2026_primary_arm_conditional_to_file <- function(
     rm(candidate, draw_matrix)
     gc(verbose = FALSE)
   }
+
   if (anyNA(averaged_draws)) {
     stop("The arm-conditional posterior mixture is incomplete.",
          call. = FALSE)
@@ -2209,6 +2296,7 @@ build_update_2026_primary_arm_conditional_to_file <- function(
     posterior_precision = posterior_precision,
     conditional_size = conditional_size
   )
+
   if (
     any(!is.finite(summary$estimate)) ||
       any(!is.finite(summary$posterior_sd)) ||
@@ -2238,6 +2326,7 @@ build_update_2026_primary_arm_conditional_to_file <- function(
       excluded_group_effects = "outcome"
     )
   )
+
   output_file <- update_2026_primary_arm_conditional_file_path(record$outcome)
   temporary_file <- paste0(output_file, ".tmp-", Sys.getpid())
   on.exit(unlink(temporary_file, force = TRUE), add = TRUE)
@@ -2246,6 +2335,7 @@ build_update_2026_primary_arm_conditional_to_file <- function(
     stop("Could not finalise updated arm-conditional predictions.",
          call. = FALSE)
   }
+
   unlink(temporary_file, force = TRUE)
   normalizePath(output_file, winslash = "/", mustWork = TRUE)
 }
@@ -2258,6 +2348,7 @@ audit_update_2026_primary_arm_conditional_files <- function(
   expected_outcomes <- c(
     "whole_body", "hypertrophy", "strength", "function"
   )
+
   if (
     length(prediction_paths) != length(expected_outcomes) ||
       any(!file.exists(prediction_paths)) ||
@@ -2265,6 +2356,7 @@ audit_update_2026_primary_arm_conditional_files <- function(
   ) {
     stop("Primary arm-conditional files are incomplete.", call. = FALSE)
   }
+
   reports <- purrr::map(prediction_paths, qs::qread)
   report_outcomes <- purrr::map_chr(reports, "outcome")
   if (
@@ -2273,6 +2365,7 @@ audit_update_2026_primary_arm_conditional_files <- function(
   ) {
     stop("Primary arm-conditional outcomes are invalid.", call. = FALSE)
   }
+
   reports <- reports[match(expected_outcomes, report_outcomes)]
   predictions <- purrr::map_dfr(reports, "predictions")
   manifest <- purrr::map_dfr(seq_along(reports), function(index) {
@@ -2304,6 +2397,7 @@ audit_update_2026_primary_arm_conditional_files <- function(
       conf_level = as.numeric(report$settings$conf_level)
     )
   })
+
   if (
     nrow(predictions) != sum(purrr::map_int(data_by_outcome, nrow)) ||
       any(!is.finite(predictions$estimate)) ||
@@ -2312,6 +2406,7 @@ audit_update_2026_primary_arm_conditional_files <- function(
   ) {
     stop("Primary arm-conditional audit failed.", call. = FALSE)
   }
+
   list(
     predictions = predictions,
     manifest = manifest,
@@ -2394,6 +2489,7 @@ make_update_2026_primary_reporting_file <- function(
     stop("Could not finalise an updated primary reporting file.",
          call. = FALSE)
   }
+
   unlink(temporary_file, force = TRUE)
   normalizePath(output_file, winslash = "/", mustWork = TRUE)
 }
@@ -2418,6 +2514,7 @@ audit_update_2026_primary_reporting_files <- function(report_paths) {
   ) {
     stop("Updated primary reporting outcomes are invalid.", call. = FALSE)
   }
+
   reports <- reports[match(expected_outcomes, report_outcomes)]
 
   dose_response <- purrr::map_dfr(reports, "dose_response")
@@ -2449,6 +2546,7 @@ audit_update_2026_primary_reporting_files <- function(report_paths) {
     "probability_practical_equivalence",
     "probability_meaningful_detriment"
   )
+
   required_contrast_columns <- c(
     "outcome", "protein_intake_current", "protein_intake_proposed",
     "estimate", "conf_low", "conf_high", "supported",
@@ -2458,6 +2556,7 @@ audit_update_2026_primary_reporting_files <- function(report_paths) {
     required_contrast_columns,
     names(pairwise_contrasts)
   )
+
   if (length(missing_contrast_columns)) {
     stop(
       "Updated primary contrasts are missing columns: ",
@@ -2615,6 +2714,7 @@ write_update_2026_primary_reporting_audit <- function(
     draw_allocation = file.path(output_dir, "draw_allocation.csv"),
     support = file.path(output_dir, "support.csv")
   )
+
   readr::write_csv(audit$summary, paths[["summary"]])
   readr::write_csv(audit$manifest, paths[["manifest"]])
   readr::write_csv(
@@ -2635,6 +2735,10 @@ write_update_2026_primary_reporting_audit <- function(
   unname(paths)
 }
 
+# Verify and archive the accepted analysis ----
+
+# Collate fit diagnostics, model specifications, and the selected fits into a
+# record that supports verification of the reported ensemble.
 compile_update_2026_primary_final_diagnostic_audit <- function(
   initial_diagnostics,
   remedy_diagnostics
@@ -2642,6 +2746,7 @@ compile_update_2026_primary_final_diagnostic_audit <- function(
   if (length(initial_diagnostics) != 104L || length(remedy_diagnostics) != 1L) {
     stop("Updated primary diagnostic inputs are incomplete.", call. = FALSE)
   }
+
   diagnostic_key <- function(x) {
     paste(x$summary$outcome[[1L]], x$summary$model_index[[1L]], sep = "::")
   }
@@ -2672,6 +2777,7 @@ compile_update_2026_primary_final_diagnostic_audit <- function(
   )
   remedy_summary <- audit$diagnostic_summary |>
     dplyr::filter(.data$outcome == "function", .data$model_index == 10L)
+
   if (
     nrow(audit$diagnostic_summary) != 104L ||
       any(!audit$diagnostic_summary$diagnostic_pass) ||
@@ -2682,6 +2788,7 @@ compile_update_2026_primary_final_diagnostic_audit <- function(
     stop("The final updated primary diagnostic audit did not pass.",
          call. = FALSE)
   }
+
   audit
 }
 
@@ -2693,6 +2800,7 @@ make_update_2026_primary_final_specification_table <- function(
   initial <- dplyr::bind_rows(initial_specifications)
   remedy <- dplyr::bind_rows(remedy_specifications)
   keys <- c("outcome", "model_index")
+
   if (
     nrow(initial) != 104L || nrow(remedy) != 1L ||
       remedy$outcome[[1L]] != "function" ||
@@ -2722,6 +2830,7 @@ make_update_2026_primary_final_specification_table <- function(
       ),
       model_index
     )
+
   pair <- paste(final$outcome, final$model_index)
   remedy_row <- final |>
     dplyr::filter(.data$outcome == "function", .data$model_index == 10L)
@@ -2736,6 +2845,7 @@ make_update_2026_primary_final_specification_table <- function(
     stop("The final updated primary specification table is invalid.",
          call. = FALSE)
   }
+
   final
 }
 
@@ -2749,6 +2859,7 @@ make_update_2026_primary_source_manifest <- function(
     update_workbook = update_workbook,
     review_decisions = review_decisions
   )
+
   if (any(!file.exists(paths))) {
     stop("An updated primary source file is missing.", call. = FALSE)
   }
@@ -2878,6 +2989,7 @@ audit_update_2026_primary_verification_checkpoint <- function(
       all(preparation_audit$checks$passed)
     )
   )
+
   failed_checks <- is.na(checks$passed) | !checks$passed
   if (any(failed_checks)) {
     stop(
@@ -2914,6 +3026,7 @@ make_update_2026_primary_figure <- function(
   data_by_outcome
 ) {
   titles <- update_2026_primary_figure_titles()
+
   if (!outcome %in% names(titles)) {
     stop("Unknown updated primary figure outcome.", call. = FALSE)
   }
@@ -2932,6 +3045,7 @@ make_update_2026_primary_figure <- function(
   settings <- reporting_audit$manifest |>
     dplyr::filter(.data$outcome == .env$outcome)
   data <- data_by_outcome[[outcome]]
+
   if (
     !nrow(predictions) || !nrow(contrasts) || nrow(support) != 2L ||
       nrow(weights) != 26L || nrow(settings) != 1L || is.null(data) ||
@@ -2956,6 +3070,7 @@ make_update_2026_primary_figure <- function(
       conf_level = 0.95
     )
   )
+
   class(heatmap) <- c("primary_heatmap_contrasts", class(heatmap))
   plot_primary_predictions_heatmap(
     data = data,
@@ -2973,6 +3088,7 @@ make_update_2026_primary_arm_figure <- function(
     include_observed_effects = TRUE
 ) {
   titles <- update_2026_primary_figure_titles()
+
   if (
     !outcome %in% names(titles) ||
       length(include_observed_effects) != 1L ||
@@ -2983,6 +3099,7 @@ make_update_2026_primary_arm_figure <- function(
     stop("Unknown or invalid arm-conditional figure outcome.",
          call. = FALSE)
   }
+
   predictions <- reporting_audit$dose_response_predictions |>
     dplyr::filter(.data$outcome == .env$outcome) |>
     dplyr::select(-outcome)
@@ -3001,6 +3118,7 @@ make_update_2026_primary_arm_figure <- function(
   settings <- reporting_audit$manifest |>
     dplyr::filter(.data$outcome == .env$outcome)
   data <- data_by_outcome[[outcome]]
+
   if (
     !nrow(predictions) || !nrow(contrasts) || nrow(support) != 2L ||
       nrow(weights) != 26L || nrow(settings) != 1L || is.null(data) ||
@@ -3026,6 +3144,7 @@ make_update_2026_primary_arm_figure <- function(
       conf_level = 0.95
     )
   )
+
   class(heatmap) <- c("primary_heatmap_contrasts", class(heatmap))
   plot_primary_arm_predictions_heatmap(
     data = data,
@@ -3076,6 +3195,7 @@ write_update_2026_primary_figures <- function(
     c(tiff_path, pdf_path)
   }) |>
     unlist(use.names = FALSE)
+
   if (
     length(figure_paths) != 8L || any(!file.exists(figure_paths)) ||
       any(file.info(figure_paths)$size <= 0)
@@ -3097,6 +3217,7 @@ write_update_2026_primary_figures <- function(
       ~ digest::digest(file = .x, algo = "sha256")
     )
   )
+
   manifest_path <- file.path(output_dir, "manifest.csv")
   readr::write_csv(manifest, manifest_path)
   normalizePath(
@@ -3122,6 +3243,7 @@ write_update_2026_primary_arm_figures <- function(
     stop("Cannot plot unverified arm-conditional primary reports.",
          call. = FALSE)
   }
+
   dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
   outcomes <- c("whole_body", "hypertrophy", "strength", "function")
   figure_paths <- purrr::map(outcomes, function(outcome_name) {
@@ -3164,6 +3286,7 @@ write_update_2026_primary_arm_figures <- function(
     c(tiff_path, pdf_path, png_path)
   }) |>
     unlist(use.names = FALSE)
+
   if (
     length(figure_paths) != 12L || any(!file.exists(figure_paths)) ||
       any(file.info(figure_paths)$size <= 0)
@@ -3185,6 +3308,7 @@ write_update_2026_primary_arm_figures <- function(
       ~ digest::digest(file = .x, algo = "sha256")
     )
   )
+
   manifest_path <- file.path(output_dir, "manifest.csv")
   readr::write_csv(manifest, manifest_path)
   normalizePath(
@@ -3225,6 +3349,7 @@ write_update_2026_primary_publication_figures <- function(
     arm_only_files[match(figure_names, basename(arm_only_files))],
     arm_observed_files[match(figure_names, basename(arm_observed_files))]
   )
+
   if (anyNA(sources) || any(!file.exists(sources)) ||
       any(file.info(sources)$size <= 0)) {
     stop("A primary dose-response publication figure is missing.",
@@ -3238,12 +3363,14 @@ write_update_2026_primary_publication_figures <- function(
   )
   temporary <- tempfile(tmpdir = output_dir)
   on.exit(unlink(temporary), add = TRUE)
+
   for (index in seq_along(sources)) {
     if (!file.copy(sources[[index]], temporary)) {
       stop("Could not copy figure: ", sources[[index]], call. = FALSE)
     }
     fs::file_move(temporary, destinations[[index]])
   }
+
   destinations
 }
 
@@ -3254,6 +3381,7 @@ verify_update_2026_manifest_files <- function(manifest_path) {
   }
   manifest <- readr::read_csv(manifest_path, show_col_types = FALSE)
   required <- c("file", "sha256")
+
   if (!all(required %in% names(manifest)) || !nrow(manifest)) {
     stop("Required freeze manifest is invalid: ", manifest_path,
          call. = FALSE)
@@ -3262,6 +3390,7 @@ verify_update_2026_manifest_files <- function(manifest_path) {
   if (any(!file.exists(paths))) {
     stop("A file named by the freeze manifest is missing.", call. = FALSE)
   }
+
   observed <- purrr::map_chr(
     paths,
     ~ digest::digest(file = .x, algo = "sha256")
@@ -3269,9 +3398,14 @@ verify_update_2026_manifest_files <- function(manifest_path) {
   if (any(observed != manifest$sha256)) {
     stop("A freeze-manifest checksum does not match.", call. = FALSE)
   }
+
   invisible(TRUE)
 }
 
+# Archive and storage planning ----
+
+# Derive a reviewable file plan from the accepted-fit and verification
+# manifests before any archive or pruning action is taken.
 make_update_2026_primary_pruning_plan <- function(
   accepted_fit_manifest,
   verification_files,
@@ -3286,12 +3420,14 @@ make_update_2026_primary_pruning_plan <- function(
     here::here("plots", "update_2026", "primary"),
     "manifest.csv"
   )
+
   if (
     any(!file.exists(verification_files)) ||
       any(!file.exists(figure_files))
   ) {
     stop("Updated primary freeze outputs are incomplete.", call. = FALSE)
   }
+
   verify_update_2026_manifest_files(verification_manifest)
   verify_update_2026_manifest_files(figure_manifest)
 
@@ -3305,6 +3441,7 @@ make_update_2026_primary_pruning_plan <- function(
     winslash = "/",
     mustWork = TRUE
   )
+
   if (!identical(tolower(resolved_root), tolower(expected_root))) {
     stop("Refusing to plan pruning outside the updated primary archive.",
          call. = FALSE)
@@ -3319,12 +3456,14 @@ make_update_2026_primary_pruning_plan <- function(
     ),
     use.names = FALSE
   )
+
   fit_paths <- normalizePath(fit_paths, winslash = "/", mustWork = TRUE)
   accepted_paths <- normalizePath(
     accepted_fit_manifest$fit_path,
     winslash = "/",
     mustWork = TRUE
   )
+
   if (
     length(fit_paths) != 105L || length(accepted_paths) != 104L ||
       anyDuplicated(fit_paths) || anyDuplicated(accepted_paths) ||
@@ -3461,6 +3600,7 @@ execute_update_2026_primary_pruning <- function(
       call. = FALSE
     )
   }
+
   verify_update_2026_manifest_files(plan$verification_manifest)
   verify_update_2026_manifest_files(plan$figure_manifest)
 
@@ -3480,6 +3620,7 @@ execute_update_2026_primary_pruning <- function(
   } else {
     plan$fit_file_manifest
   }
+
   if (
     (identical(mode, "conservative") &&
        (nrow(selected) != 1L || any(selected$accepted_fit))) ||
@@ -3497,12 +3638,14 @@ execute_update_2026_primary_pruning <- function(
     stop("This pruning policy already has an execution receipt.",
          call. = FALSE)
   }
+
   selected_paths <- normalizePath(
     selected$path,
     winslash = "/",
     mustWork = TRUE
   )
   root_prefix <- paste0(tolower(expected_root), "/")
+
   if (
     any(!startsWith(tolower(selected_paths), root_prefix)) ||
       any(dirname(selected_paths) == expected_root)
@@ -3510,6 +3653,7 @@ execute_update_2026_primary_pruning <- function(
     stop("A selected file falls outside the permitted archive subtree.",
          call. = FALSE)
   }
+
   if (
     identical(mode, "conservative") &&
       !grepl(
@@ -3528,6 +3672,7 @@ execute_update_2026_primary_pruning <- function(
   if (length(current_commit) != 1L || !nzchar(current_commit)) {
     current_commit <- NA_character_
   }
+
   receipt <- selected |>
     dplyr::mutate(
       sha256_before_deletion = purrr::map_chr(
@@ -3543,6 +3688,7 @@ execute_update_2026_primary_pruning <- function(
       git_commit = current_commit,
       .before = 1L
     )
+
   deleted <- file.remove(selected_paths)
   if (!all(deleted) || any(file.exists(selected_paths))) {
     stop("At least one selected fit archive could not be deleted.",
@@ -3653,6 +3799,10 @@ read_update_review_decisions <- function(path) {
   decisions
 }
 
+# Incremental preparation against the frozen analysis ----
+
+# Check the update workbook and reviewed decisions against the frozen inputs
+# before preparing and combining the additional analysis rows.
 validate_update_workbook <- function(
   update_data,
   frozen_analysis,
@@ -3778,6 +3928,7 @@ prepare_incremental_protein_data <- function(
       NA_real_
     )
   )
+
   observed_r <- pmin(0.999, pmax(-0.999, observed_r))
 
   prepared <- prepared |>

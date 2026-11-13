@@ -1,3 +1,8 @@
+# Targets for one age or duration family ----
+
+# Assemble the pilot, fitting, diagnostics, holdout scoring and reporting
+# stages for one family. The phase checks control which stages are enabled.
+
 # Each exposure has independent pilot, diagnostic, LOO and reporting gates.
 # All families share one future scheduler and one cache, never three runs.
 iad_family_targets <- function(family) {

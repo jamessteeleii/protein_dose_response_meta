@@ -1,3 +1,8 @@
+# Derive and audit doses in grams per day ----
+
+# Build and audit arm-level absolute doses before fitting models. The primary
+# families below distinguish total dietary protein from the dose prescribed as
+# a supplement.
 absolute_exposure_input_columns <- function() {
   c(
     "study_no",
@@ -23,6 +28,8 @@ absolute_exposure_input_columns <- function() {
   )
 }
 
+# Use a reported standard error when available. Otherwise recover it from the
+# standard deviation and sample size where both are usable.
 recover_arm_mean_se <- function(se, sd, n) {
   recovered <- dplyr::if_else(
     is.finite(sd) & sd > 0 & is.finite(n) & n > 0,
@@ -45,6 +52,8 @@ derive_product_se <- function(x, x_se, y, y_se) {
   )
 }
 
+# Return one row per study arm with reported and derived exposure values,
+# uncertainty, and source labels for later eligibility and provenance checks.
 make_update_2026_absolute_arm_exposures <- function(combined_workbook) {
   if (
     !is.list(combined_workbook) ||
@@ -53,6 +62,7 @@ make_update_2026_absolute_arm_exposures <- function(combined_workbook) {
     stop("The combined workbook must contain arm characteristics.",
          call. = FALSE)
   }
+
   arms <- combined_workbook$arm_characteristics
   required <- absolute_exposure_input_columns()
   missing <- setdiff(required, names(arms))
@@ -63,6 +73,7 @@ make_update_2026_absolute_arm_exposures <- function(combined_workbook) {
       call. = FALSE
     )
   }
+
   duplicate_keys <- arms |>
     dplyr::count(study_no, arm_no) |>
     dplyr::filter(n != 1L)
@@ -79,6 +90,9 @@ make_update_2026_absolute_arm_exposures <- function(combined_workbook) {
   arms |>
     dplyr::select(dplyr::all_of(required)) |>
     dplyr::mutate(
+
+      # Recover reported standard errors before propagating uncertainty in the
+      # conversions from g/kg/day to g/day.
       exposure_condition = tolower(trimws(.data[[condition_column]])),
       body_mass_se = recover_arm_mean_se(
         se_body_mass_kg,
@@ -131,6 +145,9 @@ make_update_2026_absolute_arm_exposures <- function(combined_workbook) {
         mean_body_mass_kg,
         body_mass_se
       ),
+
+      # Prefer directly reported absolute exposure. Record the source so
+      # converted exposures can be distinguished in the audit.
       baseline_g_day = dplyr::case_when(
         is.finite(baseline_dietary_protein_intake_g_day) &
           baseline_dietary_protein_intake_g_day > 0 ~
@@ -261,6 +278,7 @@ make_absolute_exposure_model_registry <- function(primary_specifications) {
     ) |>
     dplyr::distinct(model_index, model_name) |>
     dplyr::arrange(model_index)
+
   duplicate_names <- registry |>
     dplyr::count(model_index) |>
     dplyr::filter(n != 1L)
@@ -271,6 +289,7 @@ make_absolute_exposure_model_registry <- function(primary_specifications) {
     stop("The primary model registry does not contain 26 unique indices.",
          call. = FALSE)
   }
+
   omitted <- c(3L, 7L, 10L, 13L, 16L, 19L, 22L, 25L)
   registry |>
     dplyr::mutate(
@@ -296,6 +315,7 @@ make_absolute_exposure_family_plan <- function() {
     "strategy", "brms", TRUE, TRUE,
     "strategy_within", "brms", TRUE, TRUE
   )
+
   tidyr::expand_grid(
     exposure = c("total_g_day", "supplement_g_day"),
     family = families$family
@@ -395,6 +415,7 @@ summarise_absolute_exposure_coverage <- function(data) {
         eligible = supplement_g_day_eligible
       )
   )
+
   exposure_rows |>
     dplyr::filter(eligible) |>
     dplyr::group_by(exposure, outcome) |>
@@ -418,6 +439,7 @@ make_update_2026_absolute_exposure_audit <- function(
     "analysis_exclusion_count", "exclusion_missing_protein_intake"
   )
   missing <- setdiff(required_reviewed, names(reviewed_data))
+
   if (length(missing) > 0L) {
     stop(
       "Reviewed data are missing absolute-exposure audit columns: ",
@@ -425,6 +447,7 @@ make_update_2026_absolute_exposure_audit <- function(
       call. = FALSE
     )
   }
+
   arms <- make_update_2026_absolute_arm_exposures(combined_workbook)
   registry <- make_absolute_exposure_model_registry(primary_specifications)
   family_plan <- make_absolute_exposure_family_plan()
@@ -476,6 +499,7 @@ make_update_2026_absolute_exposure_audit <- function(
       percentage_difference = 100 * absolute_difference_g_day /
         intervention_dietary_protein_intake_g_day
     )
+
   agreement_summary <- agreement |>
     dplyr::summarise(
       arms_with_both = dplyr::n(),
@@ -528,6 +552,7 @@ make_update_2026_absolute_exposure_audit <- function(
   ) |>
     dplyr::select(variable, source, arms) |>
     dplyr::arrange(variable, source)
+
   support_by_outcome <- dplyr::bind_rows(
     data |>
       dplyr::filter(total_g_day_eligible) |>
@@ -561,6 +586,7 @@ make_update_2026_absolute_exposure_audit <- function(
       maximum = max(value),
       .groups = "drop"
     )
+
   total_reference <- data |>
     dplyr::filter(
       total_g_day_eligible,
@@ -569,6 +595,7 @@ make_update_2026_absolute_exposure_audit <- function(
     dplyr::distinct(study_no, arm_no_extracted, total_g_day) |>
     dplyr::summarise(reference = stats::median(total_g_day)) |>
     dplyr::pull(reference)
+
   scaling_plan <- tibble::tibble(
     exposure = c("total_g_day", "supplement_g_day"),
     reference_g_day = c(total_reference, 0),
@@ -579,6 +606,7 @@ make_update_2026_absolute_exposure_audit <- function(
     ),
     include_standardised_body_mass_in_moderator_models = TRUE
   )
+
   family_totals <- family_plan |>
     dplyr::group_by(exposure) |>
     dplyr::summarise(
@@ -658,6 +686,7 @@ make_update_2026_absolute_exposure_audit <- function(
         ] == 0
     )
   )
+
   if (any(!checks$passed)) {
     stop(
       "The shared absolute-exposure audit failed: ",
@@ -665,6 +694,7 @@ make_update_2026_absolute_exposure_audit <- function(
       call. = FALSE
     )
   }
+
   list(
     checks = checks,
     arm_exposures = arms,
@@ -740,6 +770,7 @@ write_update_2026_absolute_exposure_audit <- function(
     family_plan = file.path(output_dir, "family_plan.csv"),
     family_totals = file.path(output_dir, "family_totals.csv")
   )
+
   readr::write_csv(audit$checks, paths[["checks"]], na = "")
   readr::write_csv(audit$arm_exposures, paths[["arms"]], na = "")
   readr::write_csv(audit$outcome_coverage, paths[["coverage"]], na = "")
@@ -766,6 +797,11 @@ write_update_2026_absolute_exposure_audit <- function(
   unname(paths)
 }
 
+# Primary models on total dietary intake ----
+
+# Use the audited total-intake reference and unit to prepare outcomes on a
+# common internal scale. Candidate comparisons later align the fits on the
+# same complete observations.
 make_update_2026_total_primary_data_by_outcome <- function(audit) {
   if (
     !isTRUE(audit$ready_for_review) ||
@@ -775,6 +811,7 @@ make_update_2026_total_primary_data_by_outcome <- function(audit) {
     stop("The absolute-exposure audit is not ready for modelling.",
          call. = FALSE)
   }
+
   scaling <- audit$scaling_plan |>
     dplyr::filter(exposure == "total_g_day")
   if (
@@ -842,6 +879,7 @@ add_absolute_primary_body_mass <- function(data) {
   if (!nrow(data)) {
     stop("No finite body-mass observations remain.", call. = FALSE)
   }
+
   body_mass_centre <- mean(data$mean_body_mass_kg)
   body_mass_scale <- stats::sd(data$mean_body_mass_kg)
   if (
@@ -852,6 +890,7 @@ add_absolute_primary_body_mass <- function(data) {
     stop("Body mass cannot be standardised for this outcome.",
          call. = FALSE)
   }
+
   data |>
     dplyr::mutate(
       body_mass_outcome_z =
@@ -881,6 +920,7 @@ make_update_2026_total_primary_specifications <- function(
   retained <- model_registry |>
     dplyr::filter(retained) |>
     dplyr::pull(model_index)
+
   if (
     length(retained) != 18L ||
       !setequal(
@@ -1021,6 +1061,7 @@ prepare_update_2026_total_primary_input <- function(
 ) {
   data <- data_by_outcome[[specification$outcome]]
   priors <- priors_by_outcome[[specification$outcome]]
+
   if (is.null(data) || !nrow(data) || is.null(priors)) {
     stop("Total-intake primary data or priors are missing.",
          call. = FALSE)
@@ -1029,18 +1070,21 @@ prepare_update_2026_total_primary_input <- function(
   if (isTRUE(specification$regularised_variance_priors)) {
     priors <- add_regularised_variance_priors(priors)
   }
+
   if (isTRUE(specification$includes_moderators)) {
     data <- add_absolute_primary_body_mass(data)
     data <- add_primary_standardised_moderators(data)
     priors <- add_primary_standardised_moderator_priors(priors)
     priors <- add_absolute_primary_body_mass_prior(priors)
   }
+
   if (isTRUE(specification$targeted_smooth_prior)) {
     priors <- add_primary_targeted_smooth_prior(
       priors,
       scale = specification$smooth_prior_scale
     )
   }
+
   list(
     family = "total_primary",
     formula = specification$formula,
@@ -1059,6 +1103,7 @@ validate_update_2026_total_primary_inputs <- function(
   if (!isTRUE(audit$ready_for_review) || any(!audit$checks$passed)) {
     stop("The absolute-exposure audit has not passed.", call. = FALSE)
   }
+
   checks <- purrr::map_dfr(
     specifications,
     function(specification) {
@@ -1099,6 +1144,7 @@ validate_update_2026_total_primary_inputs <- function(
       )
     }
   )
+
   keys <- paste(checks$outcome, checks$model_index, sep = "::")
   if (
     nrow(checks) != 72L ||
@@ -1118,6 +1164,7 @@ validate_update_2026_total_primary_inputs <- function(
     stop("The total-intake primary input preflight is incomplete.",
          call. = FALSE)
   }
+
   checks
 }
 
@@ -1153,6 +1200,7 @@ fit_update_2026_total_primary_candidate_to_file <- function(
       call. = FALSE
     )
   }
+
   specification <- input$specification
   seed <- as.integer(seed_offset) +
     100L * match(
@@ -1175,6 +1223,7 @@ fit_update_2026_total_primary_candidate_to_file <- function(
     ),
     save_pars = brms::save_pars(all = TRUE)
   )
+
   candidate <- list(
     outcome = specification$outcome,
     model_index = as.integer(specification$model_index),
@@ -1190,6 +1239,7 @@ fit_update_2026_total_primary_candidate_to_file <- function(
   )
   temporary_file <- paste0(output_file, ".tmp-", Sys.getpid())
   qs::qsave(candidate, temporary_file, preset = "high")
+
   if (file.exists(output_file)) file.remove(output_file)
   if (!file.rename(temporary_file, output_file)) {
     stop("Could not finalise the total-intake primary fit file.",
@@ -1199,6 +1249,7 @@ fit_update_2026_total_primary_candidate_to_file <- function(
     stop("The total-intake primary fit file is invalid.",
          call. = FALSE)
   }
+
   output_file
 }
 
@@ -1217,6 +1268,7 @@ make_update_2026_total_primary_fit_manifest <- function(
     )[, 2]),
     fit_path = paths
   )
+
   manifest <- specification_table |>
     dplyr::left_join(path_table, by = c("outcome", "model_index")) |>
     dplyr::mutate(
@@ -1238,6 +1290,7 @@ make_update_2026_total_primary_fit_manifest <- function(
       ),
       model_index
     )
+
   if (
     length(paths) != 72L ||
       nrow(manifest) != 72L ||
@@ -1250,6 +1303,7 @@ make_update_2026_total_primary_fit_manifest <- function(
     stop("The total-intake primary fit manifest is incomplete.",
          call. = FALSE)
   }
+
   manifest
 }
 
@@ -1269,6 +1323,7 @@ write_update_2026_total_primary_fit_manifest <- function(
     stop("Cannot write an invalid total-intake fit manifest.",
          call. = FALSE)
   }
+
   dir.create(dirname(output_file), recursive = TRUE, showWarnings = FALSE)
   readr::write_csv(manifest, output_file, na = "")
   output_file
@@ -1282,6 +1337,7 @@ compile_update_2026_total_primary_diagnostic_audit <- function(
     stop("The diagnostic-audit family must be a nonempty scalar.",
          call. = FALSE)
   }
+
   summary <- dplyr::bind_rows(purrr::map(diagnostics, "summary")) |>
     dplyr::arrange(
       factor(
@@ -1298,6 +1354,7 @@ compile_update_2026_total_primary_diagnostic_audit <- function(
         TRUE ~ "PASS"
       )
     )
+
   retained <- setdiff(
     seq_len(26L),
     c(3L, 7L, 10L, 13L, 16L, 19L, 22L, 25L)
@@ -1309,6 +1366,7 @@ compile_update_2026_total_primary_diagnostic_audit <- function(
       indices_valid = setequal(model_index, retained),
       .groups = "drop"
     )
+
   if (
     length(diagnostics) != 72L ||
       nrow(summary) != 72L ||
@@ -1320,6 +1378,7 @@ compile_update_2026_total_primary_diagnostic_audit <- function(
     stop("The total-intake primary diagnostics are incomplete.",
          call. = FALSE)
   }
+
   parameter_failures <- purrr::map_dfr(
     diagnostics,
     function(result) {
@@ -1331,6 +1390,7 @@ compile_update_2026_total_primary_diagnostic_audit <- function(
         )
     }
   )
+
   outcome_summary <- summary |>
     dplyr::group_by(outcome) |>
     dplyr::summarise(
@@ -1342,6 +1402,7 @@ compile_update_2026_total_primary_diagnostic_audit <- function(
       maximum_coverage = max(predictive_90_interval_coverage),
       .groups = "drop"
     )
+
   list(
     family = family,
     models = nrow(summary),
@@ -1369,6 +1430,7 @@ write_update_2026_total_primary_diagnostic_audit <- function(
     stop("Cannot write an incomplete total-intake diagnostic audit.",
          call. = FALSE)
   }
+
   dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
   paths <- c(
     diagnostic_summary = file.path(output_dir, "diagnostic_summary.csv"),
@@ -1399,6 +1461,7 @@ make_update_2026_total_primary_remedy_specifications <- function(
 ) {
   failed <- diagnostic_audit$diagnostic_summary |>
     dplyr::filter(!diagnostic_pass)
+
   if (
     nrow(failed) != 1L ||
       failed$outcome[[1L]] != "hypertrophy" ||
@@ -1410,6 +1473,7 @@ make_update_2026_total_primary_remedy_specifications <- function(
     stop("The total-intake primary remedy no longer matches its audit.",
          call. = FALSE)
   }
+
   selected <- purrr::keep(
     specifications,
     ~ identical(.x$outcome, "hypertrophy") &&
@@ -1419,6 +1483,7 @@ make_update_2026_total_primary_remedy_specifications <- function(
     stop("Could not uniquely select total-intake hypertrophy model 20.",
          call. = FALSE)
   }
+
   remedy <- selected[[1L]]
   remedy$adapt_delta <- 0.9995
   remedy$remedy <- "adapt_delta_0.9995_after_one_divergence"
@@ -1468,6 +1533,7 @@ validate_update_2026_total_primary_remedy_inputs <- function(
       )
     }
   )
+
   if (
     nrow(checks) != 1L ||
       checks$outcome[[1L]] != "hypertrophy" ||
@@ -1480,6 +1546,7 @@ validate_update_2026_total_primary_remedy_inputs <- function(
     stop("The total-intake primary remedy preflight is incomplete.",
          call. = FALSE)
   }
+
   checks
 }
 
@@ -1519,6 +1586,7 @@ combine_update_2026_total_primary_remedy_diagnostics <- function(
     stop("Expected one total-intake primary remedy diagnostic.",
          call. = FALSE)
   }
+
   remedy <- remedy_diagnostics[[1L]]
   remedy_summary <- remedy$summary
   if (
@@ -1529,6 +1597,7 @@ combine_update_2026_total_primary_remedy_diagnostics <- function(
     stop("The total-intake remedy diagnostic is invalid.",
          call. = FALSE)
   }
+
   summary <- initial_audit$diagnostic_summary |>
     dplyr::filter(
       !(outcome == "hypertrophy" & model_index == 20L)
@@ -1549,6 +1618,7 @@ combine_update_2026_total_primary_remedy_diagnostics <- function(
         TRUE ~ "PASS"
       )
     )
+
   parameter_failures <- initial_audit$parameter_failures |>
     dplyr::filter(
       !(outcome == "hypertrophy" & model_index == 20L)
@@ -1561,6 +1631,7 @@ combine_update_2026_total_primary_remedy_diagnostics <- function(
           .before = 1L
         )
     )
+
   outcome_summary <- summary |>
     dplyr::group_by(outcome) |>
     dplyr::summarise(
@@ -1572,6 +1643,7 @@ combine_update_2026_total_primary_remedy_diagnostics <- function(
       maximum_coverage = max(predictive_90_interval_coverage),
       .groups = "drop"
     )
+
   if (
     nrow(summary) != 72L ||
       anyDuplicated(paste(summary$outcome, summary$model_index)) ||
@@ -1580,6 +1652,7 @@ combine_update_2026_total_primary_remedy_diagnostics <- function(
     stop("The final total-intake diagnostic audit is incomplete.",
          call. = FALSE)
   }
+
   list(
     family = "total_primary",
     models = 72L,
@@ -1598,6 +1671,7 @@ make_update_2026_total_primary_accepted_fit_manifest <- function(
     final_diagnostic_audit
 ) {
   remedy_paths <- unname(unlist(remedy_fit_paths, use.names = FALSE))
+
   if (
     nrow(initial_manifest) != 72L ||
       length(remedy_paths) != 1L ||
@@ -1663,6 +1737,7 @@ make_update_2026_total_primary_accepted_fit_manifest <- function(
       indices_valid = setequal(model_index, retained_indices),
       .groups = "drop"
     )
+
   if (
     nrow(remedy) != 1L ||
       remedy$outcome[[1L]] != "hypertrophy" ||
@@ -1680,6 +1755,7 @@ make_update_2026_total_primary_accepted_fit_manifest <- function(
   ) {
     stop("The accepted total-intake fit manifest is invalid.", call. = FALSE)
   }
+
   accepted
 }
 
@@ -1699,6 +1775,7 @@ write_update_2026_total_primary_accepted_fit_manifest <- function(
     stop("Cannot write an invalid accepted total-intake manifest.",
          call. = FALSE)
   }
+
   dir.create(dirname(output_file), recursive = TRUE, showWarnings = FALSE)
   readr::write_csv(manifest, output_file, na = "")
   output_file
@@ -1727,6 +1804,7 @@ validate_update_2026_total_primary_loo_inputs <- function(
     "all accepted fit hashes are present",
     all(nchar(accepted_fit_manifest$sha256) == 64L)
   )
+
   ready <-
     nrow(accepted_fit_manifest) == 72L &&
     !anyDuplicated(accepted_fit_manifest[c("outcome", "model_index")]) &&
@@ -1735,6 +1813,7 @@ validate_update_2026_total_primary_loo_inputs <- function(
     !is.na(k_threshold) && k_threshold == 0.7 &&
     is.numeric(cores_per_branch) && length(cores_per_branch) == 1L &&
     !is.na(cores_per_branch) && cores_per_branch == 1L
+
   if (!ready) {
     stop("The total-intake primary LOO preflight is incomplete.",
          call. = FALSE)
@@ -1765,6 +1844,7 @@ write_update_2026_total_primary_loo_preflight <- function(
     stop("Cannot write an invalid total-intake LOO preflight.",
          call. = FALSE)
   }
+
   dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
   paths <- c(
     checks = file.path(output_dir, "checks.csv"),
@@ -1794,6 +1874,7 @@ make_update_2026_total_primary_loo_records <- function(
     stop("The total-intake primary LOO fit manifest is invalid.",
          call. = FALSE)
   }
+
   records <- purrr::pmap(
     accepted_fit_manifest[required],
     function(outcome, model_index, fit_path, stage) {
@@ -1805,6 +1886,7 @@ make_update_2026_total_primary_loo_records <- function(
       )
     }
   )
+
   names(records) <- paste0(
     accepted_fit_manifest$outcome,
     "_model_",
@@ -1835,6 +1917,7 @@ compute_update_2026_total_primary_integrated_loo_to_file <- function(
     seq_len(26L),
     c(3L, 7L, 10L, 13L, 16L, 19L, 22L, 25L)
   )
+
   if (!isTRUE(enabled)) {
     stop(
       "Total-intake primary LOO is disabled. Set ",
@@ -1842,6 +1925,7 @@ compute_update_2026_total_primary_integrated_loo_to_file <- function(
       call. = FALSE
     )
   }
+
   if (
     !file.exists(record$fit_path) ||
       !record$model_index %in% retained_indices ||
@@ -1860,6 +1944,7 @@ compute_update_2026_total_primary_integrated_loo_to_file <- function(
     stop("A total-intake fit does not match its LOO record.",
          call. = FALSE)
   }
+
   initial <- compute_primary_candidate_psis_loo(
     fitted_candidate = candidate,
     cores = cores,
@@ -1883,6 +1968,7 @@ compute_update_2026_total_primary_integrated_loo_to_file <- function(
   temporary_file <- paste0(output_file, ".tmp-", Sys.getpid())
   on.exit(unlink(temporary_file, force = TRUE), add = TRUE)
   qs::qsave(integrated, temporary_file, preset = "high")
+
   if (!file.copy(temporary_file, output_file, overwrite = TRUE)) {
     stop("Could not finalise a total-intake primary LOO reduction.",
          call. = FALSE)
@@ -1903,6 +1989,7 @@ audit_update_2026_total_primary_integrated_loo_files <- function(
     stop("The total-intake primary integrated-LOO files are incomplete.",
          call. = FALSE)
   }
+
   results <- purrr::map(paths, qs::qread)
   retained_indices <- setdiff(
     seq_len(26L),
@@ -1917,6 +2004,7 @@ audit_update_2026_total_primary_integrated_loo_files <- function(
       result$model_index %in% retained_indices &&
       nrow(result$observation_manifest) == nrow(result$loo$pointwise)
   })
+
   keys <- purrr::map_chr(
     results,
     ~ paste(.x$outcome, .x$model_index, sep = "|")
@@ -1926,6 +2014,7 @@ audit_update_2026_total_primary_integrated_loo_files <- function(
     retained_indices,
     function(outcome, model_index) paste(outcome, model_index, sep = "|")
   ))
+
   if (!all(valid) || anyDuplicated(keys) || !setequal(keys, expected_keys)) {
     stop("The total-intake primary integrated-LOO set is invalid.",
          call. = FALSE)
@@ -1962,6 +2051,7 @@ audit_update_2026_total_primary_integrated_loo_files <- function(
       ),
       model_index
     )
+
   model_summary <- method_comparison |>
     dplyr::filter(method == "integrated_observation_level_psis") |>
     dplyr::arrange(
@@ -1971,6 +2061,7 @@ audit_update_2026_total_primary_integrated_loo_files <- function(
       ),
       model_index
     )
+
   high_k_cases <- observation_diagnostics |>
     dplyr::filter(integrated_pareto_k > k_threshold) |>
     dplyr::arrange(
@@ -1981,6 +2072,7 @@ audit_update_2026_total_primary_integrated_loo_files <- function(
       model_index,
       observation
     )
+
   outcome_summary <- model_summary |>
     dplyr::group_by(outcome) |>
     dplyr::summarise(
@@ -2009,6 +2101,7 @@ audit_update_2026_total_primary_integrated_loo_files <- function(
       stacking_ready =
         high_k_cases == 0L & observation_sets_aligned
     )
+
   reduction_manifest <- purrr::map2_dfr(
     paths,
     results,
@@ -2038,6 +2131,7 @@ audit_update_2026_total_primary_integrated_loo_files <- function(
       ),
       model_index
     )
+
   if (
     nrow(model_summary) != 72L ||
       nrow(outcome_summary) != 4L ||
@@ -2048,6 +2142,7 @@ audit_update_2026_total_primary_integrated_loo_files <- function(
     stop("The total-intake primary integrated-LOO audit is incomplete.",
          call. = FALSE)
   }
+
   list(
     family = "total_primary",
     reduction_manifest = reduction_manifest,
@@ -2080,6 +2175,7 @@ write_update_2026_total_primary_integrated_loo_audit <- function(
     stop("Cannot write an incomplete total-intake LOO audit.",
          call. = FALSE)
   }
+
   dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
   paths <- c(
     reduction_manifest = file.path(output_dir, "reduction_manifest.csv"),
@@ -2094,6 +2190,7 @@ write_update_2026_total_primary_integrated_loo_audit <- function(
     ),
     high_k_cases = file.path(output_dir, "high_k_cases.csv")
   )
+
   readr::write_csv(audit$reduction_manifest, paths[["reduction_manifest"]])
   readr::write_csv(audit$model_summary, paths[["model_summary"]])
   readr::write_csv(audit$outcome_summary, paths[["outcome_summary"]])
@@ -2110,12 +2207,16 @@ write_update_2026_total_primary_integrated_loo_audit <- function(
   unname(paths)
 }
 
+# Refit candidates as needed on the body-mass-complete sample so the total-
+# intake models with and without body mass as a moderator can be compared on
+# the same observations.
 make_update_2026_total_primary_common_sample_specifications <- function(
     specifications,
     integrated_loo_audit
 ) {
   alignment <- integrated_loo_audit$outcome_summary |>
     dplyr::select(outcome, observation_sets_aligned)
+
   if (
     nrow(alignment) != 4L ||
       alignment$observation_sets_aligned[
@@ -2131,6 +2232,7 @@ make_update_2026_total_primary_common_sample_specifications <- function(
       call. = FALSE
     )
   }
+
   expected_indices <- c(1L, 2L, 4L, 9L, 11L, 15L, 17L, 21L, 23L)
   selected <- purrr::keep(
     specifications,
@@ -2140,6 +2242,7 @@ make_update_2026_total_primary_common_sample_specifications <- function(
         as.integer(specification$model_index) %in% expected_indices
     }
   )
+
   observed_indices <- sort(unname(
     purrr::map_int(selected, "model_index")
   ))
@@ -2150,6 +2253,7 @@ make_update_2026_total_primary_common_sample_specifications <- function(
     stop("The total-intake common-sample model set is invalid.",
          call. = FALSE)
   }
+
   selected <- purrr::map(
     selected,
     function(specification) {
@@ -2162,6 +2266,7 @@ make_update_2026_total_primary_common_sample_specifications <- function(
       specification
     }
   )
+
   names(selected) <- paste0(
     "hypertrophy_model_",
     stringr::str_pad(
@@ -2170,6 +2275,7 @@ make_update_2026_total_primary_common_sample_specifications <- function(
       pad = "0"
     )
   )
+
   selected
 }
 
@@ -2185,6 +2291,7 @@ prepare_update_2026_total_primary_common_sample_input <- function(
     stop("Only non-moderator hypertrophy models require common-sample refits.",
          call. = FALSE)
   }
+
   common_data <- data_by_outcome
   common_data[["hypertrophy"]] <- common_data[["hypertrophy"]] |>
     dplyr::filter(is.finite(mean_body_mass_kg)) |>
@@ -2216,6 +2323,7 @@ validate_update_2026_total_primary_common_sample_inputs <- function(
       yi = as.numeric(yi),
       vi = as.numeric(vi)
     )
+
   if (nrow(reference) != 421L) {
     stop("The hypertrophy common-sample reference is invalid.",
          call. = FALSE)
@@ -2269,6 +2377,7 @@ validate_update_2026_total_primary_common_sample_inputs <- function(
     }
   ) |>
     dplyr::arrange(model_index)
+
   expected_indices <- c(1L, 2L, 4L, 9L, 11L, 15L, 17L, 21L, 23L)
   if (
     nrow(checks) != 9L ||
@@ -2284,6 +2393,7 @@ validate_update_2026_total_primary_common_sample_inputs <- function(
     stop("The total-intake common-sample preflight is incomplete.",
          call. = FALSE)
   }
+
   checks
 }
 
@@ -2302,6 +2412,7 @@ write_update_2026_total_primary_common_sample_preflight <- function(
     stop("Cannot write an invalid total-intake common-sample preflight.",
          call. = FALSE)
   }
+
   dir.create(dirname(output_file), recursive = TRUE, showWarnings = FALSE)
   readr::write_csv(checks, output_file, na = "")
   output_file
@@ -2335,6 +2446,7 @@ compile_update_2026_total_primary_common_sample_diagnostic_audit <- function(
         TRUE ~ "PASS"
       )
     )
+
   expected_indices <- c(1L, 2L, 4L, 9L, 11L, 15L, 17L, 21L, 23L)
   if (
     length(diagnostics) != 9L ||
@@ -2345,6 +2457,7 @@ compile_update_2026_total_primary_common_sample_diagnostic_audit <- function(
     stop("The total-intake common-sample diagnostics are incomplete.",
          call. = FALSE)
   }
+
   parameter_failures <- purrr::map_dfr(
     diagnostics,
     function(result) {
@@ -2356,6 +2469,7 @@ compile_update_2026_total_primary_common_sample_diagnostic_audit <- function(
         )
     }
   )
+
   list(
     family = "total_primary_common_sample",
     models = 9L,
@@ -2381,6 +2495,7 @@ write_update_2026_total_primary_common_sample_diagnostic_audit <- function(
     stop("Cannot write an incomplete common-sample diagnostic audit.",
          call. = FALSE)
   }
+
   dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
   paths <- c(
     diagnostic_summary = file.path(output_dir, "diagnostic_summary.csv"),
@@ -2405,6 +2520,7 @@ make_update_2026_total_primary_common_sample_remedy_specifications <- function(
 ) {
   failed <- diagnostic_audit$diagnostic_summary |>
     dplyr::filter(!diagnostic_pass)
+
   if (
     nrow(failed) != 1L ||
       failed$outcome[[1L]] != "hypertrophy" ||
@@ -2418,6 +2534,7 @@ make_update_2026_total_primary_common_sample_remedy_specifications <- function(
     stop("The common-sample remedy no longer matches its diagnostic audit.",
          call. = FALSE)
   }
+
   selected <- purrr::keep(
     specifications,
     ~ identical(.x$outcome, "hypertrophy") &&
@@ -2427,6 +2544,7 @@ make_update_2026_total_primary_common_sample_remedy_specifications <- function(
     stop("Could not uniquely select common-sample hypertrophy model 11.",
          call. = FALSE)
   }
+
   remedy <- selected[[1L]]
   remedy$iter_sampling <- 12000L
   remedy$remedy <- "double_sampling_after_low_tail_ess"
@@ -2478,6 +2596,7 @@ validate_update_2026_total_primary_common_sample_remedy_inputs <- function(
       )
     }
   )
+
   if (
     nrow(checks) != 1L ||
       checks$outcome[[1L]] != "hypertrophy" ||
@@ -2496,6 +2615,7 @@ validate_update_2026_total_primary_common_sample_remedy_inputs <- function(
     stop("The common-sample remedy preflight is incomplete.",
          call. = FALSE)
   }
+
   checks
 }
 
@@ -2537,6 +2657,7 @@ combine_update_2026_total_primary_common_sample_remedy_diagnostics <- function(
   if (length(remedy_diagnostics) != 1L) {
     stop("Expected one common-sample remedy diagnostic.", call. = FALSE)
   }
+
   remedy <- remedy_diagnostics[[1L]]
   remedy_summary <- remedy$summary
   if (
@@ -2547,6 +2668,7 @@ combine_update_2026_total_primary_common_sample_remedy_diagnostics <- function(
     stop("The common-sample remedy diagnostic is invalid.",
          call. = FALSE)
   }
+
   summary <- initial_audit$diagnostic_summary |>
     dplyr::filter(model_index != 11L) |>
     dplyr::bind_rows(remedy_summary) |>
@@ -2559,6 +2681,7 @@ combine_update_2026_total_primary_common_sample_remedy_diagnostics <- function(
         TRUE ~ "PASS"
       )
     )
+
   parameter_failures <- initial_audit$parameter_failures |>
     dplyr::filter(model_index != 11L) |>
     dplyr::bind_rows(
@@ -2569,6 +2692,7 @@ combine_update_2026_total_primary_common_sample_remedy_diagnostics <- function(
           .before = 1L
         )
     )
+
   expected_indices <- c(1L, 2L, 4L, 9L, 11L, 15L, 17L, 21L, 23L)
   if (
     nrow(summary) != 9L ||
@@ -2577,6 +2701,7 @@ combine_update_2026_total_primary_common_sample_remedy_diagnostics <- function(
     stop("The final common-sample diagnostic audit is incomplete.",
          call. = FALSE)
   }
+
   list(
     family = "total_primary_common_sample",
     models = 9L,
@@ -2605,6 +2730,7 @@ make_update_2026_total_primary_common_sample_accepted_fit_manifest <- function(
       stage = stage
     )
   }
+
   initial <- path_manifest(
     common_sample_fit_paths,
     "common_sample_1"
@@ -2615,6 +2741,7 @@ make_update_2026_total_primary_common_sample_accepted_fit_manifest <- function(
   )
   specification_table <- dplyr::bind_rows(specifications) |>
     dplyr::select(outcome, model_index, model_name)
+
   if (
     nrow(initial) != 9L ||
       nrow(remedy) != 1L ||
@@ -2626,6 +2753,7 @@ make_update_2026_total_primary_common_sample_accepted_fit_manifest <- function(
     stop("Accepted common-sample fits cannot yet be assembled.",
          call. = FALSE)
   }
+
   accepted <- initial |>
     dplyr::anti_join(
       remedy |> dplyr::select(outcome, model_index),
@@ -2651,6 +2779,7 @@ make_update_2026_total_primary_common_sample_accepted_fit_manifest <- function(
       outcome, model_index, model_name, fit_path, stage, bytes, sha256
     ) |>
     dplyr::arrange(model_index)
+
   expected_indices <- c(1L, 2L, 4L, 9L, 11L, 15L, 17L, 21L, 23L)
   if (
     nrow(accepted) != 9L ||
@@ -2665,6 +2794,7 @@ make_update_2026_total_primary_common_sample_accepted_fit_manifest <- function(
     stop("The accepted common-sample fit manifest is invalid.",
          call. = FALSE)
   }
+
   accepted
 }
 
@@ -2684,6 +2814,7 @@ write_update_2026_total_primary_common_sample_accepted_fit_manifest <- function(
     stop("Cannot write an invalid common-sample accepted manifest.",
          call. = FALSE)
   }
+
   dir.create(dirname(output_file), recursive = TRUE, showWarnings = FALSE)
   readr::write_csv(manifest, output_file, na = "")
   output_file
@@ -2717,12 +2848,14 @@ validate_update_2026_total_primary_common_sample_loo_inputs <- function(
     "all accepted fit hashes are present",
     all(nchar(accepted_fit_manifest$sha256) == 64L)
   )
+
   ready <-
     nrow(accepted_fit_manifest) == 9L &&
     !anyDuplicated(accepted_fit_manifest[c("outcome", "model_index")]) &&
     all(checks$passed) &&
     identical(k_threshold, 0.7) &&
     identical(as.integer(cores_per_branch), 1L)
+
   if (!ready) {
     stop("The common-sample replacement LOO preflight is incomplete.",
          call. = FALSE)
@@ -2753,6 +2886,7 @@ write_update_2026_total_primary_common_sample_loo_preflight <- function(
     stop("Cannot write an invalid common-sample LOO preflight.",
          call. = FALSE)
   }
+
   dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
   paths <- c(
     checks = file.path(output_dir, "checks.csv"),
@@ -2783,6 +2917,7 @@ make_update_2026_total_primary_common_sample_loo_records <- function(
   ) {
     stop("The common-sample LOO fit manifest is invalid.", call. = FALSE)
   }
+
   records <- purrr::pmap(
     accepted_fit_manifest[required],
     function(outcome, model_index, fit_path, stage) {
@@ -2794,6 +2929,7 @@ make_update_2026_total_primary_common_sample_loo_records <- function(
       )
     }
   )
+
   names(records) <- paste0(
     "hypertrophy_model_",
     stringr::str_pad(
@@ -2802,6 +2938,7 @@ make_update_2026_total_primary_common_sample_loo_records <- function(
       pad = "0"
     )
   )
+
   records
 }
 
@@ -2824,6 +2961,7 @@ compute_update_2026_total_primary_common_sample_loo_to_file <- function(
     k_threshold = 0.7
 ) {
   expected_indices <- c(1L, 2L, 4L, 9L, 11L, 15L, 17L, 21L, 23L)
+
   if (!isTRUE(enabled)) {
     stop(
       "Common-sample LOO is disabled. Set ",
@@ -2831,6 +2969,7 @@ compute_update_2026_total_primary_common_sample_loo_to_file <- function(
       call. = FALSE
     )
   }
+
   if (
     !file.exists(record$fit_path) ||
       record$outcome != "hypertrophy" ||
@@ -2838,6 +2977,7 @@ compute_update_2026_total_primary_common_sample_loo_to_file <- function(
   ) {
     stop("A common-sample LOO record is invalid.", call. = FALSE)
   }
+
   candidate <- qs::qread(record$fit_path)
   if (
     !identical(candidate$outcome, record$outcome) ||
@@ -2846,6 +2986,7 @@ compute_update_2026_total_primary_common_sample_loo_to_file <- function(
     stop("A common-sample fit does not match its LOO record.",
          call. = FALSE)
   }
+
   initial <- compute_primary_candidate_psis_loo(
     fitted_candidate = candidate,
     cores = cores,
@@ -2867,6 +3008,7 @@ compute_update_2026_total_primary_common_sample_loo_to_file <- function(
   temporary_file <- paste0(output_file, ".tmp-", Sys.getpid())
   on.exit(unlink(temporary_file, force = TRUE), add = TRUE)
   qs::qsave(integrated, temporary_file, preset = "high")
+
   if (!file.copy(temporary_file, output_file, overwrite = TRUE)) {
     stop("Could not finalise a common-sample LOO reduction.",
          call. = FALSE)
@@ -2882,12 +3024,14 @@ audit_update_2026_total_primary_common_sample_loo_files <- function(
     family = "total_primary_common_sample"
 ) {
   paths <- unname(unlist(paths, use.names = FALSE))
+
   if (
     length(paths) != 9L || anyNA(paths) ||
       any(!file.exists(paths)) || any(file.info(paths)$size <= 0)
   ) {
     stop("The common-sample LOO files are incomplete.", call. = FALSE)
   }
+
   results <- purrr::map(paths, qs::qread)
   expected_indices <- c(1L, 2L, 4L, 9L, 11L, 15L, 17L, 21L, 23L)
   observed_indices <- sort(unname(purrr::map_int(results, "model_index")))
@@ -2902,6 +3046,7 @@ audit_update_2026_total_primary_common_sample_loo_files <- function(
       digest::digest(manifest, algo = "sha256")
     }
   )
+
   valid <- purrr::map_lgl(results, function(result) {
     inherits(result$loo, "loo") &&
       identical(result$outcome, "hypertrophy") &&
@@ -2909,6 +3054,7 @@ audit_update_2026_total_primary_common_sample_loo_files <- function(
       nrow(result$observation_manifest) == observations_per_model &&
       nrow(result$loo$pointwise) == observations_per_model
   })
+
   if (
     !all(valid) ||
       !identical(observed_indices, expected_indices) ||
@@ -2916,6 +3062,7 @@ audit_update_2026_total_primary_common_sample_loo_files <- function(
   ) {
     stop("The common-sample LOO set is invalid.", call. = FALSE)
   }
+
   method_comparison <- purrr::map_dfr(results, "comparison")
   observation_diagnostics <- purrr::map_dfr(
     results,
@@ -2950,6 +3097,7 @@ audit_update_2026_total_primary_common_sample_loo_files <- function(
     }
   ) |>
     dplyr::arrange(model_index)
+
   if (
     nrow(model_summary) != 9L ||
       nrow(method_comparison) != 18L ||
@@ -2957,6 +3105,7 @@ audit_update_2026_total_primary_common_sample_loo_files <- function(
   ) {
     stop("The common-sample LOO audit is incomplete.", call. = FALSE)
   }
+
   list(
     family = family,
     reduction_manifest = reduction_manifest,
@@ -2990,6 +3139,7 @@ write_update_2026_total_primary_common_sample_loo_audit <- function(
     stop("Cannot write an incomplete common-sample LOO audit.",
          call. = FALSE)
   }
+
   dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
   paths <- c(
     reduction_manifest = file.path(output_dir, "reduction_manifest.csv"),
@@ -3000,6 +3150,7 @@ write_update_2026_total_primary_common_sample_loo_audit <- function(
     ),
     high_k_cases = file.path(output_dir, "high_k_cases.csv")
   )
+
   readr::write_csv(audit$reduction_manifest, paths[["reduction_manifest"]])
   readr::write_csv(audit$model_summary, paths[["model_summary"]])
   readr::write_csv(audit$method_comparison, paths[["method_comparison"]])
@@ -3022,6 +3173,7 @@ make_update_2026_total_primary_final_fit_manifest <- function(
   replacement_indices <- c(1L, 2L, 4L, 9L, 11L, 15L, 17L, 21L, 23L)
   replacement_keys <- common_sample_accepted_fit_manifest |>
     dplyr::select(outcome, model_index)
+
   if (
     nrow(accepted_fit_manifest) != 72L ||
       nrow(common_sample_accepted_fit_manifest) != 9L ||
@@ -3033,6 +3185,7 @@ make_update_2026_total_primary_final_fit_manifest <- function(
   ) {
     stop("The final total-intake fit inputs are incomplete.", call. = FALSE)
   }
+
   manifest <- accepted_fit_manifest |>
     dplyr::anti_join(
       replacement_keys,
@@ -3046,6 +3199,7 @@ make_update_2026_total_primary_final_fit_manifest <- function(
       ),
       model_index
     )
+
   outcome_audit <- manifest |>
     dplyr::group_by(outcome) |>
     dplyr::summarise(
@@ -3054,6 +3208,7 @@ make_update_2026_total_primary_final_fit_manifest <- function(
       .groups = "drop"
     )
   stage_counts <- table(manifest$stage)
+
   if (
     nrow(manifest) != 72L ||
       anyDuplicated(manifest[c("outcome", "model_index")]) ||
@@ -3073,6 +3228,7 @@ make_update_2026_total_primary_final_fit_manifest <- function(
   ) {
     stop("The final total-intake fit manifest is invalid.", call. = FALSE)
   }
+
   manifest
 }
 
@@ -3091,6 +3247,7 @@ write_update_2026_total_primary_final_fit_manifest <- function(
   ) {
     stop("Cannot write an invalid final fit manifest.", call. = FALSE)
   }
+
   dir.create(dirname(output_file), recursive = TRUE, showWarnings = FALSE)
   readr::write_csv(manifest, output_file, na = "")
   output_file
@@ -3104,6 +3261,7 @@ make_update_2026_total_primary_final_loo_manifest <- function(
   replacement <- common_sample_loo_audit$reduction_manifest
   replacement_keys <- replacement |>
     dplyr::select(outcome, model_index)
+
   if (
     nrow(integrated_loo_audit$reduction_manifest) != 72L ||
       integrated_loo_audit$exact_refits_required != 0L ||
@@ -3115,6 +3273,7 @@ make_update_2026_total_primary_final_loo_manifest <- function(
   ) {
     stop("The final total-intake LOO inputs are incomplete.", call. = FALSE)
   }
+
   manifest <- integrated_loo_audit$reduction_manifest |>
     dplyr::anti_join(
       replacement_keys,
@@ -3144,6 +3303,7 @@ make_update_2026_total_primary_final_loo_manifest <- function(
       ),
       model_index
     )
+
   fit_comparison <- manifest |>
     dplyr::select(
       outcome, model_index,
@@ -3161,6 +3321,7 @@ make_update_2026_total_primary_final_loo_manifest <- function(
         ),
       by = c("outcome", "model_index")
     )
+
   outcome_counts <- table(manifest$outcome)
   if (
     nrow(manifest) != 72L ||
@@ -3178,6 +3339,7 @@ make_update_2026_total_primary_final_loo_manifest <- function(
   ) {
     stop("The final total-intake LOO manifest is invalid.", call. = FALSE)
   }
+
   manifest
 }
 
@@ -3208,6 +3370,7 @@ audit_update_2026_total_primary_final_loo <- function(
       result$model_index %in% retained_indices &&
       nrow(result$observation_manifest) == nrow(result$loo$pointwise)
   })
+
   if (!all(valid) || !identical(result_keys, manifest_keys)) {
     stop("The final total-intake LOO objects are invalid.", call. = FALSE)
   }
@@ -3221,6 +3384,7 @@ audit_update_2026_total_primary_final_loo <- function(
       ),
       model_index
     )
+
   observation_diagnostics <- purrr::map_dfr(
     results,
     "observation_diagnostics"
@@ -3251,6 +3415,7 @@ audit_update_2026_total_primary_final_loo <- function(
       ),
       model_index
     )
+
   high_k_cases <- observation_diagnostics |>
     dplyr::filter(integrated_pareto_k > k_threshold) |>
     dplyr::arrange(
@@ -3261,6 +3426,7 @@ audit_update_2026_total_primary_final_loo <- function(
       model_index,
       observation
     )
+
   outcome_summary <- model_summary |>
     dplyr::group_by(outcome) |>
     dplyr::summarise(
@@ -3286,12 +3452,14 @@ audit_update_2026_total_primary_final_loo <- function(
     dplyr::mutate(
       stacking_ready = high_k_cases == 0L & observation_sets_aligned
     )
+
   stacking_ready <-
     nrow(high_k_cases) == 0L &&
     nrow(outcome_summary) == 4L &&
     all(outcome_summary$models == 18L) &&
     all(outcome_summary$observation_sets_aligned) &&
     all(outcome_summary$stacking_ready)
+
   if (
     nrow(final_loo_manifest) != 72L ||
       nrow(model_summary) != 72L ||
@@ -3302,6 +3470,7 @@ audit_update_2026_total_primary_final_loo <- function(
     stop("The final total-intake LOO audit is not stacking-ready.",
          call. = FALSE)
   }
+
   list(
     family = "total_primary",
     final_loo_manifest = final_loo_manifest,
@@ -3334,6 +3503,7 @@ write_update_2026_total_primary_final_loo_audit <- function(
     stop("Cannot write an incomplete final total-intake LOO audit.",
          call. = FALSE)
   }
+
   dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
   paths <- c(
     final_loo_manifest = file.path(output_dir, "final_loo_manifest.csv"),
@@ -3348,6 +3518,7 @@ write_update_2026_total_primary_final_loo_audit <- function(
     ),
     high_k_cases = file.path(output_dir, "high_k_cases.csv")
   )
+
   readr::write_csv(audit$final_loo_manifest, paths[["final_loo_manifest"]])
   readr::write_csv(audit$model_summary, paths[["model_summary"]])
   readr::write_csv(audit$outcome_summary, paths[["outcome_summary"]])
@@ -3371,6 +3542,7 @@ compute_update_2026_total_primary_stacking_weights <- function(
     stop("The final total-intake LOO audit is not stacking-ready.",
          call. = FALSE)
   }
+
   outcomes <- c("whole_body", "hypertrophy", "strength", "function")
   weights <- purrr::map_dfr(outcomes, function(current_outcome) {
     records <- final_loo_audit$final_loo_manifest |>
@@ -3426,6 +3598,7 @@ compute_update_2026_total_primary_stacking_weights <- function(
       weight = values
     )
   })
+
   outcome_sums <- tapply(weights$weight, weights$outcome, sum)
   if (
     nrow(weights) != 72L ||
@@ -3435,6 +3608,7 @@ compute_update_2026_total_primary_stacking_weights <- function(
   ) {
     stop("The total-intake stacking weights are invalid.", call. = FALSE)
   }
+
   weights
 }
 
@@ -3453,6 +3627,7 @@ write_update_2026_total_primary_stacking_weights <- function(
     stop("Cannot write invalid total-intake stacking weights.",
          call. = FALSE)
   }
+
   dir.create(dirname(output_file), recursive = TRUE, showWarnings = FALSE)
   readr::write_csv(weights, output_file)
   output_file
@@ -3472,6 +3647,7 @@ make_update_2026_total_primary_prediction_records <- function(
   )
   required_weight <- c("outcome", "model_index", "model_name", "weight")
   n_draws <- as.integer(n_draws)
+
   if (
     !all(required_fit %in% names(accepted_fit_manifest)) ||
       !all(required_weight %in% names(stacking_weights)) ||
@@ -3483,6 +3659,7 @@ make_update_2026_total_primary_prediction_records <- function(
   ) {
     stop("The total-intake reporting inputs are invalid.", call. = FALSE)
   }
+
   joined <- stacking_weights |>
     dplyr::left_join(
       accepted_fit_manifest |>
@@ -3492,6 +3669,7 @@ make_update_2026_total_primary_prediction_records <- function(
       relationship = "one-to-one"
     ) |>
     dplyr::arrange(factor(outcome, levels = outcomes), model_index)
+
   if (
     anyNA(joined$fit_path) || any(!file.exists(joined$fit_path)) ||
       anyDuplicated(joined[c("outcome", "model_index")]) ||
@@ -3501,6 +3679,7 @@ make_update_2026_total_primary_prediction_records <- function(
     stop("The total-intake fit and weight registries do not match.",
          call. = FALSE)
   }
+
   outcome_seed <- stats::setNames(
     seed + seq_along(outcomes) * 10000L,
     outcomes
@@ -3529,12 +3708,14 @@ make_update_2026_total_primary_prediction_records <- function(
       exposure_minimum_g_day = exposure_minimum_g_day,
       grid_step_g_day = grid_step_g_day
     )
+
   allocation_audit <- allocated |>
     dplyr::summarise(
       allocated_draws = sum(draw_count),
       selected_models = sum(draw_count > 0L),
       .by = outcome
     )
+
   if (
     nrow(allocation_audit) != 4L ||
       any(allocation_audit$allocated_draws != n_draws) ||
@@ -3543,6 +3724,7 @@ make_update_2026_total_primary_prediction_records <- function(
     stop("The total-intake prediction allocation is incomplete.",
          call. = FALSE)
   }
+
   allocated <- dplyr::filter(allocated, draw_count > 0L)
   purrr::map(seq_len(nrow(allocated)), function(row) {
     purrr::map(as.list(allocated[row, , drop = FALSE]), unname)
@@ -3559,12 +3741,14 @@ make_update_2026_total_primary_prediction_grid <- function(
     "protein_intake_raw", "resistance_exercise_code",
     "absolute_exposure_reference_g_day", "absolute_exposure_unit_g_day"
   )
+
   if (!all(required %in% names(data)) || !nrow(data)) {
     stop("The total-intake prediction data are invalid.", call. = FALSE)
   }
   reference <- unique(data$absolute_exposure_reference_g_day)
   unit <- unique(data$absolute_exposure_unit_g_day)
   exposure_maximum_g_day <- max(data$protein_intake_raw, na.rm = TRUE)
+
   if (
     length(reference) != 1L || !is.finite(reference) ||
       length(unit) != 1L || !is.finite(unit) || unit <= 0 ||
@@ -3575,6 +3759,7 @@ make_update_2026_total_primary_prediction_grid <- function(
     stop("The total-intake prediction-grid limits are invalid.",
          call. = FALSE)
   }
+
   exposure_values <- sort(unique(c(
     round(seq(
       exposure_minimum_g_day,
@@ -3583,6 +3768,7 @@ make_update_2026_total_primary_prediction_grid <- function(
     ), 10),
     reference
   )))
+
   keys <- tidyr::crossing(
     resistance_exercise_code = c(0, 1),
     protein_intake = exposure_values
@@ -3596,6 +3782,7 @@ make_update_2026_total_primary_prediction_grid <- function(
   } else {
     data
   }
+
   grouping_variables <- intersect(
     c("study_no", "arm_no", "outcome_no", "study_factor"),
     names(template_data)
@@ -3603,6 +3790,7 @@ make_update_2026_total_primary_prediction_grid <- function(
   complete <- stats::complete.cases(
     template_data[, grouping_variables, drop = FALSE]
   )
+
   if (!any(complete)) {
     stop("No complete row is available for the prediction grid.",
          call. = FALSE)
@@ -3617,6 +3805,7 @@ make_update_2026_total_primary_prediction_grid <- function(
   newdata$total_g_day <- keys$protein_intake
   newdata$protein_intake <- (keys$protein_intake - reference) / unit
   exercise_label <- ifelse(keys$resistance_exercise_code == 0, "yes", "no")
+
   if ("resistance_exercise_yes_no" %in% names(newdata)) {
     newdata$resistance_exercise_yes_no <- exercise_label
   }
@@ -3626,6 +3815,7 @@ make_update_2026_total_primary_prediction_grid <- function(
       levels = levels(data$resistance_exercise_factor)
     )
   }
+
   if ("age_centre" %in% names(newdata)) newdata$age_centre <- 0
   if ("duration_centre" %in% names(newdata)) newdata$duration_centre <- 0
   if ("vi" %in% names(newdata)) newdata$vi <- 0
@@ -3701,6 +3891,7 @@ make_update_2026_total_primary_reporting_preflight <- function(
       ),
       model_index
     )
+
   audit <- checks |>
     dplyr::summarise(
       selected_models = dplyr::n(),
@@ -3708,6 +3899,7 @@ make_update_2026_total_primary_reporting_preflight <- function(
       retained_weight = sum(weight),
       .by = outcome
     )
+
   if (
     nrow(audit) != 4L || any(audit$selected_models < 1L) ||
       any(audit$allocated_draws != 4000L) ||
@@ -3718,6 +3910,7 @@ make_update_2026_total_primary_reporting_preflight <- function(
   ) {
     stop("The total-intake reporting preflight failed.", call. = FALSE)
   }
+
   checks
 }
 
@@ -3736,6 +3929,7 @@ write_update_2026_total_primary_reporting_preflight <- function(
     stop("Cannot write an invalid total-intake reporting preflight.",
          call. = FALSE)
   }
+
   dir.create(dirname(output_file), recursive = TRUE, showWarnings = FALSE)
   readr::write_csv(checks, output_file)
   output_file
@@ -3770,6 +3964,7 @@ write_update_2026_total_primary_prediction_draw_file <- function(
   ) {
     stop("A total-intake prediction record is invalid.", call. = FALSE)
   }
+
   candidate <- qs::qread(record$fit_path)
   if (
     !identical(candidate$outcome, as.character(record$outcome)) ||
@@ -3779,6 +3974,7 @@ write_update_2026_total_primary_prediction_draw_file <- function(
     stop("A total-intake fit does not match its prediction record.",
          call. = FALSE)
   }
+
   grid <- make_update_2026_total_primary_prediction_grid(
     data = data_by_outcome[[record$outcome]],
     fitted_candidate = candidate,
@@ -3795,6 +3991,7 @@ write_update_2026_total_primary_prediction_draw_file <- function(
     re_formula = NA,
     ndraws = as.integer(record$draw_count)
   ))
+
   if (ncol(draws) != nrow(grid$keys) && nrow(draws) == nrow(grid$keys)) {
     draws <- t(draws)
   }
@@ -3805,6 +4002,7 @@ write_update_2026_total_primary_prediction_draw_file <- function(
     stop("Total-intake predictions do not match their allocation.",
          call. = FALSE)
   }
+
   reduction <- list(
     family = "total_primary",
     outcome = as.character(record$outcome),
@@ -3825,6 +4023,7 @@ write_update_2026_total_primary_prediction_draw_file <- function(
       prediction_type = "total_primary"
     )
   )
+
   write_atomic_qs(reduction, result_path)
 }
 
@@ -3916,6 +4115,7 @@ write_update_2026_total_primary_reporting_file <- function(
       )
     )
   )
+
   write_atomic_qs(report, result_path)
 }
 
@@ -3935,6 +4135,7 @@ write_update_2026_total_primary_reporting_audit <- function(
   ) {
     stop("The total-intake reporting audit is incomplete.", call. = FALSE)
   }
+
   reports <- purrr::map(
     audit$summary$reporting_path,
     read_sensitivity_full_reporting_file,
@@ -3971,6 +4172,7 @@ write_update_2026_total_primary_reporting_audit <- function(
     local_equivalence = file.path(output_dir, "local_equivalence.csv"),
     model_weights = file.path(output_dir, "model_weights.csv")
   )
+
   readr::write_csv(audit$summary, paths[["summary"]])
   readr::write_csv(prediction_manifest, paths[["prediction_manifest"]])
   readr::write_csv(bind_report("dose_response"), paths[["dose_response"]])
@@ -4087,6 +4289,7 @@ make_update_2026_total_primary_verification_checkpoint <- function(
         dplyr::select(outcome, model_index, weight_name = model_name),
       by = c("outcome", "model_index")
     )
+
   weight_sums <- stacking_weights |>
     dplyr::summarise(
       models = dplyr::n(),
@@ -4187,6 +4390,7 @@ make_update_2026_total_primary_verification_checkpoint <- function(
         all(reporting_audit$summary$diagonal_contrasts_valid)
     )
   )
+
   failed <- is.na(checks$passed) | !checks$passed
   if (any(failed)) {
     stop(
@@ -4235,6 +4439,7 @@ make_update_2026_total_primary_verification_checkpoint <- function(
     pairwise_support = bind_report("pairwise_support"),
     local_equivalence = bind_report("local_equivalence")
   )
+
   descriptions <- stats::setNames(
     c(
       "Final total-intake primary checkpoint checks.",
@@ -4277,6 +4482,7 @@ make_update_2026_total_primary_verification_checkpoint <- function(
     ),
     names(artifacts)
   )
+
   list(
     checks = checks,
     artifacts = artifacts,
@@ -4311,6 +4517,7 @@ make_update_2026_total_primary_pruning_plan <- function(
     verification_manifest,
     show_col_types = FALSE
   )
+
   if (length(verification_files) != nrow(verification_index) + 2L) {
     stop("The total-intake verification-file count is invalid.",
          call. = FALSE)
@@ -4325,6 +4532,7 @@ make_update_2026_total_primary_pruning_plan <- function(
     winslash = "/",
     mustWork = TRUE
   )
+
   if (!identical(tolower(resolved_root), tolower(expected_root))) {
     stop("Refusing to plan pruning outside the total-intake archive.",
          call. = FALSE)
@@ -4337,6 +4545,7 @@ make_update_2026_total_primary_pruning_plan <- function(
   if (any(!dir.exists(fit_roots))) {
     stop("An expected total-intake fit directory is missing.", call. = FALSE)
   }
+
   fit_paths <- unlist(
     purrr::map(
       fit_roots,
@@ -4350,6 +4559,7 @@ make_update_2026_total_primary_pruning_plan <- function(
     use.names = FALSE
   ) |>
     normalizePath(winslash = "/", mustWork = TRUE)
+
   accepted_paths <- normalizePath(
     final_fit_manifest$fit_path,
     winslash = "/",
@@ -4364,6 +4574,7 @@ make_update_2026_total_primary_pruning_plan <- function(
     stop("Total-intake fit retention does not match its final lineage.",
          call. = FALSE)
   }
+
   fit_manifest <- tibble::tibble(
     path = fit_paths,
     relative_path = substring(fit_paths, nchar(resolved_root) + 2L),
@@ -4385,6 +4596,7 @@ make_update_2026_total_primary_pruning_plan <- function(
     lean_action = "delete frozen total-intake fit archive"
   ) |>
     dplyr::arrange(archive_stage, outcome, model_index)
+
   expected_stage_counts <- c(
     initial = 72L,
     remedy_1 = 1L,
@@ -4395,6 +4607,7 @@ make_update_2026_total_primary_pruning_plan <- function(
     fit_manifest$archive_stage,
     levels = names(expected_stage_counts)
   ))
+
   if (
     any(fit_manifest$archive_stage == "unknown") ||
       anyNA(fit_manifest$model_index) ||
@@ -4408,6 +4621,7 @@ make_update_2026_total_primary_pruning_plan <- function(
   ) {
     stop("The total-intake fit stages are not as expected.", call. = FALSE)
   }
+
   deletion_manifest <- fit_manifest |>
     dplyr::mutate(
       artifact_role = dplyr::if_else(
@@ -4426,6 +4640,7 @@ make_update_2026_total_primary_pruning_plan <- function(
     stop("An expected compact total-intake directory is missing.",
          call. = FALSE)
   }
+
   compact_paths <- unlist(
     purrr::map(
       compact_roots,
@@ -4438,6 +4653,7 @@ make_update_2026_total_primary_pruning_plan <- function(
     ),
     use.names = FALSE
   )
+
   compact_paths <- compact_paths[
     file.exists(compact_paths) & !file.info(compact_paths)$isdir
   ] |>
@@ -4458,6 +4674,7 @@ make_update_2026_total_primary_pruning_plan <- function(
     action = "retain compact total-intake LOO and reporting archive"
   ) |>
     dplyr::arrange(archive_component, relative_path)
+
   compact_counts <- table(factor(
     compact_manifest$archive_component,
     levels = c("loo", "reporting")
@@ -4494,6 +4711,7 @@ make_update_2026_total_primary_pruning_plan <- function(
       "the primary total-intake family."
     )
   )
+
   list(
     summary = summary,
     fit_file_manifest = fit_manifest,
@@ -4526,6 +4744,7 @@ write_update_2026_total_primary_pruning_plan <- function(
       output_dir, "compact_archive_manifest.csv"
     )
   )
+
   readr::write_csv(plan$summary, paths[["summary"]])
   readr::write_csv(plan$fit_file_manifest, paths[["fit_file_manifest"]])
   readr::write_csv(
@@ -4555,6 +4774,7 @@ execute_update_2026_total_primary_pruning <- function(
       call. = FALSE
     )
   }
+
   verify_update_2026_manifest_files(plan$verification_manifest)
   expected_root <- normalizePath(
     here::here(
@@ -4564,6 +4784,7 @@ execute_update_2026_total_primary_pruning <- function(
     winslash = "/",
     mustWork = TRUE
   )
+
   if (!identical(tolower(plan$archive_root), tolower(expected_root))) {
     stop("The pruning plan does not target the total-intake archive.",
          call. = FALSE)
@@ -4587,6 +4808,7 @@ execute_update_2026_total_primary_pruning <- function(
     }
     invisible(TRUE)
   }
+
   verify_compact_archive()
   selected <- plan$deletion_file_manifest
   if (
@@ -4597,12 +4819,14 @@ execute_update_2026_total_primary_pruning <- function(
     stop("The total-intake pruning set is inconsistent with its audit.",
          call. = FALSE)
   }
+
   receipt_path <- file.path(receipt_dir, "executed_lean.csv")
   pending_path <- file.path(receipt_dir, "executed_lean.pending.csv")
   if (file.exists(receipt_path) || file.exists(pending_path)) {
     stop("A total-intake lean-pruning receipt already exists.",
          call. = FALSE)
   }
+
   selected_paths <- normalizePath(
     selected$path,
     winslash = "/",
@@ -4616,12 +4840,14 @@ execute_update_2026_total_primary_pruning <- function(
     winslash = "/",
     mustWork = TRUE
   )
+
   permitted_prefixes <- paste0(tolower(permitted_roots), "/")
   path_allowed <- vapply(
     tolower(selected_paths),
     function(path) any(startsWith(path, permitted_prefixes)),
     logical(1L)
   )
+
   if (any(!path_allowed) || anyDuplicated(selected_paths)) {
     stop("A selected fit falls outside the permitted archive subtrees.",
          call. = FALSE)
@@ -4639,6 +4865,7 @@ execute_update_2026_total_primary_pruning <- function(
     use.names = FALSE
   ) |>
     normalizePath(winslash = "/", mustWork = TRUE)
+
   if (!setequal(current_paths, selected_paths)) {
     stop("The current fit inventory differs from the audited pruning plan.",
          call. = FALSE)
@@ -4655,6 +4882,7 @@ execute_update_2026_total_primary_pruning <- function(
         format = "%Y-%m-%dT%H:%M:%SZ"
       )
     )
+
   dir.create(receipt_dir, recursive = TRUE, showWarnings = FALSE)
   readr::write_csv(receipt, pending_path)
   failures <- selected_paths[!vapply(
@@ -4663,12 +4891,14 @@ execute_update_2026_total_primary_pruning <- function(
     logical(1L)
   )]
   remaining <- selected_paths[file.exists(selected_paths)]
+
   if (length(failures) > 0L || length(remaining) > 0L) {
     stop(
       "Total-intake pruning was incomplete; retain the pending receipt.",
       call. = FALSE
     )
   }
+
   verify_update_2026_manifest_files(plan$verification_manifest)
   verify_compact_archive()
   if (file.rename(pending_path, receipt_path)) {
@@ -4678,6 +4908,10 @@ execute_update_2026_total_primary_pruning <- function(
        call. = FALSE)
 }
 
+# Total intake with within- and between-study terms ----
+
+# Prepare the body-mass-complete total-intake sample used to separate study
+# means from variation in dose within studies.
 make_update_2026_total_mundlak_data_by_outcome <- function(
     total_primary_data_by_outcome
 ) {
@@ -4686,6 +4920,7 @@ make_update_2026_total_mundlak_data_by_outcome <- function(
     stop("The total-intake Mundlak outcome registry is invalid.",
          call. = FALSE)
   }
+
   data <- purrr::map(total_primary_data_by_outcome, function(outcome_data) {
     required <- c(
       "study_no", "arm_no", "outcome_no", "yi", "vi",
@@ -4701,6 +4936,7 @@ make_update_2026_total_mundlak_data_by_outcome <- function(
       dplyr::filter(is.finite(mean_body_mass_kg)) |>
       droplevels()
   })
+
   if (
     any(vapply(data, nrow, integer(1L)) < 1L) ||
       any(vapply(data, function(x) any(!is.finite(x$yi)), logical(1L))) ||
@@ -4713,6 +4949,7 @@ make_update_2026_total_mundlak_data_by_outcome <- function(
     stop("The total-intake Mundlak common samples are invalid.",
          call. = FALSE)
   }
+
   data
 }
 
@@ -4762,6 +4999,7 @@ make_update_2026_total_mundlak_specifications <- function(
       sensitivity_mundlak_expansion = TRUE
     ) |>
     dplyr::select(-key)
+
   counts <- table(factor(specifications$outcome, levels = c(
     "whole_body", "hypertrophy", "strength", "function"
   )))
@@ -4779,6 +5017,7 @@ make_update_2026_total_mundlak_specifications <- function(
     stop("The total-intake Mundlak specification registry is invalid.",
          call. = FALSE)
   }
+
   output <- purrr::pmap(specifications, list)
   names(output) <- paste0(
     specifications$outcome,
@@ -4796,6 +5035,7 @@ prepare_update_2026_total_mundlak_input <- function(
 ) {
   data <- data_by_outcome[[specification$outcome]]
   priors <- priors_by_outcome[[specification$outcome]]
+
   if (
     is.null(data) || !nrow(data) || is.null(priors) ||
       !specification$outcome %in% config$outcomes
@@ -4803,6 +5043,7 @@ prepare_update_2026_total_mundlak_input <- function(
     stop("A total-intake Mundlak outcome input is unavailable.",
          call. = FALSE)
   }
+
   specification$sensitivity_mundlak_sampling <- paste0(
     specification$iter_warmup,
     "_warmup_",
@@ -4810,6 +5051,7 @@ prepare_update_2026_total_mundlak_input <- function(
     "_sampling"
   )
   priors <- normalize_primary_brms_priors(priors)
+
   if (isTRUE(specification$includes_moderators)) {
     data <- add_absolute_primary_body_mass(data)
     priors <- add_absolute_primary_body_mass_prior(priors)
@@ -4817,6 +5059,7 @@ prepare_update_2026_total_mundlak_input <- function(
   input <- prepare_mundlak_pilot_input(data, specification, priors)
   input$family <- "total_mundlak"
   input$specification$family <- "total_mundlak"
+
   if (
     isTRUE(specification$includes_moderators) &&
       sensitivity_model_features(specification$model_index)$includes_protein
@@ -4832,6 +5075,7 @@ prepare_update_2026_total_mundlak_input <- function(
     }
     input$formula <- updated_formula
   }
+
   input
 }
 
@@ -4902,6 +5146,7 @@ validate_update_2026_total_mundlak_inputs <- function(
       )),
       model_index
     )
+
   retained <- setdiff(
     seq_len(26L),
     c(3L, 7L, 10L, 13L, 16L, 19L, 22L, 25L)
@@ -4925,6 +5170,7 @@ validate_update_2026_total_mundlak_inputs <- function(
   )
   row_counts <- dplyr::left_join(row_counts, expected_rows, by = "outcome")
   keys <- paste(checks$outcome, checks$model_index, sep = "::")
+
   if (
     nrow(checks) != 72L || anyDuplicated(keys) || !all(checks$valid) ||
       !identical(as.integer(outcome_counts), rep(18L, 4L)) ||
@@ -4944,6 +5190,7 @@ validate_update_2026_total_mundlak_inputs <- function(
     stop("The total-intake Mundlak input preflight is incomplete.",
          call. = FALSE)
   }
+
   checks
 }
 
@@ -4979,6 +5226,7 @@ fit_update_2026_total_mundlak_candidate_to_file <- function(
   if (is.na(outcome_offset)) {
     stop("Unknown outcome in a total-intake Mundlak fit.", call. = FALSE)
   }
+
   local_config <- config
   local_config$iter_warmup <- as.integer(input$specification$iter_warmup)
   local_config$iter_sampling <- as.integer(input$specification$iter_sampling)
@@ -5001,6 +5249,7 @@ fit_update_2026_total_mundlak_candidate_to_file <- function(
   temporary <- paste0(output_file, ".tmp-", Sys.getpid())
   on.exit(unlink(temporary, force = TRUE), add = TRUE)
   qs::qsave(candidate, temporary, preset = "high")
+
   if (!file.copy(temporary, output_file, overwrite = TRUE)) {
     stop("Could not finalise a total-intake Mundlak fit file.",
          call. = FALSE)
@@ -5009,6 +5258,7 @@ fit_update_2026_total_mundlak_candidate_to_file <- function(
   if (!file.exists(output_file) || file.info(output_file)$size <= 0) {
     stop("The total-intake Mundlak fit file is invalid.", call. = FALSE)
   }
+
   normalizePath(output_file, winslash = "/", mustWork = TRUE)
 }
 
@@ -5027,6 +5277,7 @@ make_update_2026_total_mundlak_fit_manifest <- function(
         paste0(model_name, " [total_mundlak]")
       )
     )
+
   if (
     nrow(manifest) != 72L ||
       anyDuplicated(paste(manifest$outcome, manifest$model_index)) ||
@@ -5038,6 +5289,7 @@ make_update_2026_total_mundlak_fit_manifest <- function(
     stop("The total-intake Mundlak fit manifest is invalid.",
          call. = FALSE)
   }
+
   manifest
 }
 
@@ -5051,6 +5303,7 @@ make_update_2026_total_mundlak_remedy_specifications <- function(
   failed <- diagnostic_audit$diagnostic_summary |>
     dplyr::filter(!diagnostic_pass) |>
     dplyr::mutate(key = paste(outcome, model_index, sep = "::"))
+
   if (
     !identical(diagnostic_audit$family, "total_mundlak") ||
       nrow(failed) != 4L || anyDuplicated(failed$key) ||
@@ -5062,6 +5315,7 @@ make_update_2026_total_mundlak_remedy_specifications <- function(
     stop("The total-intake Mundlak remedy set no longer matches its audit.",
          call. = FALSE)
   }
+
   selected <- purrr::keep(specifications, function(specification) {
     paste(
       specification$outcome,
@@ -5080,6 +5334,7 @@ make_update_2026_total_mundlak_remedy_specifications <- function(
     )
     specification
   })
+
   keys <- purrr::map_chr(
     selected,
     ~ paste(.x$outcome, .x$model_index, sep = "::")
@@ -5091,6 +5346,7 @@ make_update_2026_total_mundlak_remedy_specifications <- function(
     stop("The total-intake Mundlak remedy specifications are incomplete.",
          call. = FALSE)
   }
+
   names(selected) <- paste0(
     purrr::map_chr(selected, "outcome"),
     "_model_",
@@ -5149,6 +5405,7 @@ validate_update_2026_total_mundlak_remedy_inputs <- function(
       )),
       model_index
     )
+
   keys <- paste(checks$outcome, checks$model_index, sep = "::")
   expected_keys <- c(
     "whole_body::2", "strength::2", "strength::17", "function::6"
@@ -5165,6 +5422,7 @@ validate_update_2026_total_mundlak_remedy_inputs <- function(
     stop("The total-intake Mundlak remedy preflight is incomplete.",
          call. = FALSE)
   }
+
   checks
 }
 
@@ -5209,6 +5467,7 @@ combine_update_2026_total_mundlak_remedy_diagnostics <- function(
   diagnostic_key <- function(x) {
     paste(x$summary$outcome[[1L]], x$summary$model_index[[1L]], sep = "::")
   }
+
   if (length(initial_diagnostics) != 72L || length(remedy_diagnostics) != 4L) {
     stop("The total-intake Mundlak remedy diagnostics are incomplete.",
          call. = FALSE)
@@ -5218,6 +5477,7 @@ combine_update_2026_total_mundlak_remedy_diagnostics <- function(
   failed_keys <- initial_diagnostics |>
     purrr::keep(~ !.x$summary$diagnostic_pass[[1L]]) |>
     purrr::map_chr(diagnostic_key)
+
   if (
     anyDuplicated(initial_keys) || anyDuplicated(remedy_keys) ||
       !setequal(remedy_keys, failed_keys) ||
@@ -5226,6 +5486,7 @@ combine_update_2026_total_mundlak_remedy_diagnostics <- function(
     stop("The total-intake Mundlak diagnostic replacement is invalid.",
          call. = FALSE)
   }
+
   final_diagnostics <- initial_diagnostics
   final_diagnostics[match(remedy_keys, initial_keys)] <- remedy_diagnostics
   compile_update_2026_total_primary_diagnostic_audit(
@@ -5243,6 +5504,7 @@ make_update_2026_total_mundlak_accepted_fit_manifest <- function(
   expected_keys <- c(
     "whole_body::2", "strength::2", "strength::17", "function::6"
   )
+
   if (
     nrow(initial_manifest) != 72L || length(remedy_paths) != 4L ||
       any(!file.exists(remedy_paths)) ||
@@ -5256,6 +5518,7 @@ make_update_2026_total_mundlak_accepted_fit_manifest <- function(
       call. = FALSE
     )
   }
+
   remedy <- tibble::tibble(
     outcome = basename(dirname(remedy_paths)),
     model_index = as.integer(stringr::str_match(
@@ -5285,6 +5548,7 @@ make_update_2026_total_mundlak_accepted_fit_manifest <- function(
     dplyr::select(
       outcome, model_index, model_name, fit_path, stage, bytes, sha256
     )
+
   remedy_keys <- paste(remedy$outcome, remedy$model_index, sep = "::")
   accepted <- initial_manifest |>
     dplyr::anti_join(
@@ -5299,6 +5563,7 @@ make_update_2026_total_mundlak_accepted_fit_manifest <- function(
       ),
       model_index
     )
+
   retained <- setdiff(
     seq_len(26L),
     c(3L, 7L, 10L, 13L, 16L, 19L, 22L, 25L)
@@ -5309,6 +5574,7 @@ make_update_2026_total_mundlak_accepted_fit_manifest <- function(
       indices_valid = setequal(model_index, retained),
       .by = outcome
     )
+
   if (
     nrow(remedy) != 4L || anyDuplicated(remedy_keys) ||
       !setequal(remedy_keys, expected_keys) ||
@@ -5328,6 +5594,7 @@ make_update_2026_total_mundlak_accepted_fit_manifest <- function(
     stop("The accepted total-intake Mundlak manifest is invalid.",
          call. = FALSE)
   }
+
   accepted
 }
 
@@ -5359,6 +5626,7 @@ validate_update_2026_total_mundlak_loo_inputs <- function(
         stringr::fixed(" [total_mundlak]")
       ))
   )
+
   ready <-
     nrow(accepted_fit_manifest) == 72L &&
     !anyDuplicated(accepted_fit_manifest[c("outcome", "model_index")]) &&
@@ -5367,6 +5635,7 @@ validate_update_2026_total_mundlak_loo_inputs <- function(
     !is.na(k_threshold) && k_threshold == 0.7 &&
     is.numeric(cores_per_branch) && length(cores_per_branch) == 1L &&
     !is.na(cores_per_branch) && cores_per_branch == 1L
+
   if (!ready) {
     stop("The total-intake Mundlak LOO preflight is incomplete.",
          call. = FALSE)
@@ -5382,12 +5651,15 @@ validate_update_2026_total_mundlak_loo_inputs <- function(
   )
 }
 
+# Pair accepted fit artifacts with their outcome and model indices so
+# integrated scores and exact corrections can be joined.
 make_update_2026_total_mundlak_loo_records <- function(
     accepted_fit_manifest
 ) {
   required <- c(
     "outcome", "model_index", "model_name", "fit_path", "stage"
   )
+
   if (
     !all(required %in% names(accepted_fit_manifest)) ||
       nrow(accepted_fit_manifest) != 72L ||
@@ -5397,6 +5669,7 @@ make_update_2026_total_mundlak_loo_records <- function(
     stop("The total-intake Mundlak LOO fit manifest is invalid.",
          call. = FALSE)
   }
+
   records <- purrr::map(
     seq_len(nrow(accepted_fit_manifest)),
     ~ as.list(accepted_fit_manifest[.x, required, drop = FALSE])
@@ -5427,6 +5700,7 @@ compute_update_2026_total_mundlak_integrated_loo_to_file <- function(
       call. = FALSE
     )
   }
+
   result <- compute_mundlak_full_file_integrated_loo(
     fit_record = fit_record,
     loo_draws = loo_draws,
@@ -5435,6 +5709,7 @@ compute_update_2026_total_mundlak_integrated_loo_to_file <- function(
     family = "total_mundlak",
     slope_description = "total_intake_mundlak_within_basis_slopes"
   )
+
   if (
     !inherits(result$loo, "loo") ||
       !inherits(result$conditional_loo, "loo") ||
@@ -5444,6 +5719,7 @@ compute_update_2026_total_mundlak_integrated_loo_to_file <- function(
     stop("Cannot archive an invalid total-intake Mundlak LOO result.",
          call. = FALSE)
   }
+
   output_dir <- file.path(output_root, result$outcome)
   dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
   output_file <- file.path(
@@ -5464,6 +5740,7 @@ audit_update_2026_total_mundlak_integrated_loo_files <- function(
     seq_len(26L),
     c(3L, 7L, 10L, 13L, 16L, 19L, 22L, 25L)
   )
+
   if (
     !is.data.frame(manifest) || nrow(manifest) != 72L ||
       any(manifest$family != "total_mundlak") ||
@@ -5472,6 +5749,7 @@ audit_update_2026_total_mundlak_integrated_loo_files <- function(
     stop("The total-intake Mundlak LOO manifest cannot be audited.",
          call. = FALSE)
   }
+
   results <- purrr::map(manifest$integrated_loo_path, qs::qread)
   audit <- audit_mundlak_full_integrated_loo(
     results,
@@ -5501,6 +5779,7 @@ audit_update_2026_total_mundlak_integrated_loo_files <- function(
       ),
       model_index
     )
+
   alignment <- observation_set_audit |>
     dplyr::summarise(
       observation_counts = paste(sort(unique(observations)), collapse = ","),
@@ -5519,6 +5798,7 @@ audit_update_2026_total_mundlak_integrated_loo_files <- function(
   audit$stacking_ready <-
     audit$exact_refits_required == 0L &&
     all(audit$outcome_summary$observation_sets_aligned)
+
   if (
     audit$models != 72L || nrow(audit$outcome_summary) != 4L ||
       nrow(audit$observation_set_audit) != 72L ||
@@ -5527,6 +5807,7 @@ audit_update_2026_total_mundlak_integrated_loo_files <- function(
     stop("The total-intake Mundlak integrated-LOO audit is incomplete.",
          call. = FALSE)
   }
+
   audit
 }
 
@@ -5547,6 +5828,7 @@ write_update_2026_total_mundlak_integrated_loo_audit <- function(
     stop("The total-intake Mundlak integrated-LOO audit is incomplete.",
          call. = FALSE)
   }
+
   dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
   paths <- c(
     reduction_manifest = file.path(output_dir, "reduction_manifest.csv"),
@@ -5558,6 +5840,7 @@ write_update_2026_total_mundlak_integrated_loo_audit <- function(
       "observation_set_audit.csv"
     )
   )
+
   readr::write_csv(manifest, paths[["reduction_manifest"]], na = "")
   readr::write_csv(audit$model_summary, paths[["model_summary"]], na = "")
   readr::write_csv(
@@ -5582,6 +5865,7 @@ validate_update_2026_total_mundlak_exact_inputs <- function(
     stop("Expected two total-intake Mundlak exact-LOO records.",
          call. = FALSE)
   }
+
   checks <- purrr::map_dfr(records, function(record) {
     integrated <- qs::qread(record$integrated_loo_path)
     observation <- as.integer(record$observation)
@@ -5621,12 +5905,14 @@ validate_update_2026_total_mundlak_exact_inputs <- function(
     )
   }) |>
     dplyr::arrange(case_id)
+
   keys <- paste(
     checks$outcome,
     checks$model_index,
     checks$observation,
     sep = "::"
   )
+
   if (
     nrow(checks) != 2L || anyDuplicated(keys) ||
       !setequal(keys, c("hypertrophy::20::248", "hypertrophy::20::249")) ||
@@ -5641,6 +5927,7 @@ validate_update_2026_total_mundlak_exact_inputs <- function(
     stop("The total-intake Mundlak exact-LOO preflight is incomplete.",
          call. = FALSE)
   }
+
   checks
 }
 
@@ -5686,6 +5973,7 @@ fit_update_2026_total_mundlak_exact_to_file <- function(
     stop("Total-intake Mundlak exact refitting is disabled.",
          call. = FALSE)
   }
+
   output_file <- update_2026_total_mundlak_exact_fit_file_path(record)
   if (file.exists(output_file) && file.info(output_file)$size > 0) {
     archived <- tryCatch(
@@ -5706,6 +5994,7 @@ fit_update_2026_total_mundlak_exact_to_file <- function(
       call. = FALSE
     )
   }
+
   candidate <- read_sensitivity_fit_file(record$original_fit_path)
   integrated <- qs::qread(record$integrated_loo_path)
   observation <- as.integer(record$observation)
@@ -5724,6 +6013,7 @@ fit_update_2026_total_mundlak_exact_to_file <- function(
     stop("A total-intake Mundlak exact record failed validation.",
          call. = FALSE)
   }
+
   prediction_data <- candidate$model$data
   training_data <- prediction_data[-observation, , drop = FALSE]
   original_model <- candidate$model
@@ -5757,6 +6047,7 @@ fit_update_2026_total_mundlak_exact_to_file <- function(
     ),
     save_pars = brms::save_pars(all = TRUE)
   )
+
   archive <- list(
     case_id = as.integer(record$case_id),
     outcome = record$outcome,
@@ -5771,6 +6062,7 @@ fit_update_2026_total_mundlak_exact_to_file <- function(
     refitted_model = refitted_model,
     refit_seconds = as.numeric(proc.time()[["elapsed"]] - start_time)
   )
+
   write_atomic_qs(
     archive,
     output_file
@@ -5791,6 +6083,7 @@ write_update_2026_total_mundlak_exact_diagnostic_audit <- function(
     stop("The total-intake Mundlak exact diagnostic audit is incomplete.",
          call. = FALSE)
   }
+
   dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
   output_file <- file.path(output_dir, "diagnostic_summary.csv")
   readr::write_csv(audit$diagnostic_summary, output_file, na = "")
@@ -5823,6 +6116,7 @@ compute_update_2026_total_mundlak_exact_correction_to_file <- function(
     stop("Total-intake Mundlak exact correction is disabled.",
          call. = FALSE)
   }
+
   refit <- read_mundlak_full_exact_loo_file(exact_fit_path)
   output_file <- update_2026_total_mundlak_exact_correction_file_path(refit)
   if (file.exists(output_file) && file.info(output_file)$size > 0) {
@@ -5839,6 +6133,7 @@ compute_update_2026_total_mundlak_exact_correction_to_file <- function(
     }
     stop("An existing exact-correction archive is invalid.", call. = FALSE)
   }
+
   correction <- compute_mundlak_full_exact_loo_file(
     path = exact_fit_path,
     diagnostic_audit = diagnostic_audit
@@ -5852,6 +6147,7 @@ compute_update_2026_total_mundlak_exact_correction_to_file <- function(
     stop("The total-intake Mundlak exact correction is invalid.",
          call. = FALSE)
   }
+
   write_atomic_qs(correction, output_file)
 }
 
@@ -5861,6 +6157,7 @@ audit_update_2026_total_mundlak_exact_correction_files <- function(
 ) {
   paths <- unname(unlist(paths, use.names = FALSE))
   expected <- as.integer(integrated_audit$exact_refits_required)
+
   if (
     length(paths) != expected || expected != 2L || anyNA(paths) ||
       any(!file.exists(paths)) || any(file.info(paths)$size <= 0)
@@ -5868,6 +6165,7 @@ audit_update_2026_total_mundlak_exact_correction_files <- function(
     stop("The total-intake Mundlak exact corrections are incomplete.",
          call. = FALSE)
   }
+
   corrections <- purrr::map(paths, qs::qread)
   diagnostic_summary <- purrr::map_dfr(
     corrections,
@@ -5881,6 +6179,7 @@ audit_update_2026_total_mundlak_exact_correction_files <- function(
       model_index,
       observation
     )
+
   manifest <- purrr::map2_dfr(paths, corrections, function(path, result) {
     tibble::tibble(
       case_id = as.integer(result$case_id),
@@ -5903,6 +6202,7 @@ audit_update_2026_total_mundlak_exact_correction_files <- function(
     )
   }) |>
     dplyr::arrange(case_id)
+
   observed_keys <- paste(
     manifest$outcome,
     manifest$model_index,
@@ -5915,6 +6215,7 @@ audit_update_2026_total_mundlak_exact_correction_files <- function(
     integrated_audit$high_k_cases$observation,
     sep = "::"
   )
+
   if (
     nrow(diagnostic_summary) != 2L || nrow(manifest) != 2L ||
       anyDuplicated(observed_keys) || !setequal(observed_keys, expected_keys) ||
@@ -5924,6 +6225,7 @@ audit_update_2026_total_mundlak_exact_correction_files <- function(
     stop("The total-intake Mundlak exact-correction audit is invalid.",
          call. = FALSE)
   }
+
   list(
     diagnostic_summary = diagnostic_summary,
     correction_manifest = manifest,
@@ -5951,6 +6253,7 @@ write_update_2026_total_mundlak_exact_correction_audit <- function(
     stop("Cannot write an incomplete exact-correction audit.",
          call. = FALSE)
   }
+
   dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
   paths <- c(
     diagnostic_summary = file.path(output_dir, "diagnostic_summary.csv"),
@@ -5977,6 +6280,7 @@ read_update_2026_total_mundlak_exact_corrections <- function(manifest) {
     stop("The total-intake Mundlak correction manifest is invalid.",
          call. = FALSE)
   }
+
   corrections <- purrr::map(manifest$correction_path, qs::qread)
   corrections <- corrections[order(purrr::map_int(corrections, "case_id"))]
   if (
@@ -5986,6 +6290,7 @@ read_update_2026_total_mundlak_exact_corrections <- function(manifest) {
     stop("The total-intake Mundlak exact corrections are invalid.",
          call. = FALSE)
   }
+
   corrections
 }
 
@@ -5998,6 +6303,7 @@ make_update_2026_total_mundlak_final_loo_audit <- function(
     seq_len(26L),
     c(3L, 7L, 10L, 13L, 16L, 19L, 22L, 25L)
   )
+
   if (!isTRUE(exact_audit$all_exact_refit_diagnostics_pass)) {
     stop("Final total-intake Mundlak LOO requires passing exact refits.",
          call. = FALSE)
@@ -6018,6 +6324,7 @@ make_update_2026_total_mundlak_final_loo_audit <- function(
       maximum_remaining_pareto_k = max(maximum_pareto_k, na.rm = TRUE),
       .by = outcome
     )
+
   correction_counts <- exact_audit$diagnostic_summary |>
     dplyr::count(outcome, model_index, name = "exact_corrections")
   final_manifest <- integrated_manifest |>
@@ -6033,6 +6340,7 @@ make_update_2026_total_mundlak_final_loo_audit <- function(
         "integrated_observation_level_psis"
       )
     )
+
   if (
     !isTRUE(final$stacking_ready) || nrow(final$model_summary) != 72L ||
       nrow(outcome_summary) != 4L || any(outcome_summary$models != 18L) ||
@@ -6043,6 +6351,7 @@ make_update_2026_total_mundlak_final_loo_audit <- function(
     stop("The final total-intake Mundlak LOO audit is not stacking-ready.",
          call. = FALSE)
   }
+
   final$family <- "total_mundlak"
   final$outcome_summary <- outcome_summary
   final$final_loo_manifest <- final_manifest
@@ -6068,6 +6377,7 @@ write_update_2026_total_mundlak_final_loo_audit <- function(
     stop("Cannot write an incomplete final total-intake Mundlak LOO audit.",
          call. = FALSE)
   }
+
   dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
   paths <- c(
     final_loo_manifest = file.path(output_dir, "final_loo_manifest.csv"),
@@ -6102,6 +6412,7 @@ write_update_2026_total_mundlak_stacking_weights <- function(
     stop("The total-intake Mundlak stacking weights are invalid.",
          call. = FALSE)
   }
+
   dir.create(dirname(output_file), recursive = TRUE, showWarnings = FALSE)
   readr::write_csv(weights, output_file, na = "")
   output_file
@@ -6121,6 +6432,7 @@ make_update_2026_total_mundlak_prediction_records <- function(
   )
   required_weight <- c("outcome", "model_index", "model_name", "weight")
   n_draws <- as.integer(n_draws)
+
   if (
     !all(required_fit %in% names(accepted_fit_manifest)) ||
       !all(required_weight %in% names(stacking_weights)) ||
@@ -6132,6 +6444,7 @@ make_update_2026_total_mundlak_prediction_records <- function(
     stop("The total-intake Mundlak reporting inputs are invalid.",
          call. = FALSE)
   }
+
   joined <- stacking_weights |>
     dplyr::left_join(
       accepted_fit_manifest |>
@@ -6141,6 +6454,7 @@ make_update_2026_total_mundlak_prediction_records <- function(
       relationship = "one-to-one"
     ) |>
     dplyr::arrange(factor(outcome, levels = outcomes), model_index)
+
   if (
     anyNA(joined$fit_path) || any(!file.exists(joined$fit_path)) ||
       anyDuplicated(joined[c("outcome", "model_index")]) ||
@@ -6150,6 +6464,7 @@ make_update_2026_total_mundlak_prediction_records <- function(
     stop("The total-intake Mundlak fit and weight registries do not match.",
          call. = FALSE)
   }
+
   outcome_seed <- stats::setNames(
     seed + seq_along(outcomes) * 10000L,
     outcomes
@@ -6178,12 +6493,14 @@ make_update_2026_total_mundlak_prediction_records <- function(
       exposure_minimum_g_day = exposure_minimum_g_day,
       grid_step_g_day = grid_step_g_day
     )
+
   allocation_audit <- allocated |>
     dplyr::summarise(
       allocated_draws = sum(draw_count),
       selected_models = sum(draw_count > 0L),
       .by = outcome
     )
+
   if (
     nrow(allocation_audit) != 4L ||
       any(allocation_audit$allocated_draws != n_draws) ||
@@ -6192,6 +6509,7 @@ make_update_2026_total_mundlak_prediction_records <- function(
     stop("The total-intake Mundlak prediction allocation is incomplete.",
          call. = FALSE)
   }
+
   allocated <- dplyr::filter(allocated, draw_count > 0L)
   purrr::map(seq_len(nrow(allocated)), function(row) {
     purrr::map(as.list(allocated[row, , drop = FALSE]), unname)
@@ -6209,6 +6527,7 @@ make_update_2026_total_mundlak_prediction_grid <- function(
     "protein_intake_raw", "resistance_exercise_code",
     "absolute_exposure_reference_g_day", "absolute_exposure_unit_g_day"
   )
+
   if (
     !is.list(fitted_candidate) ||
       !inherits(fitted_candidate$model, "brmsfit") ||
@@ -6217,6 +6536,7 @@ make_update_2026_total_mundlak_prediction_grid <- function(
     stop("The total-intake Mundlak prediction data are invalid.",
          call. = FALSE)
   }
+
   reference <- unique(data$absolute_exposure_reference_g_day)
   unit <- unique(data$absolute_exposure_unit_g_day)
   exposure_maximum_g_day <- max(data$protein_intake_raw, na.rm = TRUE)
@@ -6232,6 +6552,7 @@ make_update_2026_total_mundlak_prediction_grid <- function(
     stop("The total-intake Mundlak prediction-grid limits are invalid.",
          call. = FALSE)
   }
+
   exposure_values <- sort(unique(c(
     round(seq(
       exposure_minimum_g_day,
@@ -6240,6 +6561,7 @@ make_update_2026_total_mundlak_prediction_grid <- function(
     ), 10),
     reference
   )))
+
   keys <- tidyr::crossing(
     resistance_exercise_code = c(0, 1),
     protein_intake = exposure_values
@@ -6252,6 +6574,7 @@ make_update_2026_total_mundlak_prediction_grid <- function(
   complete <- stats::complete.cases(
     template_data[, grouping_variables, drop = FALSE]
   )
+
   if (!any(complete)) {
     stop("No complete fitted row is available for the prediction grid.",
          call. = FALSE)
@@ -6267,6 +6590,7 @@ make_update_2026_total_mundlak_prediction_grid <- function(
   internal_exposure <- (keys$protein_intake - reference) / unit
   newdata$protein_intake <- internal_exposure
   exercise_label <- ifelse(keys$resistance_exercise_code == 0, "yes", "no")
+
   if ("resistance_exercise_yes_no" %in% names(newdata)) {
     newdata$resistance_exercise_yes_no <- exercise_label
   }
@@ -6276,6 +6600,7 @@ make_update_2026_total_mundlak_prediction_grid <- function(
       levels = levels(template_data$resistance_exercise_factor)
     )
   }
+
   if ("age_centre" %in% names(newdata)) newdata$age_centre <- 0
   if ("duration_centre" %in% names(newdata)) newdata$duration_centre <- 0
   if ("vi" %in% names(newdata)) newdata$vi <- 0
@@ -6391,6 +6716,7 @@ make_update_2026_total_mundlak_reporting_preflight <- function(
       ),
       model_index
     )
+
   audit <- checks |>
     dplyr::summarise(
       selected_models = dplyr::n(),
@@ -6398,6 +6724,7 @@ make_update_2026_total_mundlak_reporting_preflight <- function(
       retained_weight = sum(weight),
       .by = outcome
     )
+
   if (
     nrow(audit) != 4L || any(audit$selected_models < 1L) ||
       any(audit$allocated_draws != 4000L) ||
@@ -6409,6 +6736,7 @@ make_update_2026_total_mundlak_reporting_preflight <- function(
     stop("The total-intake Mundlak reporting preflight failed.",
          call. = FALSE)
   }
+
   checks
 }
 
@@ -6461,6 +6789,7 @@ write_update_2026_total_mundlak_prediction_draw_file <- function(
     stop("A total-intake Mundlak prediction record is invalid.",
          call. = FALSE)
   }
+
   candidate <- qs::qread(record$fit_path)
   candidate_model_name <- if (stringr::str_ends(
     candidate$model_name,
@@ -6470,6 +6799,7 @@ write_update_2026_total_mundlak_prediction_draw_file <- function(
   } else {
     paste0(candidate$model_name, " [total_mundlak]")
   }
+
   if (
     !identical(unname(as.character(candidate$family)), "total_mundlak") ||
       !identical(
@@ -6482,6 +6812,7 @@ write_update_2026_total_mundlak_prediction_draw_file <- function(
     stop("A total-intake Mundlak fit does not match its prediction record.",
          call. = FALSE)
   }
+
   grid <- make_update_2026_total_mundlak_prediction_grid(
     fitted_candidate = candidate,
     data = data_by_outcome[[record$outcome]],
@@ -6498,6 +6829,7 @@ write_update_2026_total_mundlak_prediction_draw_file <- function(
     re_formula = NA,
     ndraws = as.integer(record$draw_count)
   ))
+
   if (ncol(draws) != nrow(grid$keys) && nrow(draws) == nrow(grid$keys)) {
     draws <- t(draws)
   }
@@ -6508,6 +6840,7 @@ write_update_2026_total_mundlak_prediction_draw_file <- function(
     stop("Total-intake Mundlak predictions do not match their allocation.",
          call. = FALSE)
   }
+
   reduction <- list(
     family = "total_mundlak",
     outcome = as.character(record$outcome),
@@ -6529,6 +6862,7 @@ write_update_2026_total_mundlak_prediction_draw_file <- function(
       prediction_type = "total_mundlak"
     )
   )
+
   write_atomic_qs(reduction, result_path)
 }
 
@@ -6621,6 +6955,7 @@ write_update_2026_total_mundlak_reporting_file <- function(
       )
     )
   )
+
   write_atomic_qs(report, result_path)
 }
 
@@ -6641,6 +6976,7 @@ write_update_2026_total_mundlak_reporting_audit <- function(
     stop("The total-intake Mundlak reporting audit is incomplete.",
          call. = FALSE)
   }
+
   reports <- purrr::map(
     audit$summary$reporting_path,
     read_sensitivity_full_reporting_file,
@@ -6677,6 +7013,7 @@ write_update_2026_total_mundlak_reporting_audit <- function(
     local_equivalence = file.path(output_dir, "local_equivalence.csv"),
     model_weights = file.path(output_dir, "model_weights.csv")
   )
+
   readr::write_csv(audit$summary, paths[["summary"]])
   readr::write_csv(prediction_manifest, paths[["prediction_manifest"]])
   readr::write_csv(bind_report("dose_response"), paths[["dose_response"]])
@@ -6737,6 +7074,7 @@ make_update_2026_total_mundlak_verification_checkpoint <- function(
       )
     ) |>
     dplyr::arrange(factor(outcome, levels = outcomes), model_index)
+
   analysis_data <- purrr::imap_dfr(
     data_by_outcome,
     ~ dplyr::mutate(.x, analysis_outcome = .y, .before = 1L)
@@ -6780,6 +7118,7 @@ make_update_2026_total_mundlak_verification_checkpoint <- function(
         dplyr::select(outcome, model_index, weight_name = model_name),
       by = c("outcome", "model_index")
     )
+
   weight_sums <- stacking_weights |>
     dplyr::summarise(
       models = dplyr::n(),
@@ -6901,6 +7240,7 @@ make_update_2026_total_mundlak_verification_checkpoint <- function(
         all(reporting_audit$summary$diagonal_contrasts_valid)
     )
   )
+
   failed <- is.na(checks$passed) | !checks$passed
   if (any(failed)) {
     stop(
@@ -6952,6 +7292,7 @@ make_update_2026_total_mundlak_verification_checkpoint <- function(
     pairwise_support = bind_report("pairwise_support"),
     local_equivalence = bind_report("local_equivalence")
   )
+
   descriptions <- stats::setNames(
     c(
       "Final total-intake Mundlak checkpoint checks.",
@@ -6994,6 +7335,7 @@ make_update_2026_total_mundlak_verification_checkpoint <- function(
     ),
     names(artifacts)
   )
+
   list(
     checks = checks,
     artifacts = artifacts,
@@ -7029,6 +7371,7 @@ make_update_2026_total_mundlak_pruning_plan <- function(
     verification_manifest,
     show_col_types = FALSE
   )
+
   if (length(verification_files) != nrow(verification_index) + 2L) {
     stop("The total-intake Mundlak verification-file count is invalid.",
          call. = FALSE)
@@ -7043,6 +7386,7 @@ make_update_2026_total_mundlak_pruning_plan <- function(
     winslash = "/",
     mustWork = TRUE
   )
+
   if (!identical(tolower(resolved_root), tolower(expected_root))) {
     stop("Refusing to plan pruning outside the total-intake Mundlak archive.",
          call. = FALSE)
@@ -7054,6 +7398,7 @@ make_update_2026_total_mundlak_pruning_plan <- function(
     stop("An expected total-intake Mundlak fit directory is missing.",
          call. = FALSE)
   }
+
   fit_paths <- unlist(
     purrr::map(
       fit_roots,
@@ -7067,6 +7412,7 @@ make_update_2026_total_mundlak_pruning_plan <- function(
     use.names = FALSE
   ) |>
     normalizePath(winslash = "/", mustWork = TRUE)
+
   accepted_paths <- normalizePath(
     accepted_fit_manifest$fit_path,
     winslash = "/",
@@ -7081,6 +7427,7 @@ make_update_2026_total_mundlak_pruning_plan <- function(
     stop("Total-intake Mundlak fit retention does not match its lineage.",
          call. = FALSE)
   }
+
   model_fit_manifest <- tibble::tibble(
     path = fit_paths,
     relative_path = substring(fit_paths, nchar(resolved_root) + 2L),
@@ -7098,6 +7445,7 @@ make_update_2026_total_mundlak_pruning_plan <- function(
     lean_action = "delete frozen total-intake Mundlak model fit"
   ) |>
     dplyr::arrange(archive_stage, outcome, model_index)
+
   stage_counts <- table(factor(
     model_fit_manifest$archive_stage,
     levels = c("initial", "remedy_1")
@@ -7140,6 +7488,7 @@ make_update_2026_total_mundlak_pruning_plan <- function(
     lean_action = "delete frozen exact-deletion refit"
   ) |>
     dplyr::arrange(case_id)
+
   exact_keys <- paste(
     exact_refit_manifest$outcome,
     exact_refit_manifest$model_index,
@@ -7152,6 +7501,7 @@ make_update_2026_total_mundlak_pruning_plan <- function(
     exact_diagnostic_audit$diagnostic_summary$observation,
     sep = "::"
   )
+
   if (
     nrow(exact_refit_manifest) != 2L ||
       anyNA(exact_refit_manifest[c("model_index", "case_id", "observation")]) ||
@@ -7195,6 +7545,7 @@ make_update_2026_total_mundlak_pruning_plan <- function(
     stop("An expected compact total-intake Mundlak directory is missing.",
          call. = FALSE)
   }
+
   compact_paths <- unlist(
     purrr::map(
       compact_roots,
@@ -7207,6 +7558,7 @@ make_update_2026_total_mundlak_pruning_plan <- function(
     ),
     use.names = FALSE
   )
+
   compact_paths <- compact_paths[
     file.exists(compact_paths) & !file.info(compact_paths)$isdir
   ] |>
@@ -7219,6 +7571,7 @@ make_update_2026_total_mundlak_pruning_plan <- function(
     )]
     if (length(matches) == 1L) matches else "unknown"
   }, character(1L))
+
   compact_manifest <- tibble::tibble(
     path = compact_paths,
     relative_path = substring(compact_paths, nchar(resolved_root) + 2L),
@@ -7231,6 +7584,7 @@ make_update_2026_total_mundlak_pruning_plan <- function(
     action = "retain compact total-intake Mundlak result"
   ) |>
     dplyr::arrange(archive_component, relative_path)
+
   compact_counts <- table(factor(
     compact_manifest$archive_component,
     levels = c("loo_psis", "exact_corrections", "reporting")
@@ -7270,6 +7624,7 @@ make_update_2026_total_mundlak_pruning_plan <- function(
       "total-intake Mundlak family."
     )
   )
+
   list(
     summary = summary,
     model_fit_manifest = model_fit_manifest,
@@ -7301,6 +7656,7 @@ write_update_2026_total_mundlak_pruning_plan <- function(
     stop("Cannot write an invalid total-intake Mundlak pruning plan.",
          call. = FALSE)
   }
+
   dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
   paths <- c(
     summary = file.path(output_dir, "summary.csv"),
@@ -7313,6 +7669,7 @@ write_update_2026_total_mundlak_pruning_plan <- function(
       output_dir, "compact_archive_manifest.csv"
     )
   )
+
   readr::write_csv(plan$summary, paths[["summary"]])
   readr::write_csv(plan$model_fit_manifest, paths[["model_fit_manifest"]])
   readr::write_csv(plan$exact_refit_manifest, paths[["exact_refit_manifest"]])
@@ -7327,6 +7684,10 @@ write_update_2026_total_mundlak_pruning_plan <- function(
   unname(paths)
 }
 
+# Strict within-study comparisons for total intake ----
+
+# Construct the same-study arm contrasts using the total-intake model sample
+# and carry its dose scale forward for reporting.
 make_update_2026_total_within_contrast_data_by_outcome <- function(
     total_mundlak_data_by_outcome
 ) {
@@ -7335,6 +7696,7 @@ make_update_2026_total_within_contrast_data_by_outcome <- function(
     stop("The total-intake within-study source registry is invalid.",
          call. = FALSE)
   }
+
   contrasts <- purrr::map(
     total_mundlak_data_by_outcome,
     function(data) {
@@ -7401,6 +7763,7 @@ make_update_2026_total_within_contrast_data_by_outcome <- function(
       output
     }
   )
+
   if (
     !identical(vapply(contrasts, nrow, integer(1L)), c(
       whole_body = 145L,
@@ -7412,6 +7775,7 @@ make_update_2026_total_within_contrast_data_by_outcome <- function(
     stop("The total-intake within-study contrast counts have changed.",
          call. = FALSE)
   }
+
   contrasts
 }
 
@@ -7460,6 +7824,7 @@ make_update_2026_total_within_specifications <- function(
       model_name = paste0(model_name, " [total_within]")
     ) |>
     dplyr::select(-key)
+
   retained <- setdiff(
     seq_len(26L),
     c(3L, 7L, 10L, 13L, 16L, 19L, 22L, 25L)
@@ -7473,6 +7838,7 @@ make_update_2026_total_within_specifications <- function(
     levels = c("base", "longer_sampling")
   ))
   keys <- paste(specifications$outcome, specifications$model_index, sep = "::")
+
   if (
     nrow(specifications) != 72L || anyDuplicated(keys) ||
       !identical(as.integer(counts), rep(18L, 4L)) ||
@@ -7488,6 +7854,7 @@ make_update_2026_total_within_specifications <- function(
     stop("The total-intake within-study specification registry is invalid.",
          call. = FALSE)
   }
+
   output <- purrr::pmap(specifications, list)
   names(output) <- paste0(
     specifications$outcome,
@@ -7510,6 +7877,7 @@ update_2026_total_within_local_config <- function(specification, config) {
     as.integer(specification$max_treedepth)
   )
   outcome_offset <- match(specification$outcome, config$outcomes)
+
   if (is.na(outcome_offset)) {
     stop("Unknown outcome in the total-intake within-study configuration.",
          call. = FALSE)
@@ -7529,6 +7897,7 @@ prepare_update_2026_total_within_input <- function(
 ) {
   data <- contrast_data_by_outcome[[specification$outcome]]
   priors <- priors_by_outcome[[specification$outcome]]
+
   if (is.null(data) || !nrow(data) || is.null(priors)) {
     stop("Total-intake within-study data or priors are unavailable.",
          call. = FALSE)
@@ -7544,6 +7913,7 @@ prepare_update_2026_total_within_input <- function(
     local_config$iter_sampling,
     "_sampling"
   )
+
   if (isTRUE(specification$includes_moderators)) {
     data <- add_absolute_primary_body_mass(data)
   }
@@ -7554,6 +7924,7 @@ prepare_update_2026_total_within_input <- function(
   )
   input$family <- "total_within"
   input$specification$family <- "total_within"
+
   if (isTRUE(specification$includes_moderators)) {
     input$priors <- add_absolute_primary_body_mass_prior(input$priors)
     if (!stringr::str_detect(input$formula, "\\bbody_mass_outcome_z\\b")) {
@@ -7569,6 +7940,7 @@ prepare_update_2026_total_within_input <- function(
       input$formula <- updated_formula
     }
   }
+
   input
 }
 
@@ -7636,6 +8008,7 @@ validate_update_2026_total_within_inputs <- function(
       ),
       model_index
     )
+
   keys <- paste(checks$outcome, checks$model_index, sep = "::")
   schedule_counts <- table(factor(
     checks$historical_schedule,
@@ -7657,6 +8030,7 @@ validate_update_2026_total_within_inputs <- function(
     strength = 379L,
     `function` = 133L
   )
+
   if (
     nrow(checks) != 72L || anyDuplicated(keys) || !all(checks$valid) ||
       !identical(as.integer(outcome_counts), rep(18L, 4L)) ||
@@ -7677,6 +8051,7 @@ validate_update_2026_total_within_inputs <- function(
     stop("The total-intake within-study input preflight is incomplete.",
          call. = FALSE)
   }
+
   checks
 }
 
@@ -7727,6 +8102,7 @@ fit_update_2026_total_within_candidate_to_file <- function(
   temporary <- paste0(output_file, ".tmp-", Sys.getpid())
   on.exit(unlink(temporary, force = TRUE), add = TRUE)
   qs::qsave(candidate, temporary, preset = "high")
+
   if (!file.copy(temporary, output_file, overwrite = TRUE)) {
     stop("Could not finalise a total-intake within-study fit.",
          call. = FALSE)
@@ -7743,6 +8119,7 @@ make_update_2026_total_within_remedy_specifications <- function(
   failed <- diagnostic_audit$diagnostic_summary |>
     dplyr::filter(!diagnostic_pass) |>
     dplyr::mutate(key = paste(outcome, model_index, sep = "::"))
+
   if (
     !identical(diagnostic_audit$family, "total_within") ||
       nrow(failed) != 2L || anyDuplicated(failed$key) ||
@@ -7754,6 +8131,7 @@ make_update_2026_total_within_remedy_specifications <- function(
     stop("The total-intake within-study remedy set is invalid.",
          call. = FALSE)
   }
+
   selected <- purrr::keep(specifications, function(specification) {
     paste(
       specification$outcome,
@@ -7772,6 +8150,7 @@ make_update_2026_total_within_remedy_specifications <- function(
     )
     specification
   })
+
   keys <- purrr::map_chr(
     selected,
     ~ paste(.x$outcome, .x$model_index, sep = "::")
@@ -7783,6 +8162,7 @@ make_update_2026_total_within_remedy_specifications <- function(
     stop("The total-intake within-study remedy specifications are incomplete.",
          call. = FALSE)
   }
+
   names(selected) <- paste0(
     purrr::map_chr(selected, "outcome"),
     "_model_",
@@ -7835,6 +8215,7 @@ validate_update_2026_total_within_remedy_inputs <- function(
     )
   }) |>
     dplyr::arrange(model_index)
+
   keys <- paste(checks$outcome, checks$model_index, sep = "::")
   if (
     nrow(checks) != 2L || anyDuplicated(keys) ||
@@ -7848,6 +8229,7 @@ validate_update_2026_total_within_remedy_inputs <- function(
     stop("The total-intake within-study remedy preflight is incomplete.",
          call. = FALSE)
   }
+
   checks
 }
 
@@ -7892,6 +8274,7 @@ combine_update_2026_total_within_remedy_diagnostics <- function(
   diagnostic_key <- function(x) {
     paste(x$summary$outcome[[1L]], x$summary$model_index[[1L]], sep = "::")
   }
+
   if (length(initial_diagnostics) != 72L || length(remedy_diagnostics) != 2L) {
     stop("The total-intake within-study remedy diagnostics are incomplete.",
          call. = FALSE)
@@ -7901,6 +8284,7 @@ combine_update_2026_total_within_remedy_diagnostics <- function(
   failed_keys <- initial_diagnostics |>
     purrr::keep(~ !.x$summary$diagnostic_pass[[1L]]) |>
     purrr::map_chr(diagnostic_key)
+
   if (
     anyDuplicated(initial_keys) || anyDuplicated(remedy_keys) ||
       !setequal(remedy_keys, failed_keys) ||
@@ -7909,6 +8293,7 @@ combine_update_2026_total_within_remedy_diagnostics <- function(
     stop("The total-intake within-study diagnostic replacement is invalid.",
          call. = FALSE)
   }
+
   final_diagnostics <- initial_diagnostics
   final_diagnostics[match(remedy_keys, initial_keys)] <- remedy_diagnostics
   compile_update_2026_total_primary_diagnostic_audit(
@@ -7923,6 +8308,7 @@ make_update_2026_total_within_accepted_fit_manifest <- function(
     final_diagnostic_audit
 ) {
   remedy_paths <- unname(unlist(remedy_fit_paths, use.names = FALSE))
+
   if (
     nrow(initial_manifest) != 72L || length(remedy_paths) != 2L ||
       any(!file.exists(remedy_paths)) ||
@@ -7933,6 +8319,7 @@ make_update_2026_total_within_accepted_fit_manifest <- function(
     stop("Accepted total-intake within-study fits require 72 passing diagnostics.",
          call. = FALSE)
   }
+
   remedy <- tibble::tibble(
     outcome = basename(dirname(remedy_paths)),
     model_index = as.integer(stringr::str_match(
@@ -7954,6 +8341,7 @@ make_update_2026_total_within_accepted_fit_manifest <- function(
     dplyr::select(
       outcome, model_index, model_name, fit_path, stage, bytes, sha256
     )
+
   remedy_keys <- paste(remedy$outcome, remedy$model_index, sep = "::")
   accepted <- initial_manifest |>
     dplyr::anti_join(
@@ -7968,6 +8356,7 @@ make_update_2026_total_within_accepted_fit_manifest <- function(
       ),
       model_index
     )
+
   if (
     nrow(remedy) != 2L || anyDuplicated(remedy_keys) ||
       !setequal(remedy_keys, c("function::9", "function::21")) ||
@@ -7986,6 +8375,7 @@ make_update_2026_total_within_accepted_fit_manifest <- function(
     stop("The accepted total-intake within-study manifest is invalid.",
          call. = FALSE)
   }
+
   accepted
 }
 
@@ -8017,6 +8407,7 @@ validate_update_2026_total_within_loo_inputs <- function(
         stringr::fixed(" [total_within]")
       ))
   )
+
   ready <-
     nrow(accepted_fit_manifest) == 72L &&
     !anyDuplicated(accepted_fit_manifest[c("outcome", "model_index")]) &&
@@ -8026,6 +8417,7 @@ validate_update_2026_total_within_loo_inputs <- function(
     stop("The total-intake within-study LOO preflight is incomplete.",
          call. = FALSE)
   }
+
   list(
     family = "total_within",
     models = 72L,
@@ -8037,12 +8429,15 @@ validate_update_2026_total_within_loo_inputs <- function(
   )
 }
 
+# Use the accepted within-study fit manifest as the source of candidate
+# identities for integrated scoring.
 make_update_2026_total_within_loo_records <- function(
     accepted_fit_manifest
 ) {
   required <- c(
     "outcome", "model_index", "model_name", "fit_path", "stage"
   )
+
   if (
     !all(required %in% names(accepted_fit_manifest)) ||
       nrow(accepted_fit_manifest) != 72L ||
@@ -8052,6 +8447,7 @@ make_update_2026_total_within_loo_records <- function(
     stop("The total-intake within-study LOO fit manifest is invalid.",
          call. = FALSE)
   }
+
   records <- purrr::map(
     seq_len(nrow(accepted_fit_manifest)),
     ~ purrr::map(
@@ -8085,6 +8481,7 @@ compute_update_2026_total_within_integrated_loo_to_file <- function(
       call. = FALSE
     )
   }
+
   result <- compute_mundlak_full_file_integrated_loo(
     fit_record = fit_record,
     loo_draws = loo_draws,
@@ -8093,6 +8490,7 @@ compute_update_2026_total_within_integrated_loo_to_file <- function(
     family = "total_within",
     slope_description = "within_contrast_basis_slopes"
   )
+
   if (
     !inherits(result$loo, "loo") ||
       !inherits(result$conditional_loo, "loo") ||
@@ -8102,6 +8500,7 @@ compute_update_2026_total_within_integrated_loo_to_file <- function(
     stop("Cannot archive an invalid total-intake within-study LOO result.",
          call. = FALSE)
   }
+
   output_dir <- file.path(output_root, result$outcome)
   dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
   output_file <- file.path(
@@ -8130,6 +8529,7 @@ write_update_2026_total_within_integrated_loo_audit <- function(
     stop("The total-intake within-study integrated-LOO audit is incomplete.",
          call. = FALSE)
   }
+
   dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
   paths <- c(
     reduction_manifest = file.path(output_dir, "reduction_manifest.csv"),
@@ -8152,6 +8552,7 @@ validate_update_2026_total_within_exact_inputs <- function(
     stop("Expected 45 total-intake within-study exact-LOO records.",
          call. = FALSE)
   }
+
   checks <- purrr::map_dfr(records, function(record) {
     integrated <- qs::qread(record$integrated_loo_path)
     observation <- as.integer(record$observation)
@@ -8191,6 +8592,7 @@ validate_update_2026_total_within_exact_inputs <- function(
     )
   }) |>
     dplyr::arrange(case_id)
+
   keys <- paste(
     checks$outcome,
     checks$model_index,
@@ -8201,6 +8603,7 @@ validate_update_2026_total_within_exact_inputs <- function(
     checks$outcome,
     levels = c("whole_body", "hypertrophy", "strength", "function")
   ))
+
   if (
     nrow(checks) != 45L || anyDuplicated(keys) ||
       !identical(checks$case_id, seq_len(45L)) ||
@@ -8215,6 +8618,7 @@ validate_update_2026_total_within_exact_inputs <- function(
     stop("The total-intake within-study exact-LOO preflight is incomplete.",
          call. = FALSE)
   }
+
   checks
 }
 
@@ -8260,6 +8664,7 @@ fit_update_2026_total_within_exact_to_file <- function(
     stop("Total-intake within-study exact refitting is disabled.",
          call. = FALSE)
   }
+
   output_file <- update_2026_total_within_exact_fit_file_path(record)
   if (file.exists(output_file) && file.info(output_file)$size > 0) {
     archived <- tryCatch(
@@ -8280,6 +8685,7 @@ fit_update_2026_total_within_exact_to_file <- function(
       call. = FALSE
     )
   }
+
   candidate <- read_sensitivity_fit_file(record$original_fit_path)
   integrated <- qs::qread(record$integrated_loo_path)
   observation <- as.integer(record$observation)
@@ -8298,6 +8704,7 @@ fit_update_2026_total_within_exact_to_file <- function(
     stop("A total-intake within-study exact record failed validation.",
          call. = FALSE)
   }
+
   prediction_data <- candidate$model$data
   training_data <- prediction_data[-observation, , drop = FALSE]
   original_model <- candidate$model
@@ -8331,6 +8738,7 @@ fit_update_2026_total_within_exact_to_file <- function(
     ),
     save_pars = brms::save_pars(all = TRUE)
   )
+
   archive <- list(
     family = "total_within",
     case_id = as.integer(record$case_id),
@@ -8346,6 +8754,7 @@ fit_update_2026_total_within_exact_to_file <- function(
     refitted_model = refitted_model,
     refit_seconds = as.numeric(proc.time()[["elapsed"]] - start_time)
   )
+
   write_atomic_qs(archive, output_file)
 }
 
@@ -8363,6 +8772,7 @@ write_update_2026_total_within_exact_diagnostic_audit <- function(
     stop("The total-intake within-study exact diagnostic audit is incomplete.",
          call. = FALSE)
   }
+
   dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
   output_file <- file.path(output_dir, "diagnostic_summary.csv")
   readr::write_csv(audit$diagnostic_summary, output_file, na = "")
@@ -8395,6 +8805,7 @@ compute_update_2026_total_within_exact_correction_to_file <- function(
     stop("Total-intake within-study exact correction is disabled.",
          call. = FALSE)
   }
+
   refit <- read_sensitivity_full_exact_loo_file(
     exact_fit_path,
     "total_within"
@@ -8415,6 +8826,7 @@ compute_update_2026_total_within_exact_correction_to_file <- function(
     stop("An existing within-study exact-correction archive is invalid.",
          call. = FALSE)
   }
+
   correction <- compute_sensitivity_full_exact_loo_file(
     path = exact_fit_path,
     diagnostic_audit = diagnostic_audit,
@@ -8429,6 +8841,7 @@ compute_update_2026_total_within_exact_correction_to_file <- function(
     stop("The total-intake within-study exact correction is invalid.",
          call. = FALSE)
   }
+
   write_atomic_qs(correction, output_file)
 }
 
@@ -8438,6 +8851,7 @@ audit_update_2026_total_within_exact_correction_files <- function(
 ) {
   paths <- unname(unlist(paths, use.names = FALSE))
   expected <- as.integer(integrated_audit$exact_refits_required)
+
   if (
     length(paths) != expected || expected != 45L || anyNA(paths) ||
       any(!file.exists(paths)) || any(file.info(paths)$size <= 0)
@@ -8445,6 +8859,7 @@ audit_update_2026_total_within_exact_correction_files <- function(
     stop("The total-intake within-study exact corrections are incomplete.",
          call. = FALSE)
   }
+
   corrections <- purrr::map(paths, qs::qread)
   diagnostic_summary <- purrr::map_dfr(
     corrections,
@@ -8458,6 +8873,7 @@ audit_update_2026_total_within_exact_correction_files <- function(
       model_index,
       observation
     )
+
   manifest <- purrr::map2_dfr(paths, corrections, function(path, result) {
     tibble::tibble(
       case_id = as.integer(result$case_id),
@@ -8476,6 +8892,7 @@ audit_update_2026_total_within_exact_correction_files <- function(
     )
   }) |>
     dplyr::arrange(case_id)
+
   observed_keys <- paste(
     manifest$outcome,
     manifest$model_index,
@@ -8488,6 +8905,7 @@ audit_update_2026_total_within_exact_correction_files <- function(
     integrated_audit$high_k_cases$observation,
     sep = "::"
   )
+
   if (
     nrow(diagnostic_summary) != 45L || nrow(manifest) != 45L ||
       anyDuplicated(observed_keys) || !setequal(observed_keys, expected_keys) ||
@@ -8497,6 +8915,7 @@ audit_update_2026_total_within_exact_correction_files <- function(
     stop("The total-intake within-study exact-correction audit is invalid.",
          call. = FALSE)
   }
+
   list(
     diagnostic_summary = diagnostic_summary,
     correction_manifest = manifest,
@@ -8524,6 +8943,7 @@ write_update_2026_total_within_exact_correction_audit <- function(
     stop("Cannot write an incomplete within-study exact-correction audit.",
          call. = FALSE)
   }
+
   dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
   paths <- c(
     diagnostic_summary = file.path(output_dir, "diagnostic_summary.csv"),
@@ -8550,6 +8970,7 @@ read_update_2026_total_within_exact_corrections <- function(manifest) {
     stop("The total-intake within-study correction manifest is invalid.",
          call. = FALSE)
   }
+
   corrections <- purrr::map(manifest$correction_path, qs::qread)
   corrections <- corrections[order(purrr::map_int(corrections, "case_id"))]
   if (
@@ -8562,6 +8983,7 @@ read_update_2026_total_within_exact_corrections <- function(manifest) {
     stop("The total-intake within-study exact corrections are invalid.",
          call. = FALSE)
   }
+
   corrections
 }
 
@@ -8574,6 +8996,7 @@ make_update_2026_total_within_final_loo_audit <- function(
     seq_len(26L),
     c(3L, 7L, 10L, 13L, 16L, 19L, 22L, 25L)
   )
+
   if (!isTRUE(exact_audit$all_exact_refit_diagnostics_pass)) {
     stop("Final total-intake within-study LOO requires passing exact refits.",
          call. = FALSE)
@@ -8594,6 +9017,7 @@ make_update_2026_total_within_final_loo_audit <- function(
       maximum_remaining_pareto_k = max(maximum_pareto_k, na.rm = TRUE),
       .by = outcome
     )
+
   correction_counts <- exact_audit$diagnostic_summary |>
     dplyr::count(outcome, model_index, name = "exact_corrections")
   final_manifest <- integrated_manifest |>
@@ -8609,6 +9033,7 @@ make_update_2026_total_within_final_loo_audit <- function(
         "integrated_observation_level_psis"
       )
     )
+
   if (
     !isTRUE(final$stacking_ready) || nrow(final$model_summary) != 72L ||
       nrow(outcome_summary) != 4L || any(outcome_summary$models != 18L) ||
@@ -8619,6 +9044,7 @@ make_update_2026_total_within_final_loo_audit <- function(
     stop("The final total-intake within-study LOO audit is not stacking-ready.",
          call. = FALSE)
   }
+
   final$family <- "total_within"
   final$outcome_summary <- outcome_summary
   final$final_loo_manifest <- final_manifest
@@ -8644,6 +9070,7 @@ write_update_2026_total_within_final_loo_audit <- function(
     stop("Cannot write an incomplete final total-intake within-study LOO audit.",
          call. = FALSE)
   }
+
   dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
   paths <- c(
     final_loo_manifest = file.path(output_dir, "final_loo_manifest.csv"),
@@ -8678,6 +9105,7 @@ write_update_2026_total_within_stacking_weights <- function(
     stop("The total-intake within-study stacking weights are invalid.",
          call. = FALSE)
   }
+
   dir.create(dirname(output_file), recursive = TRUE, showWarnings = FALSE)
   readr::write_csv(weights, output_file, na = "")
   output_file
@@ -8699,6 +9127,7 @@ make_update_2026_total_within_prediction_records <- function(
     grid_step_g_day = grid_step_g_day,
     seed = seed
   )
+
   purrr::map(records, function(record) {
     record$family <- "total_within"
     record$prediction_type <- "total_within"
@@ -8718,6 +9147,7 @@ make_update_2026_total_within_prediction_grid <- function(
     "resistance_exercise_code", "absolute_exposure_reference_g_day",
     "absolute_exposure_unit_g_day"
   )
+
   if (
     !is.list(fitted_candidate) ||
       !inherits(fitted_candidate$model, "brmsfit") ||
@@ -8726,12 +9156,14 @@ make_update_2026_total_within_prediction_grid <- function(
     stop("The total-intake within-study prediction data are invalid.",
          call. = FALSE)
   }
+
   observed_reference <- unique(data$absolute_exposure_reference_g_day)
   unit <- unique(data$absolute_exposure_unit_g_day)
   exposure_maximum <- max(c(
     data$protein_intake_raw_treatment,
     data$protein_intake_raw_comparator
   ), na.rm = TRUE)
+
   if (is.null(reference_g_day)) reference_g_day <- observed_reference
   if (
     length(observed_reference) != 1L || !is.finite(observed_reference) ||
@@ -8744,6 +9176,7 @@ make_update_2026_total_within_prediction_grid <- function(
     stop("The total-intake within-study prediction limits are invalid.",
          call. = FALSE)
   }
+
   exposure_values <- sort(unique(c(
     round(seq(
       exposure_minimum_g_day,
@@ -8752,6 +9185,7 @@ make_update_2026_total_within_prediction_grid <- function(
     ), 10),
     reference_g_day
   )))
+
   keys <- tidyr::crossing(
     resistance_exercise_code = c(0, 1),
     protein_intake = exposure_values
@@ -8764,6 +9198,7 @@ make_update_2026_total_within_prediction_grid <- function(
   complete <- stats::complete.cases(
     template[, grouping_variables, drop = FALSE]
   )
+
   if (!any(complete)) {
     stop("No complete fitted row is available for the prediction grid.",
          call. = FALSE)
@@ -8775,12 +9210,14 @@ make_update_2026_total_within_prediction_grid <- function(
   ]
   newdata$resistance_exercise_code <- keys$resistance_exercise_code
   exercise_label <- ifelse(keys$resistance_exercise_code == 0, "yes", "no")
+
   if ("resistance_exercise_factor" %in% names(newdata)) {
     newdata$resistance_exercise_factor <- factor(
       exercise_label,
       levels = levels(template$resistance_exercise_factor)
     )
   }
+
   if ("age_centre" %in% names(newdata)) newdata$age_centre <- 0
   if ("duration_centre" %in% names(newdata)) newdata$duration_centre <- 0
   if ("vi" %in% names(newdata)) newdata$vi <- 0
@@ -8794,6 +9231,7 @@ make_update_2026_total_within_prediction_grid <- function(
       (0 - centres[["duration_centre"]]) /
         scales[["duration_centre"]]
   }
+
   if ("body_mass_outcome_z" %in% names(newdata)) {
     newdata$body_mass_outcome_z <- 0
   }
@@ -8829,6 +9267,7 @@ make_update_2026_total_within_prediction_grid <- function(
         varied[, index] - held[, index]
     }
   }
+
   list(
     newdata = newdata,
     keys = tibble::tibble(
@@ -8902,6 +9341,7 @@ make_update_2026_total_within_reporting_preflight <- function(
       ),
       model_index
     )
+
   audit <- checks |>
     dplyr::summarise(
       selected_models = dplyr::n(),
@@ -8909,6 +9349,7 @@ make_update_2026_total_within_reporting_preflight <- function(
       retained_weight = sum(weight),
       .by = outcome
     )
+
   if (
     nrow(audit) != 4L || any(audit$selected_models < 1L) ||
       any(audit$allocated_draws != 4000L) ||
@@ -8920,6 +9361,7 @@ make_update_2026_total_within_reporting_preflight <- function(
     stop("The total-intake within-study reporting preflight failed.",
          call. = FALSE)
   }
+
   checks
 }
 
@@ -8974,6 +9416,7 @@ write_update_2026_total_within_prediction_draw_file <- function(
     stop("A total-intake within-study prediction record is invalid.",
          call. = FALSE)
   }
+
   candidate <- read_sensitivity_fit_file(record$fit_path)
   if (
     !identical(unname(as.character(candidate$family)), "total_within") ||
@@ -8987,6 +9430,7 @@ write_update_2026_total_within_prediction_draw_file <- function(
     stop("A total-intake within-study fit does not match its prediction record.",
          call. = FALSE)
   }
+
   prediction_data <- data_by_outcome[[record$outcome]]
   if (is.null(prediction_data) || !is.data.frame(prediction_data)) {
     stop("The total-intake within-study prediction data are unavailable.",
@@ -9008,6 +9452,7 @@ write_update_2026_total_within_prediction_draw_file <- function(
     re_formula = NA,
     ndraws = as.integer(record$draw_count)
   ))
+
   if (ncol(draws) != nrow(grid$keys) && nrow(draws) == nrow(grid$keys)) {
     draws <- t(draws)
   }
@@ -9018,6 +9463,7 @@ write_update_2026_total_within_prediction_draw_file <- function(
     stop("Total-intake within-study predictions do not match their allocation.",
          call. = FALSE)
   }
+
   reduction <- list(
     family = "total_within",
     outcome = as.character(record$outcome),
@@ -9038,6 +9484,7 @@ write_update_2026_total_within_prediction_draw_file <- function(
       prediction_type = "total_within"
     )
   )
+
   write_atomic_qs(reduction, result_path)
 }
 
@@ -9089,6 +9536,7 @@ write_update_2026_total_within_reporting_file <- function(
   )
   outcome <- model_average$outcome
   data <- data_by_outcome[[outcome]]
+
   if (is.null(data) || !is.data.frame(data)) {
     stop("The total-intake within-study reporting data are unavailable.",
          call. = FALSE)
@@ -9109,6 +9557,7 @@ write_update_2026_total_within_reporting_file <- function(
     protein_min = 50,
     sesoi = sesoi
   )
+
   report <- list(
     family = "total_within",
     outcome = outcome,
@@ -9137,6 +9586,7 @@ write_update_2026_total_within_reporting_file <- function(
       )
     )
   )
+
   write_atomic_qs(report, result_path)
 }
 
@@ -9158,6 +9608,7 @@ write_update_2026_total_within_reporting_audit <- function(
     stop("The total-intake within-study reporting audit is incomplete.",
          call. = FALSE)
   }
+
   reports <- purrr::map(
     audit$summary$reporting_path,
     read_sensitivity_full_reporting_file,
@@ -9194,6 +9645,7 @@ write_update_2026_total_within_reporting_audit <- function(
     local_equivalence = file.path(output_dir, "local_equivalence.csv"),
     model_weights = file.path(output_dir, "model_weights.csv")
   )
+
   readr::write_csv(audit$summary, paths[["summary"]])
   readr::write_csv(prediction_manifest, paths[["prediction_manifest"]])
   readr::write_csv(bind_report("dose_response"), paths[["dose_response"]])
@@ -9266,6 +9718,7 @@ make_update_2026_total_within_verification_checkpoint <- function(
       .by = analysis_outcome
     ) |>
     dplyr::arrange(factor(analysis_outcome, levels = outcomes))
+
   registry_keys <- function(table) {
     table |>
       dplyr::distinct(outcome, model_index) |>
@@ -9305,6 +9758,7 @@ make_update_2026_total_within_verification_checkpoint <- function(
         dplyr::select(outcome, model_index, weight_name = model_name),
       by = c("outcome", "model_index")
     )
+
   weight_sums <- stacking_weights |>
     dplyr::summarise(
       models = dplyr::n(),
@@ -9426,6 +9880,7 @@ make_update_2026_total_within_verification_checkpoint <- function(
         all(reporting_audit$summary$diagonal_contrasts_valid)
     )
   )
+
   failed <- is.na(checks$passed) | !checks$passed
   if (any(failed)) {
     stop(
@@ -9477,6 +9932,7 @@ make_update_2026_total_within_verification_checkpoint <- function(
     pairwise_support = bind_report("pairwise_support"),
     local_equivalence = bind_report("local_equivalence")
   )
+
   descriptions <- stats::setNames(
     c(
       "Final total-intake within-study checkpoint checks.",
@@ -9519,6 +9975,7 @@ make_update_2026_total_within_verification_checkpoint <- function(
     ),
     names(artifacts)
   )
+
   list(
     checks = checks,
     artifacts = artifacts,
@@ -9554,6 +10011,7 @@ make_update_2026_total_within_pruning_plan <- function(
     verification_manifest,
     show_col_types = FALSE
   )
+
   if (length(verification_files) != nrow(verification_index) + 2L) {
     stop("The total-intake within-study verification-file count is invalid.",
          call. = FALSE)
@@ -9568,6 +10026,7 @@ make_update_2026_total_within_pruning_plan <- function(
     winslash = "/",
     mustWork = TRUE
   )
+
   if (!identical(tolower(resolved_root), tolower(expected_root))) {
     stop("Refusing to plan pruning outside the total-intake within-study archive.",
          call. = FALSE)
@@ -9579,6 +10038,7 @@ make_update_2026_total_within_pruning_plan <- function(
     stop("An expected total-intake within-study fit directory is missing.",
          call. = FALSE)
   }
+
   fit_paths <- unlist(
     purrr::map(
       fit_roots,
@@ -9592,6 +10052,7 @@ make_update_2026_total_within_pruning_plan <- function(
     use.names = FALSE
   ) |>
     normalizePath(winslash = "/", mustWork = TRUE)
+
   accepted_paths <- normalizePath(
     accepted_fit_manifest$fit_path,
     winslash = "/",
@@ -9606,6 +10067,7 @@ make_update_2026_total_within_pruning_plan <- function(
     stop("Total-intake within-study fit retention does not match its lineage.",
          call. = FALSE)
   }
+
   model_fit_manifest <- tibble::tibble(
     path = fit_paths,
     relative_path = substring(fit_paths, nchar(resolved_root) + 2L),
@@ -9623,6 +10085,7 @@ make_update_2026_total_within_pruning_plan <- function(
     lean_action = "delete frozen total-intake within-study model fit"
   ) |>
     dplyr::arrange(archive_stage, outcome, model_index)
+
   stage_counts <- table(factor(
     model_fit_manifest$archive_stage,
     levels = c("initial", "remedy_1")
@@ -9665,6 +10128,7 @@ make_update_2026_total_within_pruning_plan <- function(
     lean_action = "delete frozen exact-deletion refit"
   ) |>
     dplyr::arrange(case_id)
+
   exact_keys <- paste(
     exact_refit_manifest$outcome,
     exact_refit_manifest$model_index,
@@ -9677,6 +10141,7 @@ make_update_2026_total_within_pruning_plan <- function(
     exact_diagnostic_audit$diagnostic_summary$observation,
     sep = "::"
   )
+
   if (
     nrow(exact_refit_manifest) != 45L ||
       anyNA(exact_refit_manifest[c("model_index", "case_id", "observation")]) ||
@@ -9720,6 +10185,7 @@ make_update_2026_total_within_pruning_plan <- function(
     stop("An expected compact total-intake within-study directory is missing.",
          call. = FALSE)
   }
+
   compact_paths <- unlist(
     purrr::map(
       compact_roots,
@@ -9732,6 +10198,7 @@ make_update_2026_total_within_pruning_plan <- function(
     ),
     use.names = FALSE
   )
+
   compact_paths <- compact_paths[
     file.exists(compact_paths) & !file.info(compact_paths)$isdir
   ] |>
@@ -9744,6 +10211,7 @@ make_update_2026_total_within_pruning_plan <- function(
     )]
     if (length(matches) == 1L) matches else "unknown"
   }, character(1L))
+
   compact_manifest <- tibble::tibble(
     path = compact_paths,
     relative_path = substring(compact_paths, nchar(resolved_root) + 2L),
@@ -9756,6 +10224,7 @@ make_update_2026_total_within_pruning_plan <- function(
     action = "retain compact total-intake within-study result"
   ) |>
     dplyr::arrange(archive_component, relative_path)
+
   compact_counts <- table(factor(
     compact_manifest$archive_component,
     levels = c("loo_psis", "exact_corrections", "reporting")
@@ -9795,6 +10264,7 @@ make_update_2026_total_within_pruning_plan <- function(
       "total-intake within-study family."
     )
   )
+
   list(
     summary = summary,
     model_fit_manifest = model_fit_manifest,
@@ -9826,6 +10296,7 @@ write_update_2026_total_within_pruning_plan <- function(
     stop("Cannot write an invalid total-intake within-study pruning plan.",
          call. = FALSE)
   }
+
   dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
   paths <- c(
     summary = file.path(output_dir, "summary.csv"),
@@ -9838,6 +10309,7 @@ write_update_2026_total_within_pruning_plan <- function(
       output_dir, "compact_archive_manifest.csv"
     )
   )
+
   readr::write_csv(plan$summary, paths[["summary"]])
   readr::write_csv(plan$model_fit_manifest, paths[["model_fit_manifest"]])
   readr::write_csv(plan$exact_refit_manifest, paths[["exact_refit_manifest"]])
@@ -9852,6 +10324,10 @@ write_update_2026_total_within_pruning_plan <- function(
   unname(paths)
 }
 
+# Primary models on prescribed supplement dose ----
+
+# Use the audited supplement exposure with zero as the reference and a 25
+# g/day internal unit.
 make_update_2026_supplement_primary_data_by_outcome <- function(audit) {
   if (
     !isTRUE(audit$ready_for_review) || any(!audit$checks$passed) ||
@@ -9860,6 +10336,7 @@ make_update_2026_supplement_primary_data_by_outcome <- function(audit) {
     stop("The absolute-exposure audit is not ready for supplement modelling.",
          call. = FALSE)
   }
+
   scaling <- audit$scaling_plan |>
     dplyr::filter(exposure == "supplement_g_day")
   if (
@@ -9909,12 +10386,14 @@ make_update_2026_supplement_primary_data_by_outcome <- function(audit) {
         droplevels()
     }
   )
+
   expected_rows <- c(
     whole_body = 240L,
     hypertrophy = 394L,
     strength = 661L,
     `function` = 233L
   )
+
   if (
     !identical(names(output), names(expected_rows)) ||
       !identical(vapply(output, nrow, integer(1L)), expected_rows) ||
@@ -9927,6 +10406,7 @@ make_update_2026_supplement_primary_data_by_outcome <- function(audit) {
     stop("The prescribed supplement-dose datasets are invalid.",
          call. = FALSE)
   }
+
   output
 }
 
@@ -9948,6 +10428,7 @@ make_update_2026_supplement_primary_specifications <- function(
     )
     specification
   })
+
   table <- dplyr::bind_rows(specifications)
   if (
     length(specifications) != 72L || nrow(table) != 72L ||
@@ -9962,6 +10443,7 @@ make_update_2026_supplement_primary_specifications <- function(
     stop("The supplement-dose primary registry failed validation.",
          call. = FALSE)
   }
+
   specifications
 }
 
@@ -9988,6 +10470,7 @@ validate_update_2026_supplement_primary_inputs <- function(
   if (!isTRUE(audit$ready_for_review) || any(!audit$checks$passed)) {
     stop("The absolute-exposure audit has not passed.", call. = FALSE)
   }
+
   checks <- purrr::map_dfr(
     specifications,
     function(specification) {
@@ -10028,6 +10511,7 @@ validate_update_2026_supplement_primary_inputs <- function(
       )
     }
   )
+
   keys <- paste(checks$outcome, checks$model_index, sep = "::")
   expected_reference <- audit$scaling_plan$reference_g_day[
     audit$scaling_plan$exposure == "supplement_g_day"
@@ -10045,6 +10529,7 @@ validate_update_2026_supplement_primary_inputs <- function(
     stop("The supplement-dose primary input preflight is incomplete.",
          call. = FALSE)
   }
+
   checks
 }
 
@@ -10075,6 +10560,7 @@ fit_update_2026_supplement_primary_candidate_to_file <- function(
       call. = FALSE
     )
   }
+
   fit_update_2026_total_primary_candidate_to_file(
     input = input,
     enabled = TRUE,
@@ -10092,6 +10578,7 @@ make_update_2026_supplement_primary_remedy_specifications <- function(
 ) {
   failed <- diagnostic_audit$diagnostic_summary |>
     dplyr::filter(!diagnostic_pass)
+
   if (
     !identical(diagnostic_audit$family, "supplement_primary") ||
       nrow(failed) != 1L || failed$outcome[[1L]] != "strength" ||
@@ -10103,6 +10590,7 @@ make_update_2026_supplement_primary_remedy_specifications <- function(
     stop("The supplement-dose primary remedy no longer matches its audit.",
          call. = FALSE)
   }
+
   selected <- purrr::keep(
     specifications,
     ~ identical(.x$outcome, "strength") &&
@@ -10112,6 +10600,7 @@ make_update_2026_supplement_primary_remedy_specifications <- function(
     stop("Could not uniquely select supplement-dose strength model 6.",
          call. = FALSE)
   }
+
   remedy <- selected[[1L]]
   remedy$max_treedepth <- 15L
   remedy$remedy <- "max_treedepth_15_after_two_transitions"
@@ -10160,6 +10649,7 @@ validate_update_2026_supplement_primary_remedy_inputs <- function(
       valid = TRUE
     )
   })
+
   if (
     nrow(checks) != 1L || checks$outcome[[1L]] != "strength" ||
       checks$model_index[[1L]] != 6L ||
@@ -10177,6 +10667,7 @@ validate_update_2026_supplement_primary_remedy_inputs <- function(
     stop("The supplement-dose primary remedy preflight is incomplete.",
          call. = FALSE)
   }
+
   checks
 }
 
@@ -10207,6 +10698,7 @@ fit_update_2026_supplement_primary_remedy_to_file <- function(
       call. = FALSE
     )
   }
+
   fit_update_2026_total_primary_candidate_to_file(
     input = input,
     enabled = TRUE,
@@ -10226,6 +10718,7 @@ combine_update_2026_supplement_primary_remedy_diagnostics <- function(
     stop("Expected one supplement-dose primary remedy diagnostic.",
          call. = FALSE)
   }
+
   remedy <- remedy_diagnostics[[1L]]
   remedy_summary <- remedy$summary
   if (
@@ -10236,6 +10729,7 @@ combine_update_2026_supplement_primary_remedy_diagnostics <- function(
     stop("The supplement-dose primary remedy diagnostic is invalid.",
          call. = FALSE)
   }
+
   summary <- initial_audit$diagnostic_summary |>
     dplyr::filter(!(outcome == "strength" & model_index == 6L)) |>
     dplyr::bind_rows(remedy_summary) |>
@@ -10254,6 +10748,7 @@ combine_update_2026_supplement_primary_remedy_diagnostics <- function(
         TRUE ~ "PASS"
       )
     )
+
   parameter_failures <- initial_audit$parameter_failures |>
     dplyr::filter(!(outcome == "strength" & model_index == 6L)) |>
     dplyr::bind_rows(
@@ -10264,6 +10759,7 @@ combine_update_2026_supplement_primary_remedy_diagnostics <- function(
           .before = 1L
         )
     )
+
   outcome_summary <- summary |>
     dplyr::summarise(
       models = dplyr::n(),
@@ -10274,6 +10770,7 @@ combine_update_2026_supplement_primary_remedy_diagnostics <- function(
       maximum_coverage = max(predictive_90_interval_coverage),
       .by = outcome
     )
+
   if (
     nrow(summary) != 72L ||
       anyDuplicated(summary[c("outcome", "model_index")]) ||
@@ -10282,6 +10779,7 @@ combine_update_2026_supplement_primary_remedy_diagnostics <- function(
     stop("The final supplement-dose primary diagnostic audit is incomplete.",
          call. = FALSE)
   }
+
   list(
     family = "supplement_primary",
     models = 72L,
@@ -10300,6 +10798,7 @@ make_update_2026_supplement_primary_accepted_fit_manifest <- function(
     final_diagnostic_audit
 ) {
   remedy_paths <- unname(unlist(remedy_fit_paths, use.names = FALSE))
+
   if (
     nrow(initial_manifest) != 72L || length(remedy_paths) != 1L ||
       !isTRUE(final_diagnostic_audit$all_sampling_diagnostics_pass) ||
@@ -10312,6 +10811,7 @@ make_update_2026_supplement_primary_accepted_fit_manifest <- function(
       call. = FALSE
     )
   }
+
   remedy <- tibble::tibble(
     outcome = basename(dirname(remedy_paths)),
     model_index = as.integer(stringr::str_match(
@@ -10337,6 +10837,7 @@ make_update_2026_supplement_primary_accepted_fit_manifest <- function(
     dplyr::select(
       outcome, model_index, model_name, fit_path, stage, bytes, sha256
     )
+
   accepted <- initial_manifest |>
     dplyr::anti_join(
       remedy |> dplyr::select(outcome, model_index),
@@ -10350,6 +10851,7 @@ make_update_2026_supplement_primary_accepted_fit_manifest <- function(
       ),
       model_index
     )
+
   if (
     nrow(remedy) != 1L || remedy$outcome[[1L]] != "strength" ||
       remedy$model_index[[1L]] != 6L || nrow(accepted) != 72L ||
@@ -10363,6 +10865,7 @@ make_update_2026_supplement_primary_accepted_fit_manifest <- function(
     stop("The accepted supplement-dose fit manifest is invalid.",
          call. = FALSE)
   }
+
   accepted
 }
 
@@ -10390,6 +10893,7 @@ validate_update_2026_supplement_primary_loo_inputs <- function(
     "all accepted fit hashes are present",
     all(nchar(accepted_fit_manifest$sha256) == 64L)
   )
+
   ready <-
     nrow(accepted_fit_manifest) == 72L &&
     !anyDuplicated(accepted_fit_manifest[c("outcome", "model_index")]) &&
@@ -10399,6 +10903,7 @@ validate_update_2026_supplement_primary_loo_inputs <- function(
     stop("The supplement-dose primary LOO preflight is incomplete.",
          call. = FALSE)
   }
+
   list(
     family = "supplement_primary",
     models = 72L,
@@ -10424,6 +10929,7 @@ write_update_2026_supplement_primary_loo_preflight <- function(
     stop("Cannot write an invalid supplement-dose primary LOO preflight.",
          call. = FALSE)
   }
+
   dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
   paths <- c(
     checks = file.path(output_dir, "checks.csv"),
@@ -10465,6 +10971,7 @@ compute_update_2026_supplement_primary_integrated_loo_to_file <- function(
     seq_len(26L),
     c(3L, 7L, 10L, 13L, 16L, 19L, 22L, 25L)
   )
+
   if (!isTRUE(enabled)) {
     stop(
       "Supplement-dose primary LOO is disabled. Set ",
@@ -10472,6 +10979,7 @@ compute_update_2026_supplement_primary_integrated_loo_to_file <- function(
       call. = FALSE
     )
   }
+
   if (
     !file.exists(record$fit_path) ||
       !record$model_index %in% retained_indices ||
@@ -10490,6 +10998,7 @@ compute_update_2026_supplement_primary_integrated_loo_to_file <- function(
     stop("A supplement-dose fit does not match its LOO record.",
          call. = FALSE)
   }
+
   initial <- compute_primary_candidate_psis_loo(
     fitted_candidate = candidate,
     cores = cores,
@@ -10513,6 +11022,7 @@ compute_update_2026_supplement_primary_integrated_loo_to_file <- function(
   temporary_file <- paste0(output_file, ".tmp-", Sys.getpid())
   on.exit(unlink(temporary_file, force = TRUE), add = TRUE)
   qs::qsave(integrated, temporary_file, preset = "high")
+
   if (!file.copy(temporary_file, output_file, overwrite = TRUE)) {
     stop("Could not finalise a supplement-dose primary LOO reduction.",
          call. = FALSE)
@@ -10533,6 +11043,8 @@ audit_update_2026_supplement_primary_integrated_loo_files <- function(
   audit
 }
 
+# Align the supplement-dose candidates on the body-mass-complete observations
+# before comparing their predictive performance.
 make_update_2026_supplement_primary_common_sample_specifications <- function(
     specifications,
     integrated_loo_audit
@@ -10550,6 +11062,7 @@ make_update_2026_supplement_primary_common_sample_specifications <- function(
     outcome_summary$outcome
   )
   high_k <- integrated_loo_audit$high_k_cases
+
   if (
     !identical(integrated_loo_audit$family, "supplement_primary") ||
       nrow(outcome_summary) != 4L ||
@@ -10564,6 +11077,7 @@ make_update_2026_supplement_primary_common_sample_specifications <- function(
       call. = FALSE
     )
   }
+
   expected_indices <- c(1L, 2L, 4L, 9L, 11L, 15L, 17L, 21L, 23L)
   selected <- purrr::keep(
     specifications,
@@ -10574,6 +11088,7 @@ make_update_2026_supplement_primary_common_sample_specifications <- function(
   )
   selected_table <- dplyr::bind_rows(selected) |>
     dplyr::count(outcome, model_index)
+
   if (
     length(selected) != 36L || nrow(selected_table) != 36L ||
       any(table(selected_table$outcome) != 9L) ||
@@ -10586,6 +11101,7 @@ make_update_2026_supplement_primary_common_sample_specifications <- function(
     stop("The supplement common-sample model set is invalid.",
          call. = FALSE)
   }
+
   selected <- purrr::map(
     selected,
     function(specification) {
@@ -10598,6 +11114,7 @@ make_update_2026_supplement_primary_common_sample_specifications <- function(
       specification
     }
   )
+
   names(selected) <- purrr::map_chr(
     selected,
     ~ paste0(
@@ -10606,6 +11123,7 @@ make_update_2026_supplement_primary_common_sample_specifications <- function(
       stringr::str_pad(.x$model_index, 2L, pad = "0")
     )
   )
+
   selected
 }
 
@@ -10618,6 +11136,7 @@ prepare_update_2026_supplement_primary_common_sample_input <- function(
     stop("Only non-moderator supplement models require replacement.",
          call. = FALSE)
   }
+
   outcome <- specification$outcome
   common_data <- data_by_outcome
   common_data[[outcome]] <- common_data[[outcome]] |>
@@ -10665,6 +11184,7 @@ validate_update_2026_supplement_primary_common_sample_inputs <- function(
     }
   ) |>
     stats::setNames(names(expected_rows))
+
   if (!all(purrr::map_int(references, nrow) == expected_rows)) {
     stop("A supplement common-sample reference is invalid.",
          call. = FALSE)
@@ -10725,6 +11245,7 @@ validate_update_2026_supplement_primary_common_sample_inputs <- function(
       ),
       model_index
     )
+
   expected_indices <- c(1L, 2L, 4L, 9L, 11L, 15L, 17L, 21L, 23L)
   observed_indices <- split(checks$model_index, checks$outcome)
   if (
@@ -10744,6 +11265,7 @@ validate_update_2026_supplement_primary_common_sample_inputs <- function(
     stop("The supplement common-sample preflight is incomplete.",
          call. = FALSE)
   }
+
   checks
 }
 
@@ -10777,6 +11299,7 @@ fit_update_2026_supplement_primary_common_sample_to_file <- function(
       call. = FALSE
     )
   }
+
   fit_update_2026_total_primary_candidate_to_file(
     input = input,
     enabled = TRUE,
@@ -11077,6 +11600,7 @@ make_update_2026_supplement_primary_common_sample_loo_records <- function(
     stop("The supplement common-sample LOO manifest is invalid.",
          call. = FALSE)
   }
+
   records <- purrr::pmap(
     accepted_fit_manifest[required],
     function(outcome, model_index, fit_path, stage) {
@@ -11088,6 +11612,7 @@ make_update_2026_supplement_primary_common_sample_loo_records <- function(
       )
     }
   )
+
   names(records) <- paste0(
     accepted_fit_manifest$outcome,
     "_model_",
@@ -11189,6 +11714,7 @@ audit_update_2026_supplement_primary_common_sample_loo_files <- function(
     stop("The supplement common-sample LOO files are incomplete.",
          call. = FALSE)
   }
+
   results <- purrr::map(paths, qs::qread)
   expected_indices <- c(1L, 2L, 4L, 9L, 11L, 15L, 17L, 21L, 23L)
   expected_rows <- c(
@@ -11214,6 +11740,7 @@ audit_update_2026_supplement_primary_common_sample_loo_files <- function(
       nrow(result$observation_manifest) == expected_rows[[result$outcome]] &&
       nrow(result$loo$pointwise) == expected_rows[[result$outcome]]
   })
+
   observation_set_audit <- purrr::map_dfr(results, function(result) {
     manifest <- result$observation_manifest |>
       dplyr::mutate(
@@ -11227,6 +11754,7 @@ audit_update_2026_supplement_primary_common_sample_loo_files <- function(
       observation_set_sha256 = digest::digest(manifest, algo = "sha256")
     )
   })
+
   alignment <- observation_set_audit |>
     dplyr::summarise(
       models = dplyr::n(),
@@ -11235,6 +11763,7 @@ audit_update_2026_supplement_primary_common_sample_loo_files <- function(
         dplyr::n_distinct(observation_set_sha256) == 1L,
       .by = outcome
     )
+
   if (
     !all(valid) || anyDuplicated(keys) || !setequal(keys, expected_keys) ||
       nrow(alignment) != 4L || any(alignment$models != 9L) ||
@@ -11243,6 +11772,7 @@ audit_update_2026_supplement_primary_common_sample_loo_files <- function(
     stop("The supplement common-sample LOO set is invalid.",
          call. = FALSE)
   }
+
   method_comparison <- purrr::map_dfr(results, "comparison")
   observation_diagnostics <- purrr::map_dfr(
     results,
@@ -11257,6 +11787,7 @@ audit_update_2026_supplement_primary_common_sample_loo_files <- function(
       ),
       model_index
     )
+
   high_k_cases <- observation_diagnostics |>
     dplyr::filter(integrated_pareto_k > k_threshold) |>
     dplyr::arrange(
@@ -11267,6 +11798,7 @@ audit_update_2026_supplement_primary_common_sample_loo_files <- function(
       model_index,
       observation
     )
+
   outcome_summary <- model_summary |>
     dplyr::summarise(
       models = dplyr::n(),
@@ -11280,6 +11812,7 @@ audit_update_2026_supplement_primary_common_sample_loo_files <- function(
     dplyr::mutate(
       stacking_ready = high_k_cases == 0L & observation_sets_aligned
     )
+
   reduction_manifest <- purrr::map2_dfr(
     paths,
     results,
@@ -11311,6 +11844,7 @@ audit_update_2026_supplement_primary_common_sample_loo_files <- function(
       ),
       model_index
     )
+
   if (
     nrow(model_summary) != 36L || nrow(method_comparison) != 72L ||
       nrow(observation_set_audit) != 36L ||
@@ -11319,6 +11853,7 @@ audit_update_2026_supplement_primary_common_sample_loo_files <- function(
     stop("The supplement common-sample LOO audit is incomplete.",
          call. = FALSE)
   }
+
   list(
     family = "supplement_primary_common_sample",
     reduction_manifest = reduction_manifest,
@@ -11351,6 +11886,7 @@ write_update_2026_supplement_primary_common_sample_loo_audit <- function(
     stop("Cannot write an incomplete supplement common-sample LOO audit.",
          call. = FALSE)
   }
+
   dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
   paths <- c(
     reduction_manifest = file.path(output_dir, "reduction_manifest.csv"),
@@ -11367,6 +11903,7 @@ write_update_2026_supplement_primary_common_sample_loo_audit <- function(
     ),
     high_k_cases = file.path(output_dir, "high_k_cases.csv")
   )
+
   readr::write_csv(audit$reduction_manifest, paths[["reduction_manifest"]])
   readr::write_csv(audit$model_summary, paths[["model_summary"]])
   readr::write_csv(audit$outcome_summary, paths[["outcome_summary"]])
@@ -11389,6 +11926,7 @@ make_update_2026_supplement_primary_final_fit_manifest <- function(
 ) {
   replacement_keys <- common_sample_accepted_fit_manifest |>
     dplyr::select(outcome, model_index)
+
   if (
     nrow(accepted_fit_manifest) != 72L ||
       nrow(common_sample_accepted_fit_manifest) != 36L ||
@@ -11396,6 +11934,7 @@ make_update_2026_supplement_primary_final_fit_manifest <- function(
   ) {
     stop("The final supplement fit inputs are incomplete.", call. = FALSE)
   }
+
   manifest <- accepted_fit_manifest |>
     dplyr::anti_join(replacement_keys, by = c("outcome", "model_index")) |>
     dplyr::bind_rows(common_sample_accepted_fit_manifest) |>
@@ -11406,6 +11945,7 @@ make_update_2026_supplement_primary_final_fit_manifest <- function(
       ),
       model_index
     )
+
   stage_counts <- table(manifest$stage)
   if (
     nrow(manifest) != 72L ||
@@ -11420,6 +11960,7 @@ make_update_2026_supplement_primary_final_fit_manifest <- function(
   ) {
     stop("The final supplement fit manifest is invalid.", call. = FALSE)
   }
+
   manifest
 }
 
@@ -11438,6 +11979,7 @@ write_update_2026_supplement_primary_final_fit_manifest <- function(
     stop("Cannot write an invalid final supplement fit manifest.",
          call. = FALSE)
   }
+
   dir.create(dirname(output_file), recursive = TRUE, showWarnings = FALSE)
   readr::write_csv(manifest, output_file, na = "")
   output_file
@@ -11451,6 +11993,7 @@ make_update_2026_supplement_primary_aligned_loo_manifest <- function(
   replacement <- common_sample_loo_audit$reduction_manifest
   replacement_keys <- replacement |>
     dplyr::select(outcome, model_index)
+
   if (
     nrow(integrated_loo_audit$reduction_manifest) != 72L ||
       nrow(replacement) != 36L ||
@@ -11460,6 +12003,7 @@ make_update_2026_supplement_primary_aligned_loo_manifest <- function(
     stop("The aligned supplement LOO inputs are incomplete.",
          call. = FALSE)
   }
+
   manifest <- integrated_loo_audit$reduction_manifest |>
     dplyr::anti_join(replacement_keys, by = c("outcome", "model_index")) |>
     dplyr::bind_rows(replacement) |>
@@ -11484,6 +12028,7 @@ make_update_2026_supplement_primary_aligned_loo_manifest <- function(
       ),
       model_index
     )
+
   comparison <- manifest |>
     dplyr::select(
       outcome,
@@ -11503,6 +12048,7 @@ make_update_2026_supplement_primary_aligned_loo_manifest <- function(
         ),
       by = c("outcome", "model_index")
     )
+
   if (
     nrow(manifest) != 72L ||
       anyDuplicated(manifest[c("outcome", "model_index")]) ||
@@ -11518,6 +12064,7 @@ make_update_2026_supplement_primary_aligned_loo_manifest <- function(
   ) {
     stop("The aligned supplement LOO manifest is invalid.", call. = FALSE)
   }
+
   manifest
 }
 
@@ -11541,6 +12088,7 @@ audit_update_2026_supplement_primary_aligned_loo <- function(
         ),
       by = key
     )
+
   if (
     nrow(source_check) != 72L ||
       any(source_check$integrated_loo_path != source_check$final_loo_path) ||
@@ -11548,6 +12096,7 @@ audit_update_2026_supplement_primary_aligned_loo <- function(
   ) {
     stop("The aligned supplement LOO audit is invalid.", call. = FALSE)
   }
+
   audit$family <- "supplement_primary_aligned"
   audit$aligned_loo_manifest <- aligned_loo_manifest
   audit$exact_refits_required <- nrow(audit$high_k_cases)
@@ -11574,6 +12123,7 @@ write_update_2026_supplement_primary_aligned_loo_audit <- function(
     stop("Cannot write an incomplete aligned supplement LOO audit.",
          call. = FALSE)
   }
+
   dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
   paths <- c(
     aligned_loo_manifest = file.path(output_dir, "aligned_loo_manifest.csv"),
@@ -11590,6 +12140,7 @@ write_update_2026_supplement_primary_aligned_loo_audit <- function(
     ),
     high_k_cases = file.path(output_dir, "high_k_cases.csv")
   )
+
   readr::write_csv(
     audit$aligned_loo_manifest,
     paths[["aligned_loo_manifest"]]
@@ -11627,6 +12178,7 @@ make_update_2026_supplement_primary_exact_loo_records <- function(
         ),
       by = c("outcome", "model_index")
     )
+
   expected <- tibble::tribble(
     ~outcome, ~model_index, ~observation,
     "whole_body", 8L, 125L,
@@ -11634,6 +12186,7 @@ make_update_2026_supplement_primary_exact_loo_records <- function(
   )
   observed <- cases |>
     dplyr::select(outcome, model_index, observation)
+
   if (
     !identical(aligned_loo_audit$family, "supplement_primary_aligned") ||
       aligned_loo_audit$exact_refits_required != 2L ||
@@ -11645,6 +12198,7 @@ make_update_2026_supplement_primary_exact_loo_records <- function(
     stop("The supplement exact-LOO registry no longer matches its audit.",
          call. = FALSE)
   }
+
   records <- purrr::pmap(cases, list)
   names(records) <- paste0(
     cases$outcome,
@@ -11662,6 +12216,7 @@ validate_update_2026_supplement_primary_exact_loo_inputs <- function(
   if (!is.list(records) || length(records) != 2L) {
     stop("Expected two supplement exact-LOO records.", call. = FALSE)
   }
+
   checks <- purrr::map_dfr(records, function(record) {
     candidate <- qs::qread(record$fit_path)
     integrated <- qs::qread(record$integrated_loo_path)
@@ -11711,12 +12266,14 @@ validate_update_2026_supplement_primary_exact_loo_inputs <- function(
     )
   }) |>
     dplyr::arrange(case_id)
+
   keys <- paste(
     checks$outcome,
     checks$model_index,
     checks$observation,
     sep = "::"
   )
+
   if (
     nrow(checks) != 2L || anyDuplicated(keys) ||
       !identical(keys, c("whole_body::8::125", "whole_body::20::125")) ||
@@ -11734,6 +12291,7 @@ validate_update_2026_supplement_primary_exact_loo_inputs <- function(
     stop("The supplement exact-LOO preflight is incomplete.",
          call. = FALSE)
   }
+
   checks
 }
 
@@ -11782,6 +12340,7 @@ fit_and_score_update_2026_supplement_primary_exact_loo_to_file <- function(
       call. = FALSE
     )
   }
+
   output_file <- update_2026_supplement_primary_exact_loo_file_path(record)
   if (file.exists(output_file) && file.info(output_file)$size > 0) {
     archived <- tryCatch(qs::qread(output_file), error = function(error) NULL)
@@ -11798,6 +12357,7 @@ fit_and_score_update_2026_supplement_primary_exact_loo_to_file <- function(
     stop("An existing supplement exact correction is invalid.",
          call. = FALSE)
   }
+
   candidate <- qs::qread(record$fit_path)
   integrated <- qs::qread(record$integrated_loo_path)
   observation <- as.integer(record$observation)
@@ -11811,6 +12371,7 @@ fit_and_score_update_2026_supplement_primary_exact_loo_to_file <- function(
     stop("A supplement exact-LOO record failed validation.",
          call. = FALSE)
   }
+
   job <- list(
     case_id = as.integer(record$case_id),
     outcome = record$outcome,
@@ -11820,6 +12381,7 @@ fit_and_score_update_2026_supplement_primary_exact_loo_to_file <- function(
     fitted_candidate = candidate,
     integrated_result = integrated
   )
+
   refit <- fit_primary_integrated_exact_loo_case(
     job = job,
     chains = 4L,
@@ -11828,6 +12390,7 @@ fit_and_score_update_2026_supplement_primary_exact_loo_to_file <- function(
     iter = 8000L,
     seed = 60888L + as.integer(record$case_id)
   )
+
   correction <- compute_primary_integrated_exact_loo_case(refit)
   correction$case_id <- as.integer(record$case_id)
   correction$fit_path <- normalizePath(
@@ -11852,6 +12415,7 @@ audit_update_2026_supplement_primary_exact_loo_files <- function(
     stop("The supplement exact-LOO corrections are incomplete.",
          call. = FALSE)
   }
+
   corrections <- purrr::map(paths, qs::qread)
   diagnostic_summary <- purrr::map_dfr(
     corrections,
@@ -11880,6 +12444,7 @@ audit_update_2026_supplement_primary_exact_loo_files <- function(
     )
   }) |>
     dplyr::arrange(case_id)
+
   observed_keys <- paste(
     manifest$outcome,
     manifest$model_index,
@@ -11892,6 +12457,7 @@ audit_update_2026_supplement_primary_exact_loo_files <- function(
     aligned_loo_audit$high_k_cases$observation,
     sep = "::"
   )
+
   if (
     nrow(diagnostic_summary) != 2L || nrow(manifest) != 2L ||
       anyDuplicated(observed_keys) || !setequal(observed_keys, expected_keys) ||
@@ -11900,6 +12466,7 @@ audit_update_2026_supplement_primary_exact_loo_files <- function(
     stop("The supplement exact-correction audit is invalid.",
          call. = FALSE)
   }
+
   list(
     diagnostic_summary = diagnostic_summary,
     correction_manifest = manifest,
@@ -11927,6 +12494,7 @@ write_update_2026_supplement_primary_exact_loo_audit <- function(
     stop("Cannot write an incomplete supplement exact-correction audit.",
          call. = FALSE)
   }
+
   dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
   paths <- c(
     diagnostic_summary = file.path(output_dir, "diagnostic_summary.csv"),
@@ -11957,6 +12525,7 @@ make_update_2026_supplement_primary_final_loo_manifest <- function(
     stop("Final supplement LOO assembly requires two passing exact refits.",
          call. = FALSE)
   }
+
   exact <- exact_loo_audit$correction_manifest |>
     dplyr::select(
       outcome,
@@ -11966,6 +12535,7 @@ make_update_2026_supplement_primary_final_loo_manifest <- function(
       correction_bytes = bytes,
       correction_sha256 = sha256
     )
+
   manifest <- aligned_loo_audit$aligned_loo_manifest |>
     dplyr::rename(
       base_loo_source = loo_source,
@@ -12006,6 +12576,7 @@ make_update_2026_supplement_primary_final_loo_manifest <- function(
       ),
       model_index
     )
+
   if (
     nrow(manifest) != 72L ||
       sum(manifest$loo_source == "integrated_psis_plus_exact") != 2L ||
@@ -12016,6 +12587,7 @@ make_update_2026_supplement_primary_final_loo_manifest <- function(
   ) {
     stop("The final supplement LOO manifest is invalid.", call. = FALSE)
   }
+
   manifest
 }
 
@@ -12028,6 +12600,7 @@ audit_update_2026_supplement_primary_final_loo <- function(
     paths = final_loo_manifest$final_loo_path,
     k_threshold = k_threshold
   )
+
   if (
     nrow(final_loo_manifest) != 72L ||
       !isTRUE(exact_loo_audit$all_exact_refit_diagnostics_pass) ||
@@ -12040,6 +12613,7 @@ audit_update_2026_supplement_primary_final_loo <- function(
     stop("The final supplement LOO audit is not stacking-ready.",
          call. = FALSE)
   }
+
   audit$family <- "supplement_primary"
   audit$final_loo_manifest <- final_loo_manifest
   audit$exact_refit_summary <- exact_loo_audit$diagnostic_summary
@@ -12066,6 +12640,7 @@ write_update_2026_supplement_primary_final_loo_audit <- function(
     stop("Cannot write an incomplete final supplement LOO audit.",
          call. = FALSE)
   }
+
   dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
   paths <- c(
     final_loo_manifest = file.path(output_dir, "final_loo_manifest.csv"),
@@ -12083,6 +12658,7 @@ write_update_2026_supplement_primary_final_loo_audit <- function(
     exact_refit_summary = file.path(output_dir, "exact_refit_summary.csv"),
     high_k_cases = file.path(output_dir, "high_k_cases.csv")
   )
+
   readr::write_csv(audit$final_loo_manifest, paths[["final_loo_manifest"]])
   readr::write_csv(audit$model_summary, paths[["model_summary"]])
   readr::write_csv(audit$outcome_summary, paths[["outcome_summary"]])
@@ -12134,6 +12710,7 @@ write_update_2026_supplement_primary_stacking_weights <- function(
     stop("Cannot write invalid supplement primary stacking weights.",
          call. = FALSE)
   }
+
   dir.create(dirname(output_file), recursive = TRUE, showWarnings = FALSE)
   readr::write_csv(weights, output_file)
   output_file
@@ -12178,6 +12755,7 @@ make_update_2026_supplement_primary_reporting_data_by_outcome <- function(
     }
     filtered
   })
+
   if (!identical(sort(names(reporting)), sort(names(expected_rows)))) {
     stop("The supplement reporting datasets are incomplete.",
          call. = FALSE)
@@ -12201,6 +12779,7 @@ make_update_2026_supplement_primary_prediction_records <- function(
     grid_step_g_day = grid_step_g_day,
     seed = seed
   )
+
   records <- purrr::map(records, function(record) {
     record$family <- "supplement_primary"
     record$prediction_type <- "supplement_g_day"
@@ -12213,6 +12792,7 @@ make_update_2026_supplement_primary_prediction_records <- function(
     )
   }) |>
     dplyr::summarise(draws = sum(draw_count), .by = outcome)
+
   if (
     length(records) < 4L || nrow(allocated) != 4L ||
       any(allocated$draws != n_draws) ||
@@ -12225,6 +12805,7 @@ make_update_2026_supplement_primary_prediction_records <- function(
     stop("The supplement prediction allocation is incomplete.",
          call. = FALSE)
   }
+
   records
 }
 
@@ -12253,6 +12834,7 @@ make_update_2026_supplement_primary_reporting_preflight <- function(
     strength = 106,
     `function` = 320 / 7
   )
+
   if (
     any(checks$exposure_minimum_g_day != 0) ||
       any(abs(
@@ -12264,6 +12846,7 @@ make_update_2026_supplement_primary_reporting_preflight <- function(
   ) {
     stop("The supplement reporting preflight failed.", call. = FALSE)
   }
+
   checks
 }
 
@@ -12283,6 +12866,7 @@ write_update_2026_supplement_primary_reporting_preflight <- function(
     stop("Cannot write an invalid supplement reporting preflight.",
          call. = FALSE)
   }
+
   dir.create(dirname(output_file), recursive = TRUE, showWarnings = FALSE)
   readr::write_csv(checks, output_file)
   output_file
@@ -12317,6 +12901,7 @@ write_update_2026_supplement_primary_prediction_draw_file <- function(
   ) {
     stop("A supplement prediction record is invalid.", call. = FALSE)
   }
+
   candidate <- qs::qread(record$fit_path)
   if (
     !identical(candidate$outcome, as.character(record$outcome)) ||
@@ -12326,6 +12911,7 @@ write_update_2026_supplement_primary_prediction_draw_file <- function(
     stop("A supplement fit does not match its prediction record.",
          call. = FALSE)
   }
+
   grid <- make_update_2026_total_primary_prediction_grid(
     data = data_by_outcome[[record$outcome]],
     fitted_candidate = candidate,
@@ -12342,6 +12928,7 @@ write_update_2026_supplement_primary_prediction_draw_file <- function(
     re_formula = NA,
     ndraws = as.integer(record$draw_count)
   ))
+
   if (ncol(draws) != nrow(grid$keys) && nrow(draws) == nrow(grid$keys)) {
     draws <- t(draws)
   }
@@ -12352,6 +12939,7 @@ write_update_2026_supplement_primary_prediction_draw_file <- function(
     stop("Supplement predictions do not match their allocation.",
          call. = FALSE)
   }
+
   reduction <- list(
     family = "supplement_primary",
     outcome = as.character(record$outcome),
@@ -12372,6 +12960,7 @@ write_update_2026_supplement_primary_prediction_draw_file <- function(
       prediction_type = "supplement_primary"
     )
   )
+
   write_atomic_qs(reduction, result_path)
 }
 
@@ -12391,6 +12980,7 @@ make_update_2026_supplement_primary_model_average_records <- function(
     record$family <- "supplement_primary"
     record
   })
+
   if (any(!purrr::map_lgl(
     records,
     ~ identical(.x$family, "supplement_primary")
@@ -12398,6 +12988,7 @@ make_update_2026_supplement_primary_model_average_records <- function(
     stop("The supplement model-average records are invalid.",
          call. = FALSE)
   }
+
   records
 }
 
@@ -12414,6 +13005,7 @@ write_update_2026_supplement_primary_reporting_file <- function(
   )
   outcome <- model_average$outcome
   data <- data_by_outcome[[outcome]]
+
   if (is.null(data) || !is.data.frame(data)) {
     stop("The supplement reporting data are unavailable.", call. = FALSE)
   }
@@ -12457,6 +13049,7 @@ write_update_2026_supplement_primary_reporting_file <- function(
       )
     )
   )
+
   write_atomic_qs(report, result_path)
 }
 
@@ -12476,6 +13069,7 @@ write_update_2026_supplement_primary_reporting_audit <- function(
   ) {
     stop("The supplement reporting audit is incomplete.", call. = FALSE)
   }
+
   reports <- purrr::map(
     audit$summary$reporting_path,
     read_sensitivity_full_reporting_file,
@@ -12512,6 +13106,7 @@ write_update_2026_supplement_primary_reporting_audit <- function(
     local_equivalence = file.path(output_dir, "local_equivalence.csv"),
     model_weights = file.path(output_dir, "model_weights.csv")
   )
+
   readr::write_csv(audit$summary, paths[["summary"]])
   readr::write_csv(prediction_manifest, paths[["prediction_manifest"]])
   readr::write_csv(bind_report("dose_response"), paths[["dose_response"]])
@@ -12630,6 +13225,7 @@ make_update_2026_supplement_primary_verification_checkpoint <- function(
         dplyr::select(outcome, model_index, weight_name = model_name),
       by = c("outcome", "model_index")
     )
+
   weight_sums <- stacking_weights |>
     dplyr::summarise(
       models = dplyr::n(),
@@ -12754,6 +13350,7 @@ make_update_2026_supplement_primary_verification_checkpoint <- function(
         all(reporting_audit$summary$diagonal_contrasts_valid)
     )
   )
+
   failed <- is.na(checks$passed) | !checks$passed
   if (any(failed)) {
     stop(
@@ -12810,6 +13407,7 @@ make_update_2026_supplement_primary_verification_checkpoint <- function(
     pairwise_support = bind_report("pairwise_support"),
     local_equivalence = bind_report("local_equivalence")
   )
+
   descriptions <- stats::setNames(
     c(
       "Final supplement-dose primary checkpoint checks.",
@@ -12860,6 +13458,7 @@ make_update_2026_supplement_primary_verification_checkpoint <- function(
     ),
     names(artifacts)
   )
+
   list(
     checks = checks,
     artifacts = artifacts,
@@ -12894,6 +13493,7 @@ make_update_2026_supplement_primary_pruning_plan <- function(
     verification_manifest,
     show_col_types = FALSE
   )
+
   if (length(verification_files) != nrow(verification_index) + 2L) {
     stop("The supplement verification-file count is invalid.",
          call. = FALSE)
@@ -12908,6 +13508,7 @@ make_update_2026_supplement_primary_pruning_plan <- function(
     winslash = "/",
     mustWork = TRUE
   )
+
   if (!identical(tolower(resolved_root), tolower(expected_root))) {
     stop("Refusing to plan pruning outside the supplement archive.",
          call. = FALSE)
@@ -12921,6 +13522,7 @@ make_update_2026_supplement_primary_pruning_plan <- function(
     stop("An expected supplement fit directory is missing.",
          call. = FALSE)
   }
+
   fit_paths <- unlist(
     purrr::map(
       fit_roots,
@@ -12934,6 +13536,7 @@ make_update_2026_supplement_primary_pruning_plan <- function(
     use.names = FALSE
   ) |>
     normalizePath(winslash = "/", mustWork = TRUE)
+
   accepted_paths <- normalizePath(
     final_fit_manifest$fit_path,
     winslash = "/",
@@ -12948,6 +13551,7 @@ make_update_2026_supplement_primary_pruning_plan <- function(
     stop("Supplement fit retention does not match its final lineage.",
          call. = FALSE)
   }
+
   model_fit_manifest <- tibble::tibble(
     path = fit_paths,
     relative_path = substring(fit_paths, nchar(resolved_root) + 2L),
@@ -12967,6 +13571,7 @@ make_update_2026_supplement_primary_pruning_plan <- function(
     lean_action = "delete frozen supplement-dose model fit"
   ) |>
     dplyr::arrange(archive_stage, outcome, model_index)
+
   stage_counts <- table(factor(
     model_fit_manifest$archive_stage,
     levels = c("initial", "remedy_1", "common_sample_1")
@@ -12982,6 +13587,7 @@ make_update_2026_supplement_primary_pruning_plan <- function(
     stop("The supplement model-fit stages are not as expected.",
          call. = FALSE)
   }
+
   deletion_manifest <- model_fit_manifest |>
     dplyr::mutate(
       artifact_role = dplyr::if_else(
@@ -13002,6 +13608,7 @@ make_update_2026_supplement_primary_pruning_plan <- function(
     ),
     reporting = file.path(archive_root, "reporting")
   )
+
   if (any(!dir.exists(compact_roots))) {
     stop("An expected compact supplement directory is missing.",
          call. = FALSE)
@@ -13018,6 +13625,7 @@ make_update_2026_supplement_primary_pruning_plan <- function(
     ),
     use.names = FALSE
   )
+
   compact_paths <- compact_paths[
     file.exists(compact_paths) & !file.info(compact_paths)$isdir
   ] |>
@@ -13035,6 +13643,7 @@ make_update_2026_supplement_primary_pruning_plan <- function(
     )]
     if (length(matches) == 1L) matches else "unknown"
   }, character(1L))
+
   compact_manifest <- tibble::tibble(
     path = compact_paths,
     relative_path = substring(compact_paths, nchar(resolved_root) + 2L),
@@ -13047,6 +13656,7 @@ make_update_2026_supplement_primary_pruning_plan <- function(
     action = "retain compact supplement-dose LOO and reporting result"
   ) |>
     dplyr::arrange(archive_component, relative_path)
+
   compact_counts <- table(factor(
     compact_manifest$archive_component,
     levels = c(
@@ -13054,6 +13664,7 @@ make_update_2026_supplement_primary_pruning_plan <- function(
       "reporting"
     )
   ))
+
   if (
     nrow(compact_manifest) != 147L ||
       !identical(as.integer(compact_counts), c(72L, 36L, 2L, 37L)) ||
@@ -13087,6 +13698,7 @@ make_update_2026_supplement_primary_pruning_plan <- function(
       "reduced directly to compact corrections."
     )
   )
+
   list(
     summary = summary,
     model_fit_manifest = model_fit_manifest,
@@ -13116,6 +13728,7 @@ write_update_2026_supplement_primary_pruning_plan <- function(
     stop("Cannot write an invalid supplement pruning plan.",
          call. = FALSE)
   }
+
   dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
   paths <- c(
     summary = file.path(output_dir, "summary.csv"),
@@ -13127,6 +13740,7 @@ write_update_2026_supplement_primary_pruning_plan <- function(
       output_dir, "compact_archive_manifest.csv"
     )
   )
+
   readr::write_csv(plan$summary, paths[["summary"]])
   readr::write_csv(plan$model_fit_manifest, paths[["model_fit_manifest"]])
   readr::write_csv(
@@ -13140,6 +13754,10 @@ write_update_2026_supplement_primary_pruning_plan <- function(
   unname(paths)
 }
 
+# Prescribed supplement dose with within- and between-study terms ----
+
+# Reuse the absolute-scale sample preparation and verify the expected outcome
+# and study counts for the supplement family.
 make_update_2026_supplement_mundlak_data_by_outcome <- function(
     supplement_primary_data_by_outcome
 ) {
@@ -13158,6 +13776,7 @@ make_update_2026_supplement_mundlak_data_by_outcome <- function(
     strength = 71L,
     `function` = 28L
   )
+
   if (
     !identical(names(data), names(expected_rows)) ||
       !identical(vapply(data, nrow, integer(1L)), expected_rows) ||
@@ -13178,6 +13797,7 @@ make_update_2026_supplement_mundlak_data_by_outcome <- function(
     stop("The supplement Mundlak common samples are invalid.",
          call. = FALSE)
   }
+
   data
 }
 
@@ -13197,6 +13817,7 @@ make_update_2026_supplement_mundlak_specifications <- function(
     table$historical_schedule,
     levels = c("base", "longer_sampling")
   ))
+
   if (
     length(specifications) != 72L || nrow(table) != 72L ||
       any(table$family != "supplement_mundlak") ||
@@ -13211,6 +13832,7 @@ make_update_2026_supplement_mundlak_specifications <- function(
     stop("The supplement Mundlak specification registry is invalid.",
          call. = FALSE)
   }
+
   specifications
 }
 
@@ -13298,6 +13920,7 @@ validate_update_2026_supplement_mundlak_inputs <- function(
       )),
       model_index
     )
+
   retained <- setdiff(
     seq_len(26L),
     c(3L, 7L, 10L, 13L, 16L, 19L, 22L, 25L)
@@ -13329,6 +13952,7 @@ validate_update_2026_supplement_mundlak_inputs <- function(
       studies = dplyr::first(studies),
       .by = outcome
     )
+
   keys <- paste(checks$outcome, checks$model_index, sep = "::")
   if (
     nrow(checks) != 72L || anyDuplicated(keys) || !all(checks$valid) ||
@@ -13354,6 +13978,7 @@ validate_update_2026_supplement_mundlak_inputs <- function(
     stop("The supplement Mundlak input preflight is incomplete.",
          call. = FALSE)
   }
+
   checks
 }
 
@@ -13391,6 +14016,7 @@ fit_update_2026_supplement_mundlak_candidate_to_file <- function(
       call. = FALSE
     )
   }
+
   if (!identical(input$family, "supplement_mundlak")) {
     stop("The supplement-dose Mundlak fit input is invalid.",
          call. = FALSE)
@@ -13400,6 +14026,7 @@ fit_update_2026_supplement_mundlak_candidate_to_file <- function(
     stop("Unknown outcome in a supplement-dose Mundlak fit.",
          call. = FALSE)
   }
+
   local_config <- config
   local_config$iter_warmup <- as.integer(input$specification$iter_warmup)
   local_config$iter_sampling <- as.integer(input$specification$iter_sampling)
@@ -13422,6 +14049,7 @@ fit_update_2026_supplement_mundlak_candidate_to_file <- function(
   temporary <- paste0(output_file, ".tmp-", Sys.getpid())
   on.exit(unlink(temporary, force = TRUE), add = TRUE)
   qs::qsave(candidate, temporary, preset = "high")
+
   if (!file.copy(temporary, output_file, overwrite = TRUE)) {
     stop("Could not finalise a supplement-dose Mundlak fit file.",
          call. = FALSE)
@@ -13431,6 +14059,7 @@ fit_update_2026_supplement_mundlak_candidate_to_file <- function(
     stop("The supplement-dose Mundlak fit file is invalid.",
          call. = FALSE)
   }
+
   normalizePath(output_file, winslash = "/", mustWork = TRUE)
 }
 
@@ -13450,6 +14079,7 @@ make_update_2026_supplement_mundlak_fit_manifest <- function(
       ),
       model_index
     )
+
   expected <- dplyr::bind_rows(specifications) |>
     dplyr::transmute(
       outcome,
@@ -13462,6 +14092,7 @@ make_update_2026_supplement_mundlak_fit_manifest <- function(
       by = c("outcome", "model_index"),
       relationship = "one-to-one"
     )
+
   if (
     length(paths) != 72L || nrow(manifest) != 72L ||
       any(manifest$family != "supplement_mundlak") ||
@@ -13475,6 +14106,7 @@ make_update_2026_supplement_mundlak_fit_manifest <- function(
     stop("The supplement-dose Mundlak fit manifest is invalid.",
          call. = FALSE)
   }
+
   manifest
 }
 
@@ -13484,6 +14116,7 @@ make_update_2026_supplement_mundlak_remedy_specifications <- function(
 ) {
   failed <- diagnostic_audit$diagnostic_summary |>
     dplyr::filter(!diagnostic_pass)
+
   if (
     !identical(diagnostic_audit$family, "supplement_mundlak") ||
       nrow(failed) != 1L || failed$outcome[[1L]] != "hypertrophy" ||
@@ -13499,6 +14132,7 @@ make_update_2026_supplement_mundlak_remedy_specifications <- function(
       call. = FALSE
     )
   }
+
   selected <- purrr::keep(
     specifications,
     ~ identical(.x$outcome, "hypertrophy") &&
@@ -13508,6 +14142,7 @@ make_update_2026_supplement_mundlak_remedy_specifications <- function(
     stop("Could not uniquely select supplement Mundlak model 24.",
          call. = FALSE)
   }
+
   remedy <- selected[[1L]]
   remedy$iter_warmup <- 2000L
   remedy$iter_sampling <- 6000L
@@ -13565,6 +14200,7 @@ validate_update_2026_supplement_mundlak_remedy_inputs <- function(
       valid = TRUE
     )
   })
+
   if (
     nrow(checks) != 1L || checks$outcome[[1L]] != "hypertrophy" ||
       checks$model_index[[1L]] != 24L ||
@@ -13580,6 +14216,7 @@ validate_update_2026_supplement_mundlak_remedy_inputs <- function(
     stop("The supplement Mundlak remedy preflight is incomplete.",
          call. = FALSE)
   }
+
   checks
 }
 
@@ -13624,6 +14261,7 @@ combine_update_2026_supplement_mundlak_remedy_diagnostics <- function(
   diagnostic_key <- function(x) {
     paste(x$summary$outcome[[1L]], x$summary$model_index[[1L]], sep = "::")
   }
+
   if (length(initial_diagnostics) != 72L || length(remedy_diagnostics) != 1L) {
     stop("The supplement Mundlak remedy diagnostics are incomplete.",
          call. = FALSE)
@@ -13633,6 +14271,7 @@ combine_update_2026_supplement_mundlak_remedy_diagnostics <- function(
   failed_keys <- initial_diagnostics |>
     purrr::keep(~ !.x$summary$diagnostic_pass[[1L]]) |>
     purrr::map_chr(diagnostic_key)
+
   if (
     anyDuplicated(initial_keys) || anyDuplicated(remedy_keys) ||
       !setequal(remedy_keys, "hypertrophy::24") ||
@@ -13642,6 +14281,7 @@ combine_update_2026_supplement_mundlak_remedy_diagnostics <- function(
     stop("The supplement Mundlak diagnostic replacement is invalid.",
          call. = FALSE)
   }
+
   final_diagnostics <- initial_diagnostics
   final_diagnostics[match(remedy_keys, initial_keys)] <- remedy_diagnostics
   compile_update_2026_total_primary_diagnostic_audit(
@@ -13656,6 +14296,7 @@ make_update_2026_supplement_mundlak_accepted_fit_manifest <- function(
     final_diagnostic_audit
 ) {
   remedy_paths <- unname(unlist(remedy_fit_paths, use.names = FALSE))
+
   if (
     nrow(initial_manifest) != 72L || length(remedy_paths) != 1L ||
       any(!file.exists(remedy_paths)) ||
@@ -13669,6 +14310,7 @@ make_update_2026_supplement_mundlak_accepted_fit_manifest <- function(
       call. = FALSE
     )
   }
+
   remedy <- make_sensitivity_fit_file_manifest(
     paths = remedy_paths,
     stage = "remedy_1"
@@ -13687,6 +14329,7 @@ make_update_2026_supplement_mundlak_accepted_fit_manifest <- function(
       ),
       model_index
     )
+
   retained <- setdiff(
     seq_len(26L),
     c(3L, 7L, 10L, 13L, 16L, 19L, 22L, 25L)
@@ -13697,6 +14340,7 @@ make_update_2026_supplement_mundlak_accepted_fit_manifest <- function(
       indices_valid = setequal(model_index, retained),
       .by = outcome
     )
+
   if (
     nrow(remedy) != 1L || !setequal(remedy_key, "hypertrophy::24") ||
       nrow(accepted) != 72L ||
@@ -13716,6 +14360,7 @@ make_update_2026_supplement_mundlak_accepted_fit_manifest <- function(
     stop("The accepted supplement Mundlak manifest is invalid.",
          call. = FALSE)
   }
+
   accepted
 }
 
@@ -13749,6 +14394,7 @@ validate_update_2026_supplement_mundlak_loo_inputs <- function(
       identical(as.numeric(k_threshold), 0.7) &&
       identical(as.integer(cores_per_branch), 1L)
   )
+
   ready <-
     nrow(accepted_fit_manifest) == 72L &&
     !anyDuplicated(accepted_fit_manifest[c("outcome", "model_index")]) &&
@@ -13757,6 +14403,7 @@ validate_update_2026_supplement_mundlak_loo_inputs <- function(
     stop("The supplement Mundlak LOO preflight is incomplete.",
          call. = FALSE)
   }
+
   list(
     family = "supplement_mundlak",
     models = 72L,
@@ -13802,6 +14449,7 @@ compute_update_2026_supplement_mundlak_integrated_loo_to_file <- function(
       call. = FALSE
     )
   }
+
   result <- compute_mundlak_full_file_integrated_loo(
     fit_record = fit_record,
     loo_draws = loo_draws,
@@ -13810,6 +14458,7 @@ compute_update_2026_supplement_mundlak_integrated_loo_to_file <- function(
     family = "supplement_mundlak",
     slope_description = "supplement_mundlak_within_basis_slopes"
   )
+
   if (
     !inherits(result$loo, "loo") ||
       !inherits(result$conditional_loo, "loo") ||
@@ -13820,6 +14469,7 @@ compute_update_2026_supplement_mundlak_integrated_loo_to_file <- function(
     stop("Cannot archive an invalid supplement Mundlak LOO result.",
          call. = FALSE)
   }
+
   output_dir <- file.path(output_root, result$outcome)
   dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
   output_file <- file.path(
@@ -13840,6 +14490,7 @@ audit_update_2026_supplement_mundlak_integrated_loo_files <- function(
     seq_len(26L),
     c(3L, 7L, 10L, 13L, 16L, 19L, 22L, 25L)
   )
+
   if (
     !is.data.frame(manifest) || nrow(manifest) != 72L ||
       any(manifest$family != "supplement_mundlak") ||
@@ -13848,6 +14499,7 @@ audit_update_2026_supplement_mundlak_integrated_loo_files <- function(
     stop("The supplement Mundlak LOO manifest cannot be audited.",
          call. = FALSE)
   }
+
   results <- purrr::map(manifest$integrated_loo_path, qs::qread)
   audit <- audit_mundlak_full_integrated_loo(
     results,
@@ -13877,6 +14529,7 @@ audit_update_2026_supplement_mundlak_integrated_loo_files <- function(
       ),
       model_index
     )
+
   alignment <- observation_set_audit |>
     dplyr::summarise(
       observation_counts = paste(sort(unique(observations)), collapse = ","),
@@ -13895,6 +14548,7 @@ audit_update_2026_supplement_mundlak_integrated_loo_files <- function(
   audit$stacking_ready <-
     audit$exact_refits_required == 0L &&
     all(audit$outcome_summary$observation_sets_aligned)
+
   if (
     audit$models != 72L || nrow(audit$outcome_summary) != 4L ||
       nrow(audit$observation_set_audit) != 72L ||
@@ -13903,6 +14557,7 @@ audit_update_2026_supplement_mundlak_integrated_loo_files <- function(
     stop("The supplement Mundlak integrated-LOO audit is incomplete.",
          call. = FALSE)
   }
+
   audit
 }
 
@@ -13914,6 +14569,7 @@ validate_update_2026_supplement_mundlak_exact_inputs <- function(
     stop("Expected eight supplement Mundlak exact-LOO records.",
          call. = FALSE)
   }
+
   checks <- purrr::map_dfr(records, function(record) {
     integrated <- qs::qread(record$integrated_loo_path)
     observation <- as.integer(record$observation)
@@ -13953,6 +14609,7 @@ validate_update_2026_supplement_mundlak_exact_inputs <- function(
     )
   }) |>
     dplyr::arrange(case_id)
+
   keys <- paste(
     checks$outcome,
     checks$model_index,
@@ -13969,6 +14626,7 @@ validate_update_2026_supplement_mundlak_exact_inputs <- function(
     "hypertrophy::24::259",
     "hypertrophy::24::260"
   )
+
   whole_body <- checks$outcome == "whole_body"
   hypertrophy <- checks$outcome == "hypertrophy"
   if (
@@ -13989,6 +14647,7 @@ validate_update_2026_supplement_mundlak_exact_inputs <- function(
     stop("The supplement Mundlak exact-LOO preflight is incomplete.",
          call. = FALSE)
   }
+
   checks
 }
 
@@ -14033,6 +14692,7 @@ fit_update_2026_supplement_mundlak_exact_to_file <- function(
   if (!isTRUE(enabled)) {
     stop("Supplement Mundlak exact refitting is disabled.", call. = FALSE)
   }
+
   output_file <- update_2026_supplement_mundlak_exact_fit_file_path(record)
   if (file.exists(output_file) && file.info(output_file)$size > 0) {
     archived <- tryCatch(
@@ -14056,6 +14716,7 @@ fit_update_2026_supplement_mundlak_exact_to_file <- function(
       call. = FALSE
     )
   }
+
   candidate <- read_sensitivity_fit_file(record$original_fit_path)
   integrated <- qs::qread(record$integrated_loo_path)
   observation <- as.integer(record$observation)
@@ -14076,6 +14737,7 @@ fit_update_2026_supplement_mundlak_exact_to_file <- function(
     stop("A supplement Mundlak exact record failed validation.",
          call. = FALSE)
   }
+
   prediction_data <- candidate$model$data
   training_data <- prediction_data[-observation, , drop = FALSE]
   original_model <- candidate$model
@@ -14109,6 +14771,7 @@ fit_update_2026_supplement_mundlak_exact_to_file <- function(
     ),
     save_pars = brms::save_pars(all = TRUE)
   )
+
   archive <- list(
     case_id = as.integer(record$case_id),
     outcome = record$outcome,
@@ -14123,6 +14786,7 @@ fit_update_2026_supplement_mundlak_exact_to_file <- function(
     refitted_model = refitted_model,
     refit_seconds = as.numeric(proc.time()[["elapsed"]] - start_time)
   )
+
   write_atomic_qs(archive, output_file)
 }
 
@@ -14140,6 +14804,7 @@ write_update_2026_supplement_mundlak_exact_diagnostic_audit <- function(
     stop("The supplement Mundlak exact diagnostic audit is incomplete.",
          call. = FALSE)
   }
+
   dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
   output_file <- file.path(output_dir, "diagnostic_summary.csv")
   readr::write_csv(audit$diagnostic_summary, output_file, na = "")
@@ -14173,6 +14838,7 @@ compute_update_2026_supplement_mundlak_exact_correction_to_file <- function(
     stop("Supplement Mundlak exact correction is disabled.",
          call. = FALSE)
   }
+
   refit <- read_mundlak_full_exact_loo_file(exact_fit_path)
   output_file <-
     update_2026_supplement_mundlak_exact_correction_file_path(refit)
@@ -14191,6 +14857,7 @@ compute_update_2026_supplement_mundlak_exact_correction_to_file <- function(
     stop("An existing supplement exact-correction archive is invalid.",
          call. = FALSE)
   }
+
   correction <- compute_mundlak_full_exact_loo_file(
     path = exact_fit_path,
     diagnostic_audit = diagnostic_audit
@@ -14204,6 +14871,7 @@ compute_update_2026_supplement_mundlak_exact_correction_to_file <- function(
     stop("The supplement Mundlak exact correction is invalid.",
          call. = FALSE)
   }
+
   write_atomic_qs(correction, output_file)
 }
 
@@ -14213,6 +14881,7 @@ audit_update_2026_supplement_mundlak_exact_correction_files <- function(
 ) {
   paths <- unname(unlist(paths, use.names = FALSE))
   expected <- as.integer(integrated_audit$exact_refits_required)
+
   if (
     length(paths) != expected || expected != 8L || anyNA(paths) ||
       any(!file.exists(paths)) || any(file.info(paths)$size <= 0)
@@ -14220,6 +14889,7 @@ audit_update_2026_supplement_mundlak_exact_correction_files <- function(
     stop("The supplement Mundlak exact corrections are incomplete.",
          call. = FALSE)
   }
+
   corrections <- purrr::map(paths, qs::qread)
   diagnostic_summary <- purrr::map_dfr(
     corrections,
@@ -14233,6 +14903,7 @@ audit_update_2026_supplement_mundlak_exact_correction_files <- function(
       model_index,
       observation
     )
+
   manifest <- purrr::map2_dfr(paths, corrections, function(path, result) {
     tibble::tibble(
       case_id = as.integer(result$case_id),
@@ -14255,6 +14926,7 @@ audit_update_2026_supplement_mundlak_exact_correction_files <- function(
     )
   }) |>
     dplyr::arrange(case_id)
+
   observed_keys <- paste(
     manifest$outcome,
     manifest$model_index,
@@ -14267,6 +14939,7 @@ audit_update_2026_supplement_mundlak_exact_correction_files <- function(
     integrated_audit$high_k_cases$observation,
     sep = "::"
   )
+
   if (
     nrow(diagnostic_summary) != 8L || nrow(manifest) != 8L ||
       anyDuplicated(observed_keys) || !setequal(observed_keys, expected_keys) ||
@@ -14276,6 +14949,7 @@ audit_update_2026_supplement_mundlak_exact_correction_files <- function(
     stop("The supplement Mundlak exact-correction audit is invalid.",
          call. = FALSE)
   }
+
   list(
     diagnostic_summary = diagnostic_summary,
     correction_manifest = manifest,
@@ -14303,6 +14977,7 @@ write_update_2026_supplement_mundlak_exact_correction_audit <- function(
     stop("Cannot write an incomplete supplement exact-correction audit.",
          call. = FALSE)
   }
+
   dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
   paths <- c(
     diagnostic_summary = file.path(output_dir, "diagnostic_summary.csv"),
@@ -14329,6 +15004,7 @@ read_update_2026_supplement_mundlak_exact_corrections <- function(manifest) {
     stop("The supplement Mundlak correction manifest is invalid.",
          call. = FALSE)
   }
+
   corrections <- purrr::map(manifest$correction_path, qs::qread)
   corrections <- corrections[order(purrr::map_int(corrections, "case_id"))]
   if (
@@ -14341,6 +15017,7 @@ read_update_2026_supplement_mundlak_exact_corrections <- function(manifest) {
     stop("The supplement Mundlak exact corrections are invalid.",
          call. = FALSE)
   }
+
   corrections
 }
 
@@ -14353,6 +15030,7 @@ make_update_2026_supplement_mundlak_final_loo_audit <- function(
     seq_len(26L),
     c(3L, 7L, 10L, 13L, 16L, 19L, 22L, 25L)
   )
+
   if (!isTRUE(exact_audit$all_exact_refit_diagnostics_pass)) {
     stop("Final supplement Mundlak LOO requires passing exact refits.",
          call. = FALSE)
@@ -14373,6 +15051,7 @@ make_update_2026_supplement_mundlak_final_loo_audit <- function(
       maximum_remaining_pareto_k = max(maximum_pareto_k, na.rm = TRUE),
       .by = outcome
     )
+
   correction_counts <- exact_audit$diagnostic_summary |>
     dplyr::count(outcome, model_index, name = "exact_corrections")
   final_manifest <- integrated_manifest |>
@@ -14388,6 +15067,7 @@ make_update_2026_supplement_mundlak_final_loo_audit <- function(
         "integrated_observation_level_psis"
       )
     )
+
   if (
     !isTRUE(final$stacking_ready) || nrow(final$model_summary) != 72L ||
       nrow(outcome_summary) != 4L || any(outcome_summary$models != 18L) ||
@@ -14398,6 +15078,7 @@ make_update_2026_supplement_mundlak_final_loo_audit <- function(
     stop("The final supplement Mundlak LOO audit is not stacking-ready.",
          call. = FALSE)
   }
+
   final$family <- "supplement_mundlak"
   final$outcome_summary <- outcome_summary
   final$final_loo_manifest <- final_manifest
@@ -14423,6 +15104,7 @@ write_update_2026_supplement_mundlak_final_loo_audit <- function(
     stop("Cannot write an incomplete final supplement Mundlak LOO audit.",
          call. = FALSE)
   }
+
   dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
   paths <- c(
     final_loo_manifest = file.path(output_dir, "final_loo_manifest.csv"),
@@ -14456,6 +15138,7 @@ make_update_2026_supplement_mundlak_prediction_records <- function(
     grid_step_g_day = grid_step_g_day,
     seed = seed
   )
+
   records <- purrr::map(records, function(record) {
     record$family <- "supplement_mundlak"
     record$prediction_type <- "supplement_mundlak"
@@ -14469,6 +15152,7 @@ make_update_2026_supplement_mundlak_prediction_records <- function(
       retained_weight = sum(weight),
       .by = outcome
     )
+
   if (
     nrow(audit) != 4L || any(audit$selected_models < 1L) ||
       any(audit$allocated_draws != 4000L) ||
@@ -14482,6 +15166,7 @@ make_update_2026_supplement_mundlak_prediction_records <- function(
     stop("The supplement Mundlak prediction allocation is incomplete.",
          call. = FALSE)
   }
+
   records
 }
 
@@ -14494,6 +15179,7 @@ make_update_2026_supplement_mundlak_reporting_preflight <- function(
     data_by_outcome = data_by_outcome
   )
   record_table <- dplyr::bind_rows(records)
+
   if (
     any(record_table$family != "supplement_mundlak") ||
       any(record_table$prediction_type != "supplement_mundlak") ||
@@ -14507,6 +15193,7 @@ make_update_2026_supplement_mundlak_reporting_preflight <- function(
     stop("The supplement Mundlak reporting preflight failed.",
          call. = FALSE)
   }
+
   checks
 }
 
@@ -14544,6 +15231,7 @@ make_update_2026_supplement_mundlak_prediction_grid <- function(
     study_mean_g_day = study_mean_g_day
   )
   grid$newdata$supplement_g_day <- grid$keys$protein_intake_g_day
+
   if (!"total_g_day" %in% names(fitted_candidate$model$data)) {
     grid$newdata$total_g_day <- NULL
   }
@@ -14554,6 +15242,7 @@ make_update_2026_supplement_mundlak_prediction_grid <- function(
     stop("The supplement Mundlak prediction grid is invalid.",
          call. = FALSE)
   }
+
   grid
 }
 
@@ -14587,6 +15276,7 @@ write_update_2026_supplement_mundlak_prediction_draw_file <- function(
     stop("A supplement Mundlak prediction record is invalid.",
          call. = FALSE)
   }
+
   candidate <- qs::qread(record$fit_path)
   candidate_model_name <- if (stringr::str_ends(
     candidate$model_name,
@@ -14596,6 +15286,7 @@ write_update_2026_supplement_mundlak_prediction_draw_file <- function(
   } else {
     paste0(candidate$model_name, " [supplement_mundlak]")
   }
+
   if (
     !identical(unname(as.character(candidate$family)),
                "supplement_mundlak") ||
@@ -14609,6 +15300,7 @@ write_update_2026_supplement_mundlak_prediction_draw_file <- function(
     stop("A supplement Mundlak fit does not match its prediction record.",
          call. = FALSE)
   }
+
   grid <- make_update_2026_supplement_mundlak_prediction_grid(
     fitted_candidate = candidate,
     data = data_by_outcome[[record$outcome]],
@@ -14625,6 +15317,7 @@ write_update_2026_supplement_mundlak_prediction_draw_file <- function(
     re_formula = NA,
     ndraws = as.integer(record$draw_count)
   ))
+
   if (ncol(draws) != nrow(grid$keys) && nrow(draws) == nrow(grid$keys)) {
     draws <- t(draws)
   }
@@ -14635,6 +15328,7 @@ write_update_2026_supplement_mundlak_prediction_draw_file <- function(
     stop("Supplement Mundlak predictions do not match their allocation.",
          call. = FALSE)
   }
+
   reduction <- list(
     family = "supplement_mundlak",
     outcome = as.character(record$outcome),
@@ -14656,6 +15350,7 @@ write_update_2026_supplement_mundlak_prediction_draw_file <- function(
       prediction_type = "supplement_mundlak"
     )
   )
+
   write_atomic_qs(reduction, result_path)
 }
 
@@ -14675,6 +15370,7 @@ make_update_2026_supplement_mundlak_model_average_records <- function(
     record$family <- "supplement_mundlak"
     record
   })
+
   if (any(!purrr::map_lgl(
     records,
     ~ identical(.x$family, "supplement_mundlak")
@@ -14682,6 +15378,7 @@ make_update_2026_supplement_mundlak_model_average_records <- function(
     stop("The supplement Mundlak model-average records are invalid.",
          call. = FALSE)
   }
+
   records
 }
 
@@ -14698,6 +15395,7 @@ write_update_2026_supplement_mundlak_reporting_file <- function(
   )
   outcome <- model_average$outcome
   data <- data_by_outcome[[outcome]]
+
   if (is.null(data) || !is.data.frame(data)) {
     stop("The supplement Mundlak reporting data are unavailable.",
          call. = FALSE)
@@ -14743,6 +15441,7 @@ write_update_2026_supplement_mundlak_reporting_file <- function(
       )
     )
   )
+
   write_atomic_qs(report, result_path)
 }
 
@@ -14763,6 +15462,7 @@ write_update_2026_supplement_mundlak_reporting_audit <- function(
     stop("The supplement Mundlak reporting audit is incomplete.",
          call. = FALSE)
   }
+
   reports <- purrr::map(
     audit$summary$reporting_path,
     read_sensitivity_full_reporting_file,
@@ -14799,6 +15499,7 @@ write_update_2026_supplement_mundlak_reporting_audit <- function(
     local_equivalence = file.path(output_dir, "local_equivalence.csv"),
     model_weights = file.path(output_dir, "model_weights.csv")
   )
+
   readr::write_csv(audit$summary, paths[["summary"]])
   readr::write_csv(prediction_manifest, paths[["prediction_manifest"]])
   readr::write_csv(bind_report("dose_response"), paths[["dose_response"]])
@@ -14871,6 +15572,7 @@ make_update_2026_supplement_mundlak_verification_checkpoint <- function(
       )
     ) |>
     dplyr::arrange(factor(outcome, levels = outcomes), model_index)
+
   analysis_data <- purrr::imap_dfr(
     data_by_outcome,
     ~ dplyr::mutate(.x, analysis_outcome = .y, .before = 1L)
@@ -14914,6 +15616,7 @@ make_update_2026_supplement_mundlak_verification_checkpoint <- function(
         dplyr::select(outcome, model_index, weight_name = model_name),
       by = c("outcome", "model_index")
     )
+
   weight_sums <- stacking_weights |>
     dplyr::summarise(
       models = dplyr::n(),
@@ -15035,6 +15738,7 @@ make_update_2026_supplement_mundlak_verification_checkpoint <- function(
         all(reporting_audit$summary$diagonal_contrasts_valid)
     )
   )
+
   failed <- is.na(checks$passed) | !checks$passed
   if (any(failed)) {
     stop(
@@ -15043,6 +15747,7 @@ make_update_2026_supplement_mundlak_verification_checkpoint <- function(
       call. = FALSE
     )
   }
+
   artifacts <- list(
     verification_checks = checks,
     source_manifest = source_manifest,
@@ -15083,6 +15788,7 @@ make_update_2026_supplement_mundlak_verification_checkpoint <- function(
     pairwise_support = bind_report("pairwise_support"),
     local_equivalence = bind_report("local_equivalence")
   )
+
   descriptions <- stats::setNames(
     paste("Frozen supplement Mundlak verification artifact:", names(artifacts)),
     names(artifacts)
@@ -15122,6 +15828,7 @@ make_update_2026_supplement_mundlak_pruning_plan <- function(
     verification_manifest,
     show_col_types = FALSE
   )
+
   if (length(verification_files) != nrow(verification_index) + 2L) {
     stop("The supplement Mundlak verification-file count is invalid.",
          call. = FALSE)
@@ -15135,12 +15842,14 @@ make_update_2026_supplement_mundlak_pruning_plan <- function(
     winslash = "/",
     mustWork = TRUE
   )
+
   if (!identical(tolower(resolved_root), tolower(expected_root))) {
     stop("Refusing to plan pruning outside the supplement Mundlak archive.",
          call. = FALSE)
   }
   fit_roots <- file.path(archive_root, c("initial", "remedy_1"))
   exact_fit_root <- file.path(archive_root, "loo", "exact_fit")
+
   if (any(!dir.exists(c(fit_roots, exact_fit_root)))) {
     stop("An expected supplement Mundlak fit directory is missing.",
          call. = FALSE)
@@ -15158,6 +15867,7 @@ make_update_2026_supplement_mundlak_pruning_plan <- function(
     use.names = FALSE
   ) |>
     normalizePath(winslash = "/", mustWork = TRUE)
+
   accepted_paths <- normalizePath(
     accepted_fit_manifest$fit_path,
     winslash = "/",
@@ -15172,6 +15882,7 @@ make_update_2026_supplement_mundlak_pruning_plan <- function(
     stop("Supplement Mundlak fit retention does not match its lineage.",
          call. = FALSE)
   }
+
   model_fit_manifest <- tibble::tibble(
     path = fit_paths,
     relative_path = substring(fit_paths, nchar(resolved_root) + 2L),
@@ -15189,6 +15900,7 @@ make_update_2026_supplement_mundlak_pruning_plan <- function(
     lean_action = "delete frozen supplement Mundlak model fit"
   ) |>
     dplyr::arrange(archive_stage, outcome, model_index)
+
   stage_counts <- table(factor(
     model_fit_manifest$archive_stage,
     levels = c("initial", "remedy_1")
@@ -15204,6 +15916,7 @@ make_update_2026_supplement_mundlak_pruning_plan <- function(
     stop("The supplement Mundlak model-fit stages are not as expected.",
          call. = FALSE)
   }
+
   exact_fit_paths <- list.files(
     exact_fit_root,
     pattern = "\\.qs$",
@@ -15227,6 +15940,7 @@ make_update_2026_supplement_mundlak_pruning_plan <- function(
     lean_action = "delete frozen supplement Mundlak exact-deletion refit"
   ) |>
     dplyr::arrange(case_id)
+
   exact_keys <- paste(
     exact_refit_manifest$outcome,
     exact_refit_manifest$model_index,
@@ -15239,6 +15953,7 @@ make_update_2026_supplement_mundlak_pruning_plan <- function(
     exact_diagnostic_audit$diagnostic_summary$observation,
     sep = "::"
   )
+
   if (
     nrow(exact_refit_manifest) != 8L ||
       anyNA(exact_refit_manifest[c("model_index", "case_id", "observation")]) ||
@@ -15250,6 +15965,7 @@ make_update_2026_supplement_mundlak_pruning_plan <- function(
     stop("The supplement Mundlak exact-refit inventory is invalid.",
          call. = FALSE)
   }
+
   deletion_manifest <- dplyr::bind_rows(
     model_fit_manifest |>
       dplyr::mutate(
@@ -15271,6 +15987,7 @@ make_update_2026_supplement_mundlak_pruning_plan <- function(
       path, relative_path, archive_stage, artifact_role, outcome,
       model_index, case_id, observation, accepted_fit, bytes, lean_action
     )
+
   compact_roots <- c(
     loo_psis = file.path(archive_root, "loo", "integrated"),
     exact_corrections = file.path(archive_root, "loo", "exact_correction"),
@@ -15280,6 +15997,7 @@ make_update_2026_supplement_mundlak_pruning_plan <- function(
     stop("An expected compact supplement Mundlak directory is missing.",
          call. = FALSE)
   }
+
   compact_paths <- unlist(
     purrr::map(
       compact_roots,
@@ -15292,6 +16010,7 @@ make_update_2026_supplement_mundlak_pruning_plan <- function(
     ),
     use.names = FALSE
   )
+
   compact_paths <- compact_paths[
     file.exists(compact_paths) & !file.info(compact_paths)$isdir
   ] |>
@@ -15309,6 +16028,7 @@ make_update_2026_supplement_mundlak_pruning_plan <- function(
     )]
     if (length(matches) == 1L) matches else "unknown"
   }, character(1L))
+
   compact_manifest <- tibble::tibble(
     path = compact_paths,
     relative_path = substring(compact_paths, nchar(resolved_root) + 2L),
@@ -15321,6 +16041,7 @@ make_update_2026_supplement_mundlak_pruning_plan <- function(
     action = "retain compact supplement Mundlak result"
   ) |>
     dplyr::arrange(archive_component, relative_path)
+
   compact_counts <- table(factor(
     compact_manifest$archive_component,
     levels = c("loo_psis", "exact_corrections", "reporting")
@@ -15335,6 +16056,7 @@ make_update_2026_supplement_mundlak_pruning_plan <- function(
     stop("The compact supplement Mundlak archive is incomplete.",
          call. = FALSE)
   }
+
   summary <- tibble::tibble(
     mode = "lean",
     full_fit_archives_deleted = nrow(deletion_manifest),
@@ -15358,6 +16080,7 @@ make_update_2026_supplement_mundlak_pruning_plan <- function(
       "supplement Mundlak family."
     )
   )
+
   list(
     summary = summary,
     model_fit_manifest = model_fit_manifest,
@@ -15389,6 +16112,7 @@ write_update_2026_supplement_mundlak_pruning_plan <- function(
     stop("Cannot write an invalid supplement Mundlak pruning plan.",
          call. = FALSE)
   }
+
   dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
   paths <- c(
     summary = file.path(output_dir, "summary.csv"),
@@ -15401,6 +16125,7 @@ write_update_2026_supplement_mundlak_pruning_plan <- function(
       output_dir, "compact_archive_manifest.csv"
     )
   )
+
   readr::write_csv(plan$summary, paths[["summary"]])
   readr::write_csv(plan$model_fit_manifest, paths[["model_fit_manifest"]])
   readr::write_csv(plan$exact_refit_manifest, paths[["exact_refit_manifest"]])
@@ -15417,6 +16142,8 @@ write_update_2026_supplement_mundlak_pruning_plan <- function(
 
 # Absolute prescribed-supplement strict within-study sensitivity ----
 
+# Construct within-study comparisons using the prescribed supplement exposure
+# and its corresponding outcome sample.
 make_update_2026_supplement_within_contrast_data_by_outcome <- function(
     supplement_mundlak_data_by_outcome
 ) {
@@ -15425,6 +16152,7 @@ make_update_2026_supplement_within_contrast_data_by_outcome <- function(
     stop("The supplement within-study source registry is invalid.",
          call. = FALSE)
   }
+
   contrasts <- purrr::map(
     supplement_mundlak_data_by_outcome,
     function(data) {
@@ -15487,12 +16215,14 @@ make_update_2026_supplement_within_contrast_data_by_outcome <- function(
       output
     }
   )
+
   expected_contrasts <- c(
     whole_body = 134L,
     hypertrophy = 229L,
     strength = 330L,
     `function` = 122L
   )
+
   if (!identical(vapply(contrasts, nrow, integer(1L)), expected_contrasts)) {
     stop("The supplement within-study contrast counts have changed.",
          call. = FALSE)
@@ -15516,6 +16246,7 @@ make_update_2026_supplement_within_specifications <- function(
     )
     specification
   })
+
   table <- dplyr::bind_rows(specifications)
   schedule_counts <- table(factor(
     table$historical_schedule,
@@ -15535,6 +16266,7 @@ make_update_2026_supplement_within_specifications <- function(
     stop("The supplement within-study specification registry is invalid.",
          call. = FALSE)
   }
+
   specifications
 }
 
@@ -15619,6 +16351,7 @@ validate_update_2026_supplement_within_inputs <- function(
       ),
       model_index
     )
+
   expected <- tibble::tribble(
     ~outcome, ~contrasts, ~studies, ~matched_arm_pairs,
     "whole_body", 134L, 63L, 106L,
@@ -15637,6 +16370,7 @@ validate_update_2026_supplement_within_inputs <- function(
       .by = outcome
     ) |>
     dplyr::left_join(expected, by = "outcome", suffix = c("", "_expected"))
+
   outcome_counts <- table(factor(
     checks$outcome,
     levels = c("whole_body", "hypertrophy", "strength", "function")
@@ -15650,6 +16384,7 @@ validate_update_2026_supplement_within_inputs <- function(
     seq_len(26L),
     c(3L, 7L, 10L, 13L, 16L, 19L, 22L, 25L)
   )
+
   if (
     nrow(checks) != 72L || anyDuplicated(keys) || !all(checks$valid) ||
       any(checks$family != "supplement_within") ||
@@ -15676,6 +16411,7 @@ validate_update_2026_supplement_within_inputs <- function(
     stop("The supplement within-study input preflight is incomplete.",
          call. = FALSE)
   }
+
   checks
 }
 
@@ -15713,6 +16449,7 @@ fit_update_2026_supplement_within_candidate_to_file <- function(
       call. = FALSE
     )
   }
+
   if (!identical(input$family, "supplement_within")) {
     stop("The supplement within-study fit input is invalid.",
          call. = FALSE)
@@ -15736,6 +16473,7 @@ fit_update_2026_supplement_within_candidate_to_file <- function(
   temporary <- paste0(output_file, ".tmp-", Sys.getpid())
   on.exit(unlink(temporary, force = TRUE), add = TRUE)
   qs::qsave(candidate, temporary, preset = "high")
+
   if (!file.copy(temporary, output_file, overwrite = TRUE)) {
     stop("Could not finalise a supplement within-study fit.",
          call. = FALSE)
@@ -15745,6 +16483,7 @@ fit_update_2026_supplement_within_candidate_to_file <- function(
     stop("The supplement within-study fit file is invalid.",
          call. = FALSE)
   }
+
   normalizePath(output_file, winslash = "/", mustWork = TRUE)
 }
 
@@ -15765,6 +16504,7 @@ make_update_2026_supplement_within_remedy_specifications <- function(
   convergence_keys <- failed$key[
     failed$geometry_pass & !failed$convergence_pass
   ]
+
   if (
     !identical(diagnostic_audit$family, "supplement_within") ||
       nrow(failed) != 4L || anyDuplicated(failed$key) ||
@@ -15775,6 +16515,7 @@ make_update_2026_supplement_within_remedy_specifications <- function(
     stop("The supplement within-study remedy set is invalid.",
          call. = FALSE)
   }
+
   selected <- purrr::keep(specifications, function(specification) {
     paste(
       specification$outcome,
@@ -15824,6 +16565,7 @@ make_update_2026_supplement_within_remedy_specifications <- function(
     specification$archive_stage <- "remedy_1"
     specification
   })
+
   keys <- purrr::map_chr(
     selected,
     ~ paste(.x$outcome, .x$model_index, sep = "::")
@@ -15835,6 +16577,7 @@ make_update_2026_supplement_within_remedy_specifications <- function(
     stop("The supplement within-study remedy specifications are incomplete.",
          call. = FALSE)
   }
+
   names(selected) <- paste0(
     purrr::map_chr(selected, "outcome"),
     "_model_",
@@ -15892,6 +16635,7 @@ validate_update_2026_supplement_within_remedy_inputs <- function(
       )),
       model_index
     )
+
   expected <- tibble::tribble(
     ~outcome, ~model_index, ~remedy, ~adapt_delta, ~max_treedepth,
     ~iter_warmup, ~iter_sampling,
@@ -15904,12 +16648,14 @@ validate_update_2026_supplement_within_remedy_inputs <- function(
     "strength", 11L, "extended_sampling_after_convergence_failure",
     0.999, 15L, 2000L, 6000L
   )
+
   comparison <- checks |>
     dplyr::left_join(
       expected,
       by = c("outcome", "model_index"),
       suffix = c("", "_expected")
     )
+
   if (
     nrow(checks) != 4L ||
       anyNA(comparison$remedy_expected) ||
@@ -15924,6 +16670,7 @@ validate_update_2026_supplement_within_remedy_inputs <- function(
     stop("The supplement within-study remedy preflight is incomplete.",
          call. = FALSE)
   }
+
   checks
 }
 
@@ -15968,6 +16715,7 @@ combine_update_2026_supplement_within_remedy_diagnostics <- function(
   diagnostic_key <- function(x) {
     paste(x$summary$outcome[[1L]], x$summary$model_index[[1L]], sep = "::")
   }
+
   if (length(initial_diagnostics) != 72L || length(remedy_diagnostics) != 4L) {
     stop("The supplement within-study remedy diagnostics are incomplete.",
          call. = FALSE)
@@ -15977,6 +16725,7 @@ combine_update_2026_supplement_within_remedy_diagnostics <- function(
   failed_keys <- initial_diagnostics |>
     purrr::keep(~ !.x$summary$diagnostic_pass[[1L]]) |>
     purrr::map_chr(diagnostic_key)
+
   if (
     anyDuplicated(initial_keys) || anyDuplicated(remedy_keys) ||
       !setequal(remedy_keys, failed_keys) ||
@@ -15985,6 +16734,7 @@ combine_update_2026_supplement_within_remedy_diagnostics <- function(
     stop("The supplement within-study diagnostic replacement is invalid.",
          call. = FALSE)
   }
+
   final_diagnostics <- initial_diagnostics
   final_diagnostics[match(remedy_keys, initial_keys)] <- remedy_diagnostics
   compile_update_2026_total_primary_diagnostic_audit(
@@ -16003,6 +16753,7 @@ make_update_2026_supplement_within_accepted_fit_manifest <- function(
     "strength::11"
   )
   remedy_paths <- unname(unlist(remedy_fit_paths, use.names = FALSE))
+
   if (
     nrow(initial_manifest) != 72L || length(remedy_paths) != 4L ||
       any(!file.exists(remedy_paths)) ||
@@ -16013,6 +16764,7 @@ make_update_2026_supplement_within_accepted_fit_manifest <- function(
     stop("Accepted supplement within-study fits require 72 passing diagnostics.",
          call. = FALSE)
   }
+
   remedy <- tibble::tibble(
     outcome = basename(dirname(remedy_paths)),
     model_index = as.integer(stringr::str_match(
@@ -16034,6 +16786,7 @@ make_update_2026_supplement_within_accepted_fit_manifest <- function(
     dplyr::select(
       outcome, model_index, model_name, fit_path, stage, bytes, sha256
     )
+
   remedy_keys <- paste(remedy$outcome, remedy$model_index, sep = "::")
   accepted <- initial_manifest |>
     dplyr::anti_join(
@@ -16048,6 +16801,7 @@ make_update_2026_supplement_within_accepted_fit_manifest <- function(
       ),
       model_index
     )
+
   if (
     nrow(remedy) != 4L || anyDuplicated(remedy_keys) ||
       !setequal(remedy_keys, expected_keys) ||
@@ -16066,6 +16820,7 @@ make_update_2026_supplement_within_accepted_fit_manifest <- function(
     stop("The accepted supplement within-study manifest is invalid.",
          call. = FALSE)
   }
+
   accepted
 }
 
@@ -16100,6 +16855,7 @@ validate_update_2026_supplement_within_loo_inputs <- function(
     identical(k_threshold, 0.7) &&
       identical(as.integer(cores_per_branch), 1L)
   )
+
   ready <-
     nrow(accepted_fit_manifest) == 72L &&
     !anyDuplicated(accepted_fit_manifest[c("outcome", "model_index")]) &&
@@ -16108,6 +16864,7 @@ validate_update_2026_supplement_within_loo_inputs <- function(
     stop("The supplement within-study LOO preflight is incomplete.",
          call. = FALSE)
   }
+
   list(
     family = "supplement_within",
     models = 72L,
@@ -16153,6 +16910,7 @@ compute_update_2026_supplement_within_integrated_loo_to_file <- function(
       call. = FALSE
     )
   }
+
   result <- compute_mundlak_full_file_integrated_loo(
     fit_record = fit_record,
     loo_draws = loo_draws,
@@ -16161,6 +16919,7 @@ compute_update_2026_supplement_within_integrated_loo_to_file <- function(
     family = "supplement_within",
     slope_description = "within_contrast_basis_slopes"
   )
+
   if (
     !inherits(result$loo, "loo") ||
       !inherits(result$conditional_loo, "loo") ||
@@ -16171,6 +16930,7 @@ compute_update_2026_supplement_within_integrated_loo_to_file <- function(
     stop("Cannot archive an invalid supplement within-study LOO result.",
          call. = FALSE)
   }
+
   output_dir <- file.path(output_root, result$outcome)
   dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
   output_file <- file.path(
@@ -16210,6 +16970,7 @@ validate_update_2026_supplement_within_exact_inputs <- function(
     stop("Expected 31 supplement within-study exact-LOO records.",
          call. = FALSE)
   }
+
   checks <- purrr::map_dfr(records, function(record) {
     integrated <- qs::qread(record$integrated_loo_path)
     observation <- as.integer(record$observation)
@@ -16255,6 +17016,7 @@ validate_update_2026_supplement_within_exact_inputs <- function(
     )
   }) |>
     dplyr::arrange(case_id)
+
   observed_cases <- paste(
     checks$outcome,
     checks$model_index,
@@ -16284,6 +17046,7 @@ validate_update_2026_supplement_within_exact_inputs <- function(
     "function::24::115",
     "function::26::115"
   )
+
   if (
     nrow(checks) != 31L ||
       !identical(checks$case_id, seq_len(31L)) ||
@@ -16307,6 +17070,7 @@ validate_update_2026_supplement_within_exact_inputs <- function(
     stop("The supplement within-study exact-LOO preflight is incomplete.",
          call. = FALSE)
   }
+
   checks
 }
 
@@ -16383,6 +17147,7 @@ fit_update_2026_supplement_within_exact_to_file <- function(
       call. = FALSE
     )
   }
+
   candidate <- read_sensitivity_fit_file(record$original_fit_path)
   integrated <- qs::qread(record$integrated_loo_path)
   observation <- as.integer(record$observation)
@@ -16403,6 +17168,7 @@ fit_update_2026_supplement_within_exact_to_file <- function(
     stop("A supplement within-study exact record failed validation.",
          call. = FALSE)
   }
+
   prediction_data <- candidate$model$data
   training_data <- prediction_data[-observation, , drop = FALSE]
   original_model <- candidate$model
@@ -16436,6 +17202,7 @@ fit_update_2026_supplement_within_exact_to_file <- function(
     ),
     save_pars = brms::save_pars(all = TRUE)
   )
+
   archive <- list(
     family = "supplement_within",
     case_id = as.integer(record$case_id),
@@ -16451,6 +17218,7 @@ fit_update_2026_supplement_within_exact_to_file <- function(
     refitted_model = refitted_model,
     refit_seconds = as.numeric(proc.time()[["elapsed"]] - start_time)
   )
+
   write_atomic_qs(archive, output_file)
 }
 
@@ -16468,6 +17236,7 @@ write_update_2026_supplement_within_exact_diagnostic_audit <- function(
     stop("The supplement within-study exact diagnostic audit is incomplete.",
          call. = FALSE)
   }
+
   dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
   output_file <- file.path(output_dir, "diagnostic_summary.csv")
   readr::write_csv(audit$diagnostic_summary, output_file, na = "")
@@ -16485,6 +17254,7 @@ make_update_2026_supplement_within_exact_remedy_config <- function(
     as.numeric(adapt_delta)
   )
   config$seed <- as.integer(exact_config$seed + seed_offset)
+
   if (
     config$chains != 4L || config$parallel_chains != 4L ||
       config$iter_warmup != 2000L || config$iter_sampling != 6000L ||
@@ -16496,6 +17266,7 @@ make_update_2026_supplement_within_exact_remedy_config <- function(
       call. = FALSE
     )
   }
+
   config
 }
 
@@ -16513,6 +17284,7 @@ select_update_2026_supplement_within_exact_remedy_records <- function(
       model_index,
       observation
     )
+
   failed_keys <- paste(
     failed$outcome,
     failed$model_index,
@@ -16525,6 +17297,7 @@ select_update_2026_supplement_within_exact_remedy_records <- function(
     "hypertrophy::24::153",
     "function::14::115"
   )
+
   if (
     exact_audit$exact_refits != 31L ||
       exact_audit$exact_refits_requiring_remediation != 4L ||
@@ -16542,6 +17315,7 @@ select_update_2026_supplement_within_exact_remedy_records <- function(
       call. = FALSE
     )
   }
+
   selected <- purrr::keep(records, function(record) {
     paste(
       record$outcome,
@@ -16550,6 +17324,7 @@ select_update_2026_supplement_within_exact_remedy_records <- function(
       sep = "::"
     ) %in% expected_keys
   })
+
   selected_keys <- purrr::map_chr(selected, function(record) {
     paste(
       record$outcome,
@@ -16558,6 +17333,7 @@ select_update_2026_supplement_within_exact_remedy_records <- function(
       sep = "::"
     )
   })
+
   selected_case_ids <- purrr::map_int(
     selected,
     ~ as.integer(.x$case_id)
@@ -16572,6 +17348,7 @@ select_update_2026_supplement_within_exact_remedy_records <- function(
       call. = FALSE
     )
   }
+
   names(selected) <- sprintf(
     "case_%03d_%s_model_%02d_observation_%04d",
     selected_case_ids,
@@ -16590,6 +17367,7 @@ validate_update_2026_supplement_within_exact_remedy_inputs <- function(
     stop("Expected four supplement within-study exact-remedy records.",
          call. = FALSE)
   }
+
   checks <- purrr::map_dfr(records, function(record) {
     candidate <- read_sensitivity_fit_file(record$original_fit_path)
     integrated <- qs::qread(record$integrated_loo_path)
@@ -16630,6 +17408,7 @@ validate_update_2026_supplement_within_exact_remedy_inputs <- function(
     )
   }) |>
     dplyr::arrange(case_id)
+
   observed_keys <- paste(
     checks$case_id,
     checks$outcome,
@@ -16643,6 +17422,7 @@ validate_update_2026_supplement_within_exact_remedy_inputs <- function(
     "16::hypertrophy::24::153",
     "26::function::14::115"
   )
+
   if (
     nrow(checks) != 4L ||
       !identical(observed_keys, expected_keys) ||
@@ -16661,6 +17441,7 @@ validate_update_2026_supplement_within_exact_remedy_inputs <- function(
       call. = FALSE
     )
   }
+
   checks
 }
 
@@ -16729,6 +17510,7 @@ audit_update_2026_supplement_within_exact_remedy_diagnostics <- function(
     "hypertrophy::24::153",
     "function::14::115"
   )
+
   if (
     nrow(summary) != 4L ||
       !identical(observed_keys, expected_keys) ||
@@ -16739,6 +17521,7 @@ audit_update_2026_supplement_within_exact_remedy_diagnostics <- function(
       call. = FALSE
     )
   }
+
   list(
     diagnostic_summary = summary,
     exact_refits = 4L,
@@ -16764,6 +17547,7 @@ write_update_2026_supplement_within_exact_remedy_diagnostic_audit <- function(
       call. = FALSE
     )
   }
+
   dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
   output_file <- file.path(output_dir, "diagnostic_summary.csv")
   readr::write_csv(audit$diagnostic_summary, output_file, na = "")
@@ -16784,6 +17568,7 @@ make_update_2026_supplement_within_exact_second_remedy_config <- function(
   config$adapt_delta_floor <- as.numeric(adapt_delta)
   config$max_treedepth_floor <- as.integer(max_treedepth)
   config$seed <- as.integer(remedy_config$seed + seed_offset)
+
   if (
     config$chains != 4L || config$parallel_chains != 4L ||
       config$iter_warmup != 3000L || config$iter_sampling != 8000L ||
@@ -16801,6 +17586,7 @@ make_update_2026_supplement_within_exact_second_remedy_config <- function(
       call. = FALSE
     )
   }
+
   config
 }
 
@@ -16822,6 +17608,7 @@ select_update_2026_supplement_within_exact_second_remedy_records <- function(
     "10::hypertrophy::14::153",
     "16::hypertrophy::24::153"
   )
+
   if (
     remedy_audit$exact_refits != 4L ||
       remedy_audit$exact_refits_requiring_remediation != 2L ||
@@ -16842,6 +17629,7 @@ select_update_2026_supplement_within_exact_second_remedy_records <- function(
       call. = FALSE
     )
   }
+
   selected <- purrr::keep(records, function(record) {
     paste(
       as.integer(record$case_id),
@@ -16851,6 +17639,7 @@ select_update_2026_supplement_within_exact_second_remedy_records <- function(
       sep = "::"
     ) %in% expected_keys
   })
+
   selected_keys <- purrr::map_chr(selected, function(record) {
     paste(
       as.integer(record$case_id),
@@ -16860,12 +17649,14 @@ select_update_2026_supplement_within_exact_second_remedy_records <- function(
       sep = "::"
     )
   })
+
   if (length(selected) != 2L || !identical(selected_keys, expected_keys)) {
     stop(
       "Could not uniquely select the two supplement second-remedy records.",
       call. = FALSE
     )
   }
+
   names(selected) <- c(
     "case_010_hypertrophy_model_14_observation_0153",
     "case_016_hypertrophy_model_24_observation_0153"
@@ -16879,6 +17670,7 @@ validate_update_2026_supplement_within_exact_second_remedy_inputs <-
     stop("Expected two supplement exact second-remedy records.",
          call. = FALSE)
   }
+
   checks <- purrr::map_dfr(records, function(record) {
     candidate <- read_sensitivity_fit_file(record$original_fit_path)
     integrated <- qs::qread(record$integrated_loo_path)
@@ -16917,6 +17709,7 @@ validate_update_2026_supplement_within_exact_second_remedy_inputs <-
     )
   }) |>
     dplyr::arrange(case_id)
+
   observed_keys <- paste(
     checks$case_id,
     checks$outcome,
@@ -16928,6 +17721,7 @@ validate_update_2026_supplement_within_exact_second_remedy_inputs <-
     "10::hypertrophy::14::153",
     "16::hypertrophy::24::153"
   )
+
   if (
     nrow(checks) != 2L || !identical(observed_keys, expected_keys) ||
       any(checks$adapt_delta != 0.9999) ||
@@ -16945,6 +17739,7 @@ validate_update_2026_supplement_within_exact_second_remedy_inputs <-
       call. = FALSE
     )
   }
+
   checks
 }
 
@@ -17000,6 +17795,7 @@ audit_update_2026_supplement_within_exact_second_remedy_diagnostics <-
     "10::hypertrophy::14::153",
     "16::hypertrophy::24::153"
   )
+
   if (
     nrow(summary) != 2L || !identical(observed_keys, expected_keys) ||
       anyDuplicated(observed_keys)
@@ -17009,6 +17805,7 @@ audit_update_2026_supplement_within_exact_second_remedy_diagnostics <-
       call. = FALSE
     )
   }
+
   list(
     diagnostic_summary = summary,
     exact_refits = 2L,
@@ -17050,6 +17847,7 @@ make_update_2026_supplement_within_final_exact_audit <- function(
     stop("The supplement final exact registry requires 31 records.",
          call. = FALSE)
   }
+
   record_manifest <- purrr::map_dfr(records, function(record) {
     tibble::tibble(
       case_id = as.integer(record$case_id),
@@ -17060,6 +17858,7 @@ make_update_2026_supplement_within_final_exact_audit <- function(
     )
   }) |>
     dplyr::arrange(case_id)
+
   path_manifest <- function(paths, stage, expected) {
     paths <- unname(unlist(paths, use.names = FALSE))
     case_id <- as.integer(stringr::str_match(
@@ -17086,6 +17885,7 @@ make_update_2026_supplement_within_final_exact_audit <- function(
     }
     output
   }
+
   initial_paths <- path_manifest(initial_fit_paths, "initial", 31L)
   remedy_paths <- path_manifest(remedy_fit_paths, "remedy_1", 4L)
   second_paths <- path_manifest(
@@ -17116,6 +17916,7 @@ make_update_2026_supplement_within_final_exact_audit <- function(
         )
       )
     )
+
   case_lookup <- record_manifest |>
     dplyr::select(case_id, outcome, model_index, observation)
   initial_summary <- initial_audit$diagnostic_summary |>
@@ -17139,6 +17940,7 @@ make_update_2026_supplement_within_final_exact_audit <- function(
       relationship = "one-to-one"
     ) |>
     dplyr::arrange(case_id)
+
   stage_counts <- table(accepted_manifest$stage)
   if (
     initial_audit$exact_refits != 31L ||
@@ -17163,6 +17965,7 @@ make_update_2026_supplement_within_final_exact_audit <- function(
     stop("The supplement within-study final exact audit is invalid.",
          call. = FALSE)
   }
+
   list(
     family = "supplement_within",
     diagnostic_summary = diagnostic_summary,
@@ -17191,6 +17994,7 @@ write_update_2026_supplement_within_final_exact_audit <- function(
     stop("Cannot write an incomplete supplement final exact audit.",
          call. = FALSE)
   }
+
   dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
   paths <- c(
     diagnostic_summary = file.path(output_dir, "diagnostic_summary.csv"),
@@ -17255,6 +18059,7 @@ compute_update_2026_supplement_within_exact_correction_to_file <- function(
     stop("Supplement within-study exact correction is disabled.",
          call. = FALSE)
   }
+
   exact_fit_path <- unname(as.character(record$exact_fit_path))
   refit <- read_sensitivity_full_exact_loo_file(
     exact_fit_path,
@@ -17262,6 +18067,7 @@ compute_update_2026_supplement_within_exact_correction_to_file <- function(
   )
   output_file <-
     update_2026_supplement_within_exact_correction_file_path(refit)
+
   if (file.exists(output_file) && file.info(output_file)$size > 0) {
     archived <- tryCatch(qs::qread(output_file), error = function(error) NULL)
     if (
@@ -17277,6 +18083,7 @@ compute_update_2026_supplement_within_exact_correction_to_file <- function(
     stop("An existing supplement-within exact correction is invalid.",
          call. = FALSE)
   }
+
   correction <- compute_sensitivity_full_exact_loo_file(
     path = exact_fit_path,
     diagnostic_audit = diagnostic_audit,
@@ -17291,6 +18098,7 @@ compute_update_2026_supplement_within_exact_correction_to_file <- function(
     stop("The supplement within-study exact correction is invalid.",
          call. = FALSE)
   }
+
   write_atomic_qs(correction, output_file)
 }
 
@@ -17300,6 +18108,7 @@ audit_update_2026_supplement_within_exact_correction_files <- function(
 ) {
   paths <- unname(unlist(paths, use.names = FALSE))
   expected <- as.integer(integrated_audit$exact_refits_required)
+
   if (
     length(paths) != expected || expected != 31L || anyNA(paths) ||
       any(!file.exists(paths)) || any(file.info(paths)$size <= 0)
@@ -17307,6 +18116,7 @@ audit_update_2026_supplement_within_exact_correction_files <- function(
     stop("The supplement within-study exact corrections are incomplete.",
          call. = FALSE)
   }
+
   corrections <- purrr::map(paths, qs::qread)
   diagnostic_summary <- purrr::map_dfr(
     corrections,
@@ -17320,6 +18130,7 @@ audit_update_2026_supplement_within_exact_correction_files <- function(
       model_index,
       observation
     )
+
   manifest <- purrr::map2_dfr(paths, corrections, function(path, result) {
     tibble::tibble(
       case_id = as.integer(result$case_id),
@@ -17338,6 +18149,7 @@ audit_update_2026_supplement_within_exact_correction_files <- function(
     )
   }) |>
     dplyr::arrange(case_id)
+
   observed_keys <- paste(
     manifest$outcome,
     manifest$model_index,
@@ -17350,6 +18162,7 @@ audit_update_2026_supplement_within_exact_correction_files <- function(
     integrated_audit$high_k_cases$observation,
     sep = "::"
   )
+
   if (
     nrow(diagnostic_summary) != 31L || nrow(manifest) != 31L ||
       anyDuplicated(observed_keys) || !setequal(observed_keys, expected_keys) ||
@@ -17359,6 +18172,7 @@ audit_update_2026_supplement_within_exact_correction_files <- function(
     stop("The supplement-within exact-correction audit is invalid.",
          call. = FALSE)
   }
+
   list(
     diagnostic_summary = diagnostic_summary,
     correction_manifest = manifest,
@@ -17386,6 +18200,7 @@ write_update_2026_supplement_within_exact_correction_audit <- function(
     stop("Cannot write an incomplete supplement-within correction audit.",
          call. = FALSE)
   }
+
   dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
   paths <- c(
     diagnostic_summary = file.path(output_dir, "diagnostic_summary.csv"),
@@ -17412,6 +18227,7 @@ read_update_2026_supplement_within_exact_corrections <- function(manifest) {
     stop("The supplement-within correction manifest is invalid.",
          call. = FALSE)
   }
+
   corrections <- purrr::map(manifest$correction_path, qs::qread)
   corrections <- corrections[order(purrr::map_int(corrections, "case_id"))]
   if (
@@ -17424,6 +18240,7 @@ read_update_2026_supplement_within_exact_corrections <- function(manifest) {
     stop("The supplement-within exact corrections are invalid.",
          call. = FALSE)
   }
+
   corrections
 }
 
@@ -17436,6 +18253,7 @@ make_update_2026_supplement_within_final_loo_audit <- function(
     seq_len(26L),
     c(3L, 7L, 10L, 13L, 16L, 19L, 22L, 25L)
   )
+
   if (!isTRUE(exact_audit$all_exact_refit_diagnostics_pass)) {
     stop("Final supplement-within LOO requires passing exact refits.",
          call. = FALSE)
@@ -17456,6 +18274,7 @@ make_update_2026_supplement_within_final_loo_audit <- function(
       maximum_remaining_pareto_k = max(maximum_pareto_k, na.rm = TRUE),
       .by = outcome
     )
+
   correction_counts <- exact_audit$diagnostic_summary |>
     dplyr::count(outcome, model_index, name = "exact_corrections")
   final_manifest <- integrated_manifest |>
@@ -17471,6 +18290,7 @@ make_update_2026_supplement_within_final_loo_audit <- function(
         "integrated_observation_level_psis"
       )
     )
+
   if (
     !isTRUE(final$stacking_ready) || nrow(final$model_summary) != 72L ||
       nrow(outcome_summary) != 4L || any(outcome_summary$models != 18L) ||
@@ -17481,6 +18301,7 @@ make_update_2026_supplement_within_final_loo_audit <- function(
     stop("The final supplement-within LOO audit is not stacking-ready.",
          call. = FALSE)
   }
+
   final$family <- "supplement_within"
   final$outcome_summary <- outcome_summary
   final$final_loo_manifest <- final_manifest
@@ -17506,6 +18327,7 @@ write_update_2026_supplement_within_final_loo_audit <- function(
     stop("Cannot write an incomplete final supplement-within LOO audit.",
          call. = FALSE)
   }
+
   dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
   paths <- c(
     final_loo_manifest = file.path(output_dir, "final_loo_manifest.csv"),
@@ -17539,6 +18361,7 @@ make_update_2026_supplement_within_prediction_records <- function(
     grid_step_g_day = grid_step_g_day,
     seed = seed
   )
+
   records <- purrr::map(records, function(record) {
     record$family <- "supplement_within"
     record$prediction_type <- "supplement_within"
@@ -17552,6 +18375,7 @@ make_update_2026_supplement_within_prediction_records <- function(
       retained_weight = sum(weight),
       .by = outcome
     )
+
   if (
     nrow(audit) != 4L || any(audit$selected_models < 1L) ||
       any(audit$allocated_draws != 4000L) ||
@@ -17565,6 +18389,7 @@ make_update_2026_supplement_within_prediction_records <- function(
     stop("The supplement within-study prediction allocation is incomplete.",
          call. = FALSE)
   }
+
   records
 }
 
@@ -17577,6 +18402,7 @@ make_update_2026_supplement_within_reporting_preflight <- function(
     data_by_outcome = data_by_outcome
   )
   record_table <- dplyr::bind_rows(records)
+
   if (
     any(record_table$family != "supplement_within") ||
       any(record_table$prediction_type != "supplement_within") ||
@@ -17589,6 +18415,7 @@ make_update_2026_supplement_within_reporting_preflight <- function(
     stop("The supplement within-study reporting preflight failed.",
          call. = FALSE)
   }
+
   checks
 }
 
@@ -17626,6 +18453,7 @@ make_update_2026_supplement_within_prediction_grid <- function(
     reference_g_day = reference_g_day
   )
   grid$newdata$supplement_g_day <- grid$keys$protein_intake_g_day
+
   if (
     grid$reference_g_day != 0 || grid$unit_g_day != 25 ||
       grid$protein_min != 0
@@ -17633,6 +18461,7 @@ make_update_2026_supplement_within_prediction_grid <- function(
     stop("The supplement within-study prediction grid is invalid.",
          call. = FALSE)
   }
+
   grid
 }
 
@@ -17669,6 +18498,7 @@ write_update_2026_supplement_within_prediction_draw_file <- function(
     stop("A supplement within-study prediction record is invalid.",
          call. = FALSE)
   }
+
   candidate <- read_sensitivity_fit_file(record$fit_path)
   if (
     !identical(unname(as.character(candidate$family)),
@@ -17683,6 +18513,7 @@ write_update_2026_supplement_within_prediction_draw_file <- function(
     stop("A supplement-within fit does not match its prediction record.",
          call. = FALSE)
   }
+
   prediction_data <- data_by_outcome[[record$outcome]]
   if (is.null(prediction_data) || !is.data.frame(prediction_data)) {
     stop("The supplement within-study prediction data are unavailable.",
@@ -17705,6 +18536,7 @@ write_update_2026_supplement_within_prediction_draw_file <- function(
     re_formula = NA,
     ndraws = as.integer(record$draw_count)
   ))
+
   if (ncol(draws) != nrow(grid$keys) && nrow(draws) == nrow(grid$keys)) {
     draws <- t(draws)
   }
@@ -17715,6 +18547,7 @@ write_update_2026_supplement_within_prediction_draw_file <- function(
     stop("Supplement-within predictions do not match their allocation.",
          call. = FALSE)
   }
+
   reduction <- list(
     family = "supplement_within",
     outcome = as.character(record$outcome),
@@ -17735,6 +18568,7 @@ write_update_2026_supplement_within_prediction_draw_file <- function(
       prediction_type = "supplement_within"
     )
   )
+
   write_atomic_qs(reduction, result_path)
 }
 
@@ -17754,6 +18588,7 @@ make_update_2026_supplement_within_model_average_records <- function(
     record$family <- "supplement_within"
     record
   })
+
   if (any(!purrr::map_lgl(
     records,
     ~ identical(.x$family, "supplement_within")
@@ -17761,6 +18596,7 @@ make_update_2026_supplement_within_model_average_records <- function(
     stop("The supplement-within model-average records are invalid.",
          call. = FALSE)
   }
+
   records
 }
 
@@ -17777,6 +18613,7 @@ write_update_2026_supplement_within_reporting_file <- function(
   )
   outcome <- model_average$outcome
   data <- data_by_outcome[[outcome]]
+
   if (is.null(data) || !is.data.frame(data)) {
     stop("The supplement-within reporting data are unavailable.",
          call. = FALSE)
@@ -17797,6 +18634,7 @@ write_update_2026_supplement_within_reporting_file <- function(
     protein_min = 0,
     sesoi = sesoi
   )
+
   report <- list(
     family = "supplement_within",
     outcome = outcome,
@@ -17825,6 +18663,7 @@ write_update_2026_supplement_within_reporting_file <- function(
       )
     )
   )
+
   write_atomic_qs(report, result_path)
 }
 
@@ -17893,6 +18732,7 @@ make_update_2026_supplement_within_verification_checkpoint <- function(
       drop = TRUE
     ))
   }, integer(1L))
+
   registry_keys <- function(table) {
     table |>
       dplyr::distinct(outcome, model_index) |>
@@ -17932,6 +18772,7 @@ make_update_2026_supplement_within_verification_checkpoint <- function(
         dplyr::select(outcome, model_index, weight_name = model_name),
       by = c("outcome", "model_index")
     )
+
   weight_sums <- stacking_weights |>
     dplyr::summarise(models = dplyr::n(), weight_sum = sum(weight), .by = outcome)
   prediction_sums <- prediction_manifest |>
@@ -18056,6 +18897,7 @@ make_update_2026_supplement_within_verification_checkpoint <- function(
         all(reporting_audit$summary$diagonal_contrasts_valid)
     )
   )
+
   failed <- is.na(checks$passed) | !checks$passed
   if (any(failed)) {
     stop(
@@ -18064,6 +18906,7 @@ make_update_2026_supplement_within_verification_checkpoint <- function(
       call. = FALSE
     )
   }
+
   artifacts <- list(
     verification_checks = checks,
     source_manifest = source_manifest,
@@ -18103,6 +18946,7 @@ make_update_2026_supplement_within_verification_checkpoint <- function(
     pairwise_support = bind_report("pairwise_support"),
     local_equivalence = bind_report("local_equivalence")
   )
+
   descriptions <- stats::setNames(
     paste(
       "Frozen supplement within-study verification artifact:",
@@ -18145,6 +18989,7 @@ make_update_2026_supplement_within_pruning_plan <- function(
     verification_manifest,
     show_col_types = FALSE
   )
+
   if (length(verification_files) != nrow(verification_index) + 2L) {
     stop("The supplement within-study verification-file count is invalid.",
          call. = FALSE)
@@ -18158,6 +19003,7 @@ make_update_2026_supplement_within_pruning_plan <- function(
     winslash = "/",
     mustWork = TRUE
   )
+
   if (!identical(tolower(resolved_root), tolower(expected_root))) {
     stop("Refusing to plan pruning outside the supplement within-study archive.",
          call. = FALSE)
@@ -18168,6 +19014,7 @@ make_update_2026_supplement_within_pruning_plan <- function(
     "loo",
     c("exact_fit", "exact_remedy", "exact_remedy_2")
   )
+
   if (any(!dir.exists(c(fit_roots, exact_roots)))) {
     stop("An expected supplement within-study fit directory is missing.",
          call. = FALSE)
@@ -18181,6 +19028,7 @@ make_update_2026_supplement_within_pruning_plan <- function(
     winslash = "/",
     mustWork = TRUE
   )
+
   if (
     length(fit_paths) != 76L || length(accepted_paths) != 72L ||
       anyDuplicated(fit_paths) || anyDuplicated(accepted_paths) ||
@@ -18190,6 +19038,7 @@ make_update_2026_supplement_within_pruning_plan <- function(
     stop("Supplement within-study fit retention does not match its lineage.",
          call. = FALSE)
   }
+
   model_fit_manifest <- tibble::tibble(
     path = fit_paths,
     relative_path = substring(fit_paths, nchar(resolved_root) + 2L),
@@ -18207,6 +19056,7 @@ make_update_2026_supplement_within_pruning_plan <- function(
     lean_action = "delete frozen supplement within-study model fit"
   ) |>
     dplyr::arrange(archive_stage, outcome, model_index)
+
   fit_stage_counts <- table(factor(
     model_fit_manifest$archive_stage,
     levels = c("initial", "remedy_1")
@@ -18222,6 +19072,7 @@ make_update_2026_supplement_within_pruning_plan <- function(
     stop("The supplement within-study model-fit stages are not as expected.",
          call. = FALSE)
   }
+
   exact_paths <- unlist(purrr::map(exact_roots, ~ list.files(
     .x, pattern = "\\.qs$", recursive = TRUE, full.names = TRUE
   )), use.names = FALSE) |>
@@ -18253,6 +19104,7 @@ make_update_2026_supplement_within_pruning_plan <- function(
     lean_action = "delete frozen supplement within-study exact-deletion refit"
   ) |>
     dplyr::arrange(archive_stage, case_id)
+
   exact_stage_counts <- table(factor(
     exact_refit_manifest$archive_stage,
     levels = c("initial", "remedy_1", "remedy_2")
@@ -18271,6 +19123,7 @@ make_update_2026_supplement_within_pruning_plan <- function(
     stop("The supplement within-study exact-refit inventory is invalid.",
          call. = FALSE)
   }
+
   deletion_manifest <- dplyr::bind_rows(
     model_fit_manifest |>
       dplyr::mutate(
@@ -18291,6 +19144,7 @@ make_update_2026_supplement_within_pruning_plan <- function(
       path, relative_path, archive_stage, artifact_role, outcome,
       model_index, case_id, observation, accepted_fit, bytes, lean_action
     )
+
   compact_roots <- c(
     loo_psis = file.path(archive_root, "loo", "integrated"),
     exact_corrections = file.path(archive_root, "loo", "exact_correction"),
@@ -18300,6 +19154,7 @@ make_update_2026_supplement_within_pruning_plan <- function(
     stop("An expected compact supplement within-study directory is missing.",
          call. = FALSE)
   }
+
   compact_paths <- unlist(purrr::map(compact_roots, ~ list.files(
     .x, recursive = TRUE, full.names = TRUE, all.files = TRUE
   )), use.names = FALSE)
@@ -18320,6 +19175,7 @@ make_update_2026_supplement_within_pruning_plan <- function(
     )]
     if (length(matches) == 1L) matches else "unknown"
   }, character(1L))
+
   compact_manifest <- tibble::tibble(
     path = compact_paths,
     relative_path = substring(compact_paths, nchar(resolved_root) + 2L),
@@ -18332,6 +19188,7 @@ make_update_2026_supplement_within_pruning_plan <- function(
     action = "retain compact supplement within-study result"
   ) |>
     dplyr::arrange(archive_component, relative_path)
+
   compact_counts <- table(factor(
     compact_manifest$archive_component,
     levels = c("loo_psis", "exact_corrections", "reporting")
@@ -18346,6 +19203,7 @@ make_update_2026_supplement_within_pruning_plan <- function(
     stop("The compact supplement within-study archive is incomplete.",
          call. = FALSE)
   }
+
   summary <- tibble::tibble(
     mode = "lean",
     full_fit_archives_deleted = nrow(deletion_manifest),
@@ -18372,6 +19230,7 @@ make_update_2026_supplement_within_pruning_plan <- function(
       "supplement within-study family."
     )
   )
+
   list(
     summary = summary,
     model_fit_manifest = model_fit_manifest,
@@ -18403,6 +19262,7 @@ write_update_2026_supplement_within_pruning_plan <- function(
     stop("Cannot write an invalid supplement within-study pruning plan.",
          call. = FALSE)
   }
+
   dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
   paths <- c(
     summary = file.path(output_dir, "summary.csv"),
@@ -18415,6 +19275,7 @@ write_update_2026_supplement_within_pruning_plan <- function(
       output_dir, "compact_archive_manifest.csv"
     )
   )
+
   readr::write_csv(plan$summary, paths[["summary"]])
   readr::write_csv(plan$model_fit_manifest, paths[["model_fit_manifest"]])
   readr::write_csv(plan$exact_refit_manifest, paths[["exact_refit_manifest"]])
@@ -18431,6 +19292,8 @@ write_update_2026_supplement_within_pruning_plan <- function(
 
 # Absolute total-intake achieved common-sample sensitivity ----
 
+# Prepare the achieved total-intake rows for comparisons that also require an
+# assignment-derived dose.
 make_update_2026_total_achieved_data_by_outcome <- function(
     total_primary_data_by_outcome
 ) {
@@ -18439,6 +19302,7 @@ make_update_2026_total_achieved_data_by_outcome <- function(
     stop("The total achieved-intake source registry is invalid.",
          call. = FALSE)
   }
+
   data <- purrr::map(total_primary_data_by_outcome, function(outcome_data) {
     required <- c(
       "study_no", "arm_no", "mean_body_mass_kg", "total_g_day",
@@ -18475,6 +19339,7 @@ make_update_2026_total_achieved_data_by_outcome <- function(
     }
     output
   })
+
   expected_rows <- c(
     whole_body = 182L,
     hypertrophy = 328L,
@@ -18487,6 +19352,7 @@ make_update_2026_total_achieved_data_by_outcome <- function(
     strength = 63L,
     `function` = 26L
   )
+
   if (
     !identical(vapply(data, nrow, integer(1L)), expected_rows) ||
       !identical(
@@ -18505,6 +19371,7 @@ make_update_2026_total_achieved_data_by_outcome <- function(
     stop("The total achieved-intake common samples are incomplete.",
          call. = FALSE)
   }
+
   data
 }
 
@@ -18554,6 +19421,7 @@ make_update_2026_total_achieved_specifications <- function(
       model_name = paste0(model_name, " [total_achieved]")
     ) |>
     dplyr::select(-key)
+
   retained <- setdiff(
     seq_len(26L),
     c(3L, 7L, 10L, 13L, 16L, 19L, 22L, 25L)
@@ -18566,6 +19434,7 @@ make_update_2026_total_achieved_specifications <- function(
     levels = c("base", "longer_sampling")
   ))
   keys <- paste(specifications$outcome, specifications$model_index, sep = "::")
+
   if (
     nrow(specifications) != 72L || anyDuplicated(keys) ||
       !identical(as.integer(counts), rep(18L, 4L)) ||
@@ -18581,6 +19450,7 @@ make_update_2026_total_achieved_specifications <- function(
     stop("The total achieved-intake specification registry is invalid.",
          call. = FALSE)
   }
+
   output <- purrr::pmap(specifications, list)
   names(output) <- paste0(
     specifications$outcome,
@@ -18603,6 +19473,7 @@ update_2026_total_achieved_local_config <- function(specification, config) {
     as.integer(specification$max_treedepth)
   )
   outcome_offset <- match(specification$outcome, config$outcomes)
+
   if (is.na(outcome_offset)) {
     stop("Unknown outcome in the total achieved-intake configuration.",
          call. = FALSE)
@@ -18702,6 +19573,7 @@ validate_update_2026_total_achieved_inputs <- function(
       )),
       model_index
     )
+
   keys <- paste(checks$outcome, checks$model_index, sep = "::")
   outcome_counts <- table(factor(checks$outcome, levels = c(
     "whole_body", "hypertrophy", "strength", "function"
@@ -18718,6 +19590,7 @@ validate_update_2026_total_achieved_inputs <- function(
       studies = dplyr::first(studies),
       .by = outcome
     )
+
   expected_rows <- c(
     whole_body = 182L,
     hypertrophy = 328L,
@@ -18730,6 +19603,7 @@ validate_update_2026_total_achieved_inputs <- function(
     strength = 63L,
     `function` = 26L
   )
+
   if (
     nrow(checks) != 72L || anyDuplicated(keys) || !all(checks$valid) ||
       any(checks$family != "total_achieved") ||
@@ -18755,6 +19629,7 @@ validate_update_2026_total_achieved_inputs <- function(
     stop("The total achieved-intake input preflight is incomplete.",
          call. = FALSE)
   }
+
   checks
 }
 
@@ -18793,6 +19668,7 @@ fit_update_2026_total_achieved_candidate_to_file <- function(
   ) {
     stop("The total achieved-intake fit input is invalid.", call. = FALSE)
   }
+
   local_config <- update_2026_total_achieved_local_config(
     input$specification,
     config
@@ -18812,6 +19688,7 @@ fit_update_2026_total_achieved_candidate_to_file <- function(
   temporary <- paste0(output_file, ".tmp-", Sys.getpid())
   on.exit(unlink(temporary, force = TRUE), add = TRUE)
   qs::qsave(candidate, temporary, preset = "high")
+
   if (!file.copy(temporary, output_file, overwrite = TRUE)) {
     stop("Could not finalise a total achieved-intake fit.",
          call. = FALSE)
@@ -18833,6 +19710,7 @@ make_update_2026_total_achieved_remedy_specifications <- function(
       outcome == "whole_body",
       model_index == 15L
     )
+
   if (
     !identical(diagnostic_audit$family, "total_achieved") ||
       nrow(failed) != 1L || failed$key[[1L]] != expected_key ||
@@ -18847,6 +19725,7 @@ make_update_2026_total_achieved_remedy_specifications <- function(
     stop("The total achieved-intake remedy set is invalid.",
          call. = FALSE)
   }
+
   selected <- purrr::keep(specifications, function(specification) {
     paste(
       specification$outcome,
@@ -18854,6 +19733,7 @@ make_update_2026_total_achieved_remedy_specifications <- function(
       sep = "::"
     ) == expected_key
   })
+
   if (length(selected) != 1L) {
     stop("Could not uniquely select total achieved-intake model 15.",
          call. = FALSE)
@@ -18913,6 +19793,7 @@ validate_update_2026_total_achieved_remedy_inputs <- function(
       valid = TRUE
     )
   })
+
   keys <- paste(checks$outcome, checks$model_index, sep = "::")
   if (
     nrow(checks) != 1L || !identical(keys, "whole_body::15") ||
@@ -18927,6 +19808,7 @@ validate_update_2026_total_achieved_remedy_inputs <- function(
     stop("The total achieved-intake remedy preflight is incomplete.",
          call. = FALSE)
   }
+
   checks
 }
 
@@ -18971,6 +19853,7 @@ combine_update_2026_total_achieved_remedy_diagnostics <- function(
   diagnostic_key <- function(x) {
     paste(x$summary$outcome[[1L]], x$summary$model_index[[1L]], sep = "::")
   }
+
   if (length(initial_diagnostics) != 72L || length(remedy_diagnostics) != 1L) {
     stop("The total achieved-intake remedy diagnostics are incomplete.",
          call. = FALSE)
@@ -18980,6 +19863,7 @@ combine_update_2026_total_achieved_remedy_diagnostics <- function(
   failed_keys <- initial_diagnostics |>
     purrr::keep(~ !.x$summary$diagnostic_pass[[1L]]) |>
     purrr::map_chr(diagnostic_key)
+
   if (
     anyDuplicated(initial_keys) || anyDuplicated(remedy_keys) ||
       !setequal(remedy_keys, "whole_body::15") ||
@@ -18989,6 +19873,7 @@ combine_update_2026_total_achieved_remedy_diagnostics <- function(
     stop("The total achieved-intake diagnostic replacement is invalid.",
          call. = FALSE)
   }
+
   final_diagnostics <- initial_diagnostics
   final_diagnostics[match(remedy_keys, initial_keys)] <- remedy_diagnostics
   compile_update_2026_total_primary_diagnostic_audit(
@@ -19003,6 +19888,7 @@ make_update_2026_total_achieved_accepted_fit_manifest <- function(
     final_diagnostic_audit
 ) {
   remedy_paths <- unname(unlist(remedy_fit_paths, use.names = FALSE))
+
   if (
     nrow(initial_manifest) != 72L || length(remedy_paths) != 1L ||
       any(!file.exists(remedy_paths)) ||
@@ -19013,6 +19899,7 @@ make_update_2026_total_achieved_accepted_fit_manifest <- function(
     stop("Accepted total achieved-intake fits require 72 passing diagnostics.",
          call. = FALSE)
   }
+
   remedy <- tibble::tibble(
     outcome = basename(dirname(remedy_paths)),
     model_index = as.integer(stringr::str_match(
@@ -19034,6 +19921,7 @@ make_update_2026_total_achieved_accepted_fit_manifest <- function(
     dplyr::select(
       outcome, model_index, model_name, fit_path, stage, bytes, sha256
     )
+
   remedy_key <- paste(remedy$outcome, remedy$model_index, sep = "::")
   accepted <- initial_manifest |>
     dplyr::anti_join(
@@ -19048,6 +19936,7 @@ make_update_2026_total_achieved_accepted_fit_manifest <- function(
       ),
       model_index
     )
+
   if (
     nrow(remedy) != 1L || !identical(remedy_key, "whole_body::15") ||
       nrow(accepted) != 72L ||
@@ -19065,6 +19954,7 @@ make_update_2026_total_achieved_accepted_fit_manifest <- function(
     stop("The accepted total achieved-intake manifest is invalid.",
          call. = FALSE)
   }
+
   accepted
 }
 
@@ -19096,6 +19986,7 @@ validate_update_2026_total_achieved_loo_inputs <- function(
         stringr::fixed(" [total_achieved]")
       ))
   )
+
   ready <-
     nrow(accepted_fit_manifest) == 72L &&
     !anyDuplicated(accepted_fit_manifest[c("outcome", "model_index")]) &&
@@ -19105,6 +19996,7 @@ validate_update_2026_total_achieved_loo_inputs <- function(
     stop("The total achieved-intake LOO preflight is incomplete.",
          call. = FALSE)
   }
+
   list(
     family = "total_achieved",
     models = 72L,
@@ -19122,6 +20014,7 @@ make_update_2026_total_achieved_loo_records <- function(
   required <- c(
     "outcome", "model_index", "model_name", "fit_path", "stage"
   )
+
   if (
     !all(required %in% names(accepted_fit_manifest)) ||
       nrow(accepted_fit_manifest) != 72L ||
@@ -19131,6 +20024,7 @@ make_update_2026_total_achieved_loo_records <- function(
     stop("The total achieved-intake LOO fit manifest is invalid.",
          call. = FALSE)
   }
+
   records <- purrr::map(
     seq_len(nrow(accepted_fit_manifest)),
     ~ purrr::map(
@@ -19164,6 +20058,7 @@ compute_update_2026_total_achieved_integrated_loo_to_file <- function(
       call. = FALSE
     )
   }
+
   fit_path <- fit_record$fit_path
   if (
     length(fit_path) != 1L || is.na(fit_path) || !file.exists(fit_path)
@@ -19171,6 +20066,7 @@ compute_update_2026_total_achieved_integrated_loo_to_file <- function(
     stop("The total achieved-intake LOO fit is unavailable.",
          call. = FALSE)
   }
+
   candidate <- read_sensitivity_fit_file(fit_path)
   if (
     !identical(unname(as.character(candidate$family)), "total_achieved") ||
@@ -19185,6 +20081,7 @@ compute_update_2026_total_achieved_integrated_loo_to_file <- function(
     stop("The total achieved-intake fit does not match its LOO record.",
          call. = FALSE)
   }
+
   old_mc_cores <- getOption("mc.cores")
   on.exit(options(mc.cores = old_mc_cores), add = TRUE)
   options(mc.cores = 1L)
@@ -19200,6 +20097,7 @@ compute_update_2026_total_achieved_integrated_loo_to_file <- function(
     reloo = FALSE,
     cores = as.integer(cores)
   )
+
   result <- compute_sensitivity_exposure_integrated_psis_loo(
     job = list(
       fitted_candidate = candidate,
@@ -19210,6 +20108,7 @@ compute_update_2026_total_achieved_integrated_loo_to_file <- function(
     k_threshold = k_threshold,
     cores = cores
   )
+
   result$family <- "total_achieved"
   result$fit_record <- fit_record
   result$loo_draws <- length(draw_ids)
@@ -19222,6 +20121,7 @@ compute_update_2026_total_achieved_integrated_loo_to_file <- function(
     stop("Cannot archive an invalid total achieved-intake LOO result.",
          call. = FALSE)
   }
+
   output_dir <- file.path(output_root, result$outcome)
   dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
   output_file <- file.path(
@@ -19250,6 +20150,7 @@ write_update_2026_total_achieved_integrated_loo_audit <- function(
     stop("The total achieved-intake integrated-LOO audit is incomplete.",
          call. = FALSE)
   }
+
   dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
   paths <- c(
     reduction_manifest = file.path(output_dir, "reduction_manifest.csv"),
@@ -19272,6 +20173,7 @@ validate_update_2026_total_achieved_exact_inputs <- function(
     stop("Expected one total achieved-intake exact-LOO record.",
          call. = FALSE)
   }
+
   checks <- purrr::map_dfr(records, function(record) {
     integrated <- qs::qread(record$integrated_loo_path)
     observation <- as.integer(record$observation)
@@ -19314,6 +20216,7 @@ validate_update_2026_total_achieved_exact_inputs <- function(
     )
   }) |>
     dplyr::arrange(case_id)
+
   if (
     nrow(checks) != 1L || checks$case_id[[1L]] != 1L ||
       checks$outcome[[1L]] != "hypertrophy" ||
@@ -19336,6 +20239,7 @@ validate_update_2026_total_achieved_exact_inputs <- function(
     stop("The total achieved-intake exact-LOO preflight is incomplete.",
          call. = FALSE)
   }
+
   checks
 }
 
@@ -19381,6 +20285,7 @@ fit_update_2026_total_achieved_exact_to_file <- function(
     stop("Total achieved-intake exact refitting is disabled.",
          call. = FALSE)
   }
+
   output_file <- update_2026_total_achieved_exact_fit_file_path(record)
   if (file.exists(output_file) && file.info(output_file)$size > 0) {
     archived <- tryCatch(
@@ -19401,6 +20306,7 @@ fit_update_2026_total_achieved_exact_to_file <- function(
       call. = FALSE
     )
   }
+
   candidate <- read_sensitivity_fit_file(record$original_fit_path)
   integrated <- qs::qread(record$integrated_loo_path)
   observation <- as.integer(record$observation)
@@ -19421,6 +20327,7 @@ fit_update_2026_total_achieved_exact_to_file <- function(
     stop("A total achieved-intake exact record failed validation.",
          call. = FALSE)
   }
+
   prediction_data <- candidate$model$data
   training_data <- prediction_data[-observation, , drop = FALSE]
   original_model <- candidate$model
@@ -19454,6 +20361,7 @@ fit_update_2026_total_achieved_exact_to_file <- function(
     ),
     save_pars = brms::save_pars(all = TRUE)
   )
+
   archive <- list(
     family = "total_achieved",
     case_id = as.integer(record$case_id),
@@ -19469,6 +20377,7 @@ fit_update_2026_total_achieved_exact_to_file <- function(
     refitted_model = refitted_model,
     refit_seconds = as.numeric(proc.time()[["elapsed"]] - start_time)
   )
+
   write_atomic_qs(archive, output_file)
 }
 
@@ -19515,6 +20424,7 @@ compute_update_2026_total_achieved_exact_correction_to_file <- function(
     stop("Total achieved-intake exact correction is disabled.",
          call. = FALSE)
   }
+
   refit <- read_sensitivity_full_exact_loo_file(
     exact_fit_path,
     "total_achieved"
@@ -19537,6 +20447,7 @@ compute_update_2026_total_achieved_exact_correction_to_file <- function(
       call. = FALSE
     )
   }
+
   correction <- compute_sensitivity_full_exact_loo_file(
     path = exact_fit_path,
     diagnostic_audit = diagnostic_audit,
@@ -19551,6 +20462,7 @@ compute_update_2026_total_achieved_exact_correction_to_file <- function(
     stop("The total achieved-intake exact correction is invalid.",
          call. = FALSE)
   }
+
   write_atomic_qs(correction, output_file)
 }
 
@@ -19560,6 +20472,7 @@ audit_update_2026_total_achieved_exact_correction_files <- function(
 ) {
   paths <- unname(unlist(paths, use.names = FALSE))
   expected <- as.integer(integrated_audit$exact_refits_required)
+
   if (
     length(paths) != expected || expected != 1L || anyNA(paths) ||
       any(!file.exists(paths)) || any(file.info(paths)$size <= 0)
@@ -19567,6 +20480,7 @@ audit_update_2026_total_achieved_exact_correction_files <- function(
     stop("The total achieved-intake exact corrections are incomplete.",
          call. = FALSE)
   }
+
   corrections <- purrr::map(paths, qs::qread)
   diagnostic_summary <- purrr::map_dfr(
     corrections,
@@ -19580,6 +20494,7 @@ audit_update_2026_total_achieved_exact_correction_files <- function(
       model_index,
       observation
     )
+
   manifest <- purrr::map2_dfr(paths, corrections, function(path, result) {
     tibble::tibble(
       case_id = as.integer(result$case_id),
@@ -19598,6 +20513,7 @@ audit_update_2026_total_achieved_exact_correction_files <- function(
     )
   }) |>
     dplyr::arrange(case_id)
+
   observed_keys <- paste(
     manifest$outcome,
     manifest$model_index,
@@ -19610,6 +20526,7 @@ audit_update_2026_total_achieved_exact_correction_files <- function(
     integrated_audit$high_k_cases$observation,
     sep = "::"
   )
+
   if (
     nrow(diagnostic_summary) != 1L || nrow(manifest) != 1L ||
       anyDuplicated(observed_keys) || !setequal(observed_keys, expected_keys) ||
@@ -19619,6 +20536,7 @@ audit_update_2026_total_achieved_exact_correction_files <- function(
     stop("The total achieved-intake exact-correction audit is invalid.",
          call. = FALSE)
   }
+
   list(
     diagnostic_summary = diagnostic_summary,
     correction_manifest = manifest,
@@ -19646,6 +20564,7 @@ write_update_2026_total_achieved_exact_correction_audit <- function(
     stop("Cannot write an incomplete achieved-intake correction audit.",
          call. = FALSE)
   }
+
   dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
   paths <- c(
     diagnostic_summary = file.path(output_dir, "diagnostic_summary.csv"),
@@ -19692,6 +20611,7 @@ make_update_2026_total_achieved_final_loo_audit <- function(
     seq_len(26L),
     c(3L, 7L, 10L, 13L, 16L, 19L, 22L, 25L)
   )
+
   if (!isTRUE(exact_audit$all_exact_refit_diagnostics_pass)) {
     stop("Final total achieved-intake LOO requires a passing exact refit.",
          call. = FALSE)
@@ -19712,6 +20632,7 @@ make_update_2026_total_achieved_final_loo_audit <- function(
       maximum_remaining_pareto_k = max(maximum_pareto_k, na.rm = TRUE),
       .by = outcome
     )
+
   correction_counts <- exact_audit$diagnostic_summary |>
     dplyr::count(outcome, model_index, name = "exact_corrections")
   final_manifest <- integrated_manifest |>
@@ -19727,6 +20648,7 @@ make_update_2026_total_achieved_final_loo_audit <- function(
         "integrated_observation_level_psis"
       )
     )
+
   if (
     !isTRUE(final$stacking_ready) || nrow(final$model_summary) != 72L ||
       nrow(outcome_summary) != 4L || any(outcome_summary$models != 18L) ||
@@ -19737,6 +20659,7 @@ make_update_2026_total_achieved_final_loo_audit <- function(
     stop("The final total achieved-intake LOO audit is not stacking-ready.",
          call. = FALSE)
   }
+
   final$family <- "total_achieved"
   final$outcome_summary <- outcome_summary
   final$final_loo_manifest <- final_manifest
@@ -19762,6 +20685,7 @@ write_update_2026_total_achieved_final_loo_audit <- function(
     stop("Cannot write an incomplete final achieved-intake LOO audit.",
          call. = FALSE)
   }
+
   dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
   paths <- c(
     final_loo_manifest = file.path(output_dir, "final_loo_manifest.csv"),
@@ -19796,6 +20720,7 @@ write_update_2026_total_achieved_stacking_weights <- function(
     stop("The total achieved-intake stacking weights are invalid.",
          call. = FALSE)
   }
+
   dir.create(dirname(output_file), recursive = TRUE, showWarnings = FALSE)
   readr::write_csv(weights, output_file, na = "")
   output_file
@@ -19817,6 +20742,7 @@ make_update_2026_total_achieved_prediction_records <- function(
     grid_step_g_day = grid_step_g_day,
     seed = seed
   )
+
   purrr::map(records, function(record) {
     record$family <- "total_achieved"
     record$prediction_type <- "total_achieved"
@@ -19874,6 +20800,7 @@ make_update_2026_total_achieved_reporting_preflight <- function(
       ),
       model_index
     )
+
   audit <- checks |>
     dplyr::summarise(
       selected_models = dplyr::n(),
@@ -19881,6 +20808,7 @@ make_update_2026_total_achieved_reporting_preflight <- function(
       retained_weight = sum(weight),
       .by = outcome
     )
+
   if (
     nrow(audit) != 4L || any(audit$selected_models < 1L) ||
       any(audit$allocated_draws != 4000L) ||
@@ -19896,6 +20824,7 @@ make_update_2026_total_achieved_reporting_preflight <- function(
     stop("The total achieved-intake reporting preflight failed.",
          call. = FALSE)
   }
+
   checks
 }
 
@@ -19950,6 +20879,7 @@ write_update_2026_total_achieved_prediction_draw_file <- function(
     stop("A total achieved-intake prediction record is invalid.",
          call. = FALSE)
   }
+
   candidate <- read_sensitivity_fit_file(record$fit_path)
   if (
     !identical(unname(as.character(candidate$family)), "total_achieved") ||
@@ -19963,6 +20893,7 @@ write_update_2026_total_achieved_prediction_draw_file <- function(
     stop("A total achieved-intake fit does not match its prediction record.",
          call. = FALSE)
   }
+
   prediction_data <- data_by_outcome[[record$outcome]]
   if (is.null(prediction_data) || !is.data.frame(prediction_data)) {
     stop("The total achieved-intake prediction data are unavailable.",
@@ -19984,6 +20915,7 @@ write_update_2026_total_achieved_prediction_draw_file <- function(
     re_formula = NA,
     ndraws = as.integer(record$draw_count)
   ))
+
   if (ncol(draws) != nrow(grid$keys) && nrow(draws) == nrow(grid$keys)) {
     draws <- t(draws)
   }
@@ -19994,6 +20926,7 @@ write_update_2026_total_achieved_prediction_draw_file <- function(
     stop("Total achieved-intake predictions do not match their allocation.",
          call. = FALSE)
   }
+
   reduction <- list(
     family = "total_achieved",
     outcome = as.character(record$outcome),
@@ -20014,6 +20947,7 @@ write_update_2026_total_achieved_prediction_draw_file <- function(
       prediction_type = "total_achieved"
     )
   )
+
   write_atomic_qs(reduction, result_path)
 }
 
@@ -20065,6 +20999,7 @@ write_update_2026_total_achieved_reporting_file <- function(
   )
   outcome <- model_average$outcome
   data <- data_by_outcome[[outcome]]
+
   if (is.null(data) || !is.data.frame(data)) {
     stop("The total achieved-intake reporting data are unavailable.",
          call. = FALSE)
@@ -20110,6 +21045,7 @@ write_update_2026_total_achieved_reporting_file <- function(
       )
     )
   )
+
   write_atomic_qs(report, result_path)
 }
 
@@ -20130,6 +21066,7 @@ write_update_2026_total_achieved_reporting_audit <- function(
     stop("The total achieved-intake reporting audit is incomplete.",
          call. = FALSE)
   }
+
   reports <- purrr::map(
     audit$summary$reporting_path,
     read_sensitivity_full_reporting_file,
@@ -20166,6 +21103,7 @@ write_update_2026_total_achieved_reporting_audit <- function(
     local_equivalence = file.path(output_dir, "local_equivalence.csv"),
     model_weights = file.path(output_dir, "model_weights.csv")
   )
+
   readr::write_csv(audit$summary, paths[["summary"]])
   readr::write_csv(prediction_manifest, paths[["prediction_manifest"]])
   readr::write_csv(bind_report("dose_response"), paths[["dose_response"]])
@@ -20232,6 +21170,7 @@ make_update_2026_total_achieved_verification_checkpoint <- function(
       .by = analysis_outcome
     ) |>
     dplyr::arrange(factor(analysis_outcome, levels = outcomes))
+
   registry_keys <- function(table) {
     table |>
       dplyr::distinct(outcome, model_index) |>
@@ -20271,6 +21210,7 @@ make_update_2026_total_achieved_verification_checkpoint <- function(
         dplyr::select(outcome, model_index, weight_name = model_name),
       by = c("outcome", "model_index")
     )
+
   weight_sums <- stacking_weights |>
     dplyr::summarise(
       models = dplyr::n(),
@@ -20399,6 +21339,7 @@ make_update_2026_total_achieved_verification_checkpoint <- function(
         all(reporting_audit$summary$diagonal_contrasts_valid)
     )
   )
+
   failed <- is.na(checks$passed) | !checks$passed
   if (any(failed)) {
     stop(
@@ -20450,6 +21391,7 @@ make_update_2026_total_achieved_verification_checkpoint <- function(
     pairwise_support = bind_report("pairwise_support"),
     local_equivalence = bind_report("local_equivalence")
   )
+
   descriptions <- stats::setNames(
     c(
       "Final achieved total-intake checkpoint checks.",
@@ -20492,6 +21434,7 @@ make_update_2026_total_achieved_verification_checkpoint <- function(
     ),
     names(artifacts)
   )
+
   list(
     checks = checks,
     artifacts = artifacts,
@@ -20527,6 +21470,7 @@ make_update_2026_total_achieved_pruning_plan <- function(
     verification_manifest,
     show_col_types = FALSE
   )
+
   if (length(verification_files) != nrow(verification_index) + 2L) {
     stop("The total achieved-intake verification-file count is invalid.",
          call. = FALSE)
@@ -20541,6 +21485,7 @@ make_update_2026_total_achieved_pruning_plan <- function(
     winslash = "/",
     mustWork = TRUE
   )
+
   if (!identical(tolower(resolved_root), tolower(expected_root))) {
     stop("Refusing to plan pruning outside the achieved-intake archive.",
          call. = FALSE)
@@ -20552,6 +21497,7 @@ make_update_2026_total_achieved_pruning_plan <- function(
     stop("An expected achieved-intake fit directory is missing.",
          call. = FALSE)
   }
+
   fit_paths <- unlist(
     purrr::map(
       fit_roots,
@@ -20565,6 +21511,7 @@ make_update_2026_total_achieved_pruning_plan <- function(
     use.names = FALSE
   ) |>
     normalizePath(winslash = "/", mustWork = TRUE)
+
   accepted_paths <- normalizePath(
     accepted_fit_manifest$fit_path,
     winslash = "/",
@@ -20579,6 +21526,7 @@ make_update_2026_total_achieved_pruning_plan <- function(
     stop("Achieved-intake fit retention does not match its lineage.",
          call. = FALSE)
   }
+
   model_fit_manifest <- tibble::tibble(
     path = fit_paths,
     relative_path = substring(fit_paths, nchar(resolved_root) + 2L),
@@ -20596,6 +21544,7 @@ make_update_2026_total_achieved_pruning_plan <- function(
     lean_action = "delete frozen achieved-intake model fit"
   ) |>
     dplyr::arrange(archive_stage, outcome, model_index)
+
   stage_counts <- table(factor(
     model_fit_manifest$archive_stage,
     levels = c("initial", "remedy_1")
@@ -20635,6 +21584,7 @@ make_update_2026_total_achieved_pruning_plan <- function(
     lean_action = "delete frozen achieved-intake exact-deletion refit"
   ) |>
     dplyr::arrange(case_id)
+
   exact_keys <- paste(
     exact_refit_manifest$outcome,
     exact_refit_manifest$model_index,
@@ -20647,6 +21597,7 @@ make_update_2026_total_achieved_pruning_plan <- function(
     exact_diagnostic_audit$diagnostic_summary$observation,
     sep = "::"
   )
+
   if (
     nrow(exact_refit_manifest) != 1L ||
       anyNA(exact_refit_manifest[c("model_index", "case_id", "observation")]) ||
@@ -20690,6 +21641,7 @@ make_update_2026_total_achieved_pruning_plan <- function(
     stop("An expected compact achieved-intake directory is missing.",
          call. = FALSE)
   }
+
   compact_paths <- unlist(
     purrr::map(
       compact_roots,
@@ -20702,6 +21654,7 @@ make_update_2026_total_achieved_pruning_plan <- function(
     ),
     use.names = FALSE
   )
+
   compact_paths <- compact_paths[
     file.exists(compact_paths) & !file.info(compact_paths)$isdir
   ] |>
@@ -20714,6 +21667,7 @@ make_update_2026_total_achieved_pruning_plan <- function(
     )]
     if (length(matches) == 1L) matches else "unknown"
   }, character(1L))
+
   compact_manifest <- tibble::tibble(
     path = compact_paths,
     relative_path = substring(compact_paths, nchar(resolved_root) + 2L),
@@ -20726,6 +21680,7 @@ make_update_2026_total_achieved_pruning_plan <- function(
     action = "retain compact achieved-intake result"
   ) |>
     dplyr::arrange(archive_component, relative_path)
+
   compact_counts <- table(factor(
     compact_manifest$archive_component,
     levels = c("loo_psis", "exact_corrections", "reporting")
@@ -20764,6 +21719,7 @@ make_update_2026_total_achieved_pruning_plan <- function(
       "achieved total-intake common-sample family."
     )
   )
+
   list(
     summary = summary,
     model_fit_manifest = model_fit_manifest,
@@ -20795,6 +21751,7 @@ write_update_2026_total_achieved_pruning_plan <- function(
     stop("Cannot write an invalid achieved-intake pruning plan.",
          call. = FALSE)
   }
+
   dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
   paths <- c(
     summary = file.path(output_dir, "summary.csv"),
@@ -20807,6 +21764,7 @@ write_update_2026_total_achieved_pruning_plan <- function(
       output_dir, "compact_archive_manifest.csv"
     )
   )
+
   readr::write_csv(plan$summary, paths[["summary"]])
   readr::write_csv(plan$model_fit_manifest, paths[["model_fit_manifest"]])
   readr::write_csv(plan$exact_refit_manifest, paths[["exact_refit_manifest"]])
@@ -20823,6 +21781,8 @@ write_update_2026_total_achieved_pruning_plan <- function(
 
 # Absolute total-intake assignment-derived common-sample sensitivity ----
 
+# Prepare the assignment-derived total-intake rows on the shared comparison
+# sample.
 make_update_2026_total_assignment_data_by_outcome <- function(
     total_achieved_data_by_outcome
 ) {
@@ -20831,6 +21791,7 @@ make_update_2026_total_assignment_data_by_outcome <- function(
     stop("The total assignment-derived source registry is invalid.",
          call. = FALSE)
   }
+
   data <- purrr::map(total_achieved_data_by_outcome, function(outcome_data) {
     required <- c(
       "study_no", "arm_no", "mean_body_mass_kg", "total_g_day",
@@ -20872,6 +21833,7 @@ make_update_2026_total_assignment_data_by_outcome <- function(
     }
     output
   })
+
   expected_rows <- c(
     whole_body = 182L,
     hypertrophy = 328L,
@@ -20884,6 +21846,7 @@ make_update_2026_total_assignment_data_by_outcome <- function(
     strength = 63L,
     `function` = 26L
   )
+
   if (
     !identical(vapply(data, nrow, integer(1L)), expected_rows) ||
       !identical(
@@ -20903,6 +21866,7 @@ make_update_2026_total_assignment_data_by_outcome <- function(
     stop("The total assignment-derived common samples are incomplete.",
          call. = FALSE)
   }
+
   data
 }
 
@@ -20949,6 +21913,7 @@ make_update_2026_total_assignment_specifications <- function(
       model_name = paste0(model_name, " [total_assignment]")
     ) |>
     dplyr::select(-key)
+
   retained <- setdiff(
     seq_len(26L),
     c(3L, 7L, 10L, 13L, 16L, 19L, 22L, 25L)
@@ -20962,6 +21927,7 @@ make_update_2026_total_assignment_specifications <- function(
     levels = c("base", "longer_sampling")
   ))
   keys <- paste(specifications$outcome, specifications$model_index, sep = "::")
+
   if (
     nrow(specifications) != 72L || anyDuplicated(keys) ||
       !identical(as.integer(counts), rep(18L, 4L)) ||
@@ -20977,6 +21943,7 @@ make_update_2026_total_assignment_specifications <- function(
     stop("The total assignment-derived specification registry is invalid.",
          call. = FALSE)
   }
+
   output <- purrr::pmap(specifications, list)
   names(output) <- paste0(
     specifications$outcome,
@@ -20999,6 +21966,7 @@ update_2026_total_assignment_local_config <- function(specification, config) {
     as.integer(specification$max_treedepth)
   )
   outcome_offset <- match(specification$outcome, config$outcomes)
+
   if (is.na(outcome_offset)) {
     stop("Unknown outcome in the total assignment-derived configuration.",
          call. = FALSE)
@@ -21099,6 +22067,7 @@ validate_update_2026_total_assignment_inputs <- function(
       ),
       model_index
     )
+
   keys <- paste(checks$outcome, checks$model_index, sep = "::")
   outcome_counts <- table(factor(
     checks$outcome,
@@ -21116,6 +22085,7 @@ validate_update_2026_total_assignment_inputs <- function(
       studies = dplyr::first(studies),
       .by = outcome
     )
+
   expected_rows <- c(
     whole_body = 182L,
     hypertrophy = 328L,
@@ -21128,6 +22098,7 @@ validate_update_2026_total_assignment_inputs <- function(
     strength = 63L,
     `function` = 26L
   )
+
   if (
     nrow(checks) != 72L || anyDuplicated(keys) || !all(checks$valid) ||
       any(checks$family != "total_assignment") ||
@@ -21151,6 +22122,7 @@ validate_update_2026_total_assignment_inputs <- function(
     stop("The total assignment-derived input preflight is incomplete.",
          call. = FALSE)
   }
+
   checks
 }
 
@@ -21190,6 +22162,7 @@ fit_update_2026_total_assignment_candidate_to_file <- function(
     stop("The total assignment-derived fit input is invalid.",
          call. = FALSE)
   }
+
   local_config <- update_2026_total_assignment_local_config(
     input$specification,
     config
@@ -21209,6 +22182,7 @@ fit_update_2026_total_assignment_candidate_to_file <- function(
   temporary <- paste0(output_file, ".tmp-", Sys.getpid())
   on.exit(unlink(temporary, force = TRUE), add = TRUE)
   qs::qsave(candidate, temporary, preset = "high")
+
   if (!file.copy(temporary, output_file, overwrite = TRUE)) {
     stop("Could not finalise a total assignment-derived fit.",
          call. = FALSE)
@@ -21241,6 +22215,7 @@ make_update_2026_total_assignment_remedy_specifications <- function(
           minimum_tail_ess < 200 |
           maximum_mcse_sd_ratio > 0.10
     )
+
   extended_keys <- failed$key[failed$extended_sampling]
   parameter_counts <- diagnostic_audit$parameter_failures |>
     dplyr::count(outcome, model_index, name = "parameter_failures") |>
@@ -21264,6 +22239,7 @@ make_update_2026_total_assignment_remedy_specifications <- function(
     stop("The total assignment-derived remedy set is invalid.",
          call. = FALSE)
   }
+
   selected <- purrr::keep(specifications, function(specification) {
     paste(
       specification$outcome,
@@ -21306,6 +22282,7 @@ make_update_2026_total_assignment_remedy_specifications <- function(
     }
     specification
   })
+
   selected_keys <- purrr::map_chr(selected, function(specification) {
     paste(specification$outcome, specification$model_index, sep = "::")
   })
@@ -21316,6 +22293,7 @@ make_update_2026_total_assignment_remedy_specifications <- function(
     stop("Could not select the total assignment-derived remedies.",
          call. = FALSE)
   }
+
   selected
 }
 
@@ -21369,6 +22347,7 @@ validate_update_2026_total_assignment_remedy_inputs <- function(
       ),
       model_index
     )
+
   keys <- paste(checks$outcome, checks$model_index, sep = "::")
   expected_keys <- c(
     "whole_body::4",
@@ -21381,6 +22360,7 @@ validate_update_2026_total_assignment_remedy_inputs <- function(
     "strength::11", "strength::14", "strength::23"
   )
   extended <- keys %in% expected_extended_keys
+
   if (
     nrow(checks) != 10L || anyDuplicated(keys) ||
       !setequal(keys, expected_keys) || !all(checks$valid) ||
@@ -21402,6 +22382,7 @@ validate_update_2026_total_assignment_remedy_inputs <- function(
     stop("The total assignment-derived remedy preflight is incomplete.",
          call. = FALSE)
   }
+
   checks
 }
 
@@ -21464,6 +22445,7 @@ compile_update_2026_total_assignment_final_diagnostic_audit <- function(
     ~ !isTRUE(.x$summary$diagnostic_pass[[1L]])
   )
   initial_failed_keys <- initial_keys[initial_failed]
+
   if (
     length(initial_diagnostics) != 72L ||
       length(remedy_diagnostics) != 10L ||
@@ -21475,6 +22457,7 @@ compile_update_2026_total_assignment_final_diagnostic_audit <- function(
     stop("The total assignment-derived diagnostic replacement is invalid.",
          call. = FALSE)
   }
+
   final_diagnostics <- initial_diagnostics
   final_diagnostics[match(remedy_keys, initial_keys)] <- remedy_diagnostics
   compile_update_2026_total_primary_diagnostic_audit(
@@ -21494,6 +22477,7 @@ make_update_2026_total_assignment_second_remedy_specifications <- function(
   parameter_counts <- diagnostic_audit$parameter_failures |>
     dplyr::count(outcome, model_index, name = "parameter_failures") |>
     dplyr::mutate(key = paste(outcome, model_index, sep = "::"))
+
   if (
     !identical(diagnostic_audit$family, "total_assignment") ||
       nrow(failed) != 3L || anyDuplicated(failed$key) ||
@@ -21508,6 +22492,7 @@ make_update_2026_total_assignment_second_remedy_specifications <- function(
     stop("The total assignment-derived second-remedy set is invalid.",
          call. = FALSE)
   }
+
   selected <- purrr::keep(remedy_specifications, function(specification) {
     paste(
       specification$outcome,
@@ -21527,6 +22512,7 @@ make_update_2026_total_assignment_second_remedy_specifications <- function(
     )
     specification
   })
+
   selected_keys <- purrr::map_chr(selected, function(specification) {
     paste(specification$outcome, specification$model_index, sep = "::")
   })
@@ -21537,6 +22523,7 @@ make_update_2026_total_assignment_second_remedy_specifications <- function(
     stop("Could not select the total assignment-derived second remedies.",
          call. = FALSE)
   }
+
   selected
 }
 
@@ -21584,6 +22571,7 @@ validate_update_2026_total_assignment_second_remedy_inputs <- function(
     )
   }) |>
     dplyr::arrange(model_index)
+
   keys <- paste(checks$outcome, checks$model_index, sep = "::")
   expected_keys <- c("strength::11", "strength::23", "strength::26")
   if (
@@ -21601,6 +22589,7 @@ validate_update_2026_total_assignment_second_remedy_inputs <- function(
       call. = FALSE
     )
   }
+
   checks
 }
 
@@ -21671,6 +22660,7 @@ compile_update_2026_total_assignment_second_final_diagnostic_audit <-
     dplyr::filter(!diagnostic_pass) |>
     dplyr::transmute(key = paste(outcome, model_index, sep = "::")) |>
     dplyr::pull(key)
+
   if (
     !identical(first_final_audit$family, "total_assignment") ||
       length(initial_diagnostics) != 72L ||
@@ -21689,6 +22679,7 @@ compile_update_2026_total_assignment_second_final_diagnostic_audit <-
       call. = FALSE
     )
   }
+
   final_diagnostics <- initial_diagnostics
   final_diagnostics[match(first_keys, initial_keys)] <-
     first_remedy_diagnostics
@@ -21713,6 +22704,7 @@ make_update_2026_total_assignment_third_remedy_specifications <- function(
   parameter_counts <- diagnostic_audit$parameter_failures |>
     dplyr::count(outcome, model_index, name = "parameter_failures") |>
     dplyr::mutate(key = paste(outcome, model_index, sep = "::"))
+
   if (
     !identical(diagnostic_audit$family, "total_assignment") ||
       nrow(failed) != 3L || anyDuplicated(failed$key) ||
@@ -21737,6 +22729,7 @@ make_update_2026_total_assignment_third_remedy_specifications <- function(
     stop("The total assignment-derived third-remedy set is invalid.",
          call. = FALSE)
   }
+
   selected <- purrr::keep(
     second_remedy_specifications,
     function(specification) {
@@ -21747,6 +22740,7 @@ make_update_2026_total_assignment_third_remedy_specifications <- function(
       ) %in% expected_keys
     }
   )
+
   selected <- purrr::map(selected, function(specification) {
     key <- paste(
       specification$outcome,
@@ -21783,6 +22777,7 @@ make_update_2026_total_assignment_third_remedy_specifications <- function(
     specification$archive_stage <- "remedy_3"
     specification
   })
+
   selected_keys <- purrr::map_chr(selected, function(specification) {
     paste(specification$outcome, specification$model_index, sep = "::")
   })
@@ -21793,6 +22788,7 @@ make_update_2026_total_assignment_third_remedy_specifications <- function(
     stop("Could not select the total assignment-derived third remedies.",
          call. = FALSE)
   }
+
   selected
 }
 
@@ -21840,6 +22836,7 @@ validate_update_2026_total_assignment_third_remedy_inputs <- function(
     )
   }) |>
     dplyr::arrange(model_index)
+
   keys <- paste(checks$outcome, checks$model_index, sep = "::")
   expected_keys <- c("strength::11", "strength::23", "strength::26")
   stabilization <- keys %in% c("strength::11", "strength::26")
@@ -21863,6 +22860,7 @@ validate_update_2026_total_assignment_third_remedy_inputs <- function(
       call. = FALSE
     )
   }
+
   checks
 }
 
@@ -21935,6 +22933,7 @@ compile_update_2026_total_assignment_third_final_diagnostic_audit <-
     dplyr::filter(!diagnostic_pass) |>
     dplyr::transmute(key = paste(outcome, model_index, sep = "::")) |>
     dplyr::pull(key)
+
   if (
     !identical(second_final_audit$family, "total_assignment") ||
       length(initial_diagnostics) != 72L ||
@@ -21956,6 +22955,7 @@ compile_update_2026_total_assignment_third_final_diagnostic_audit <-
       call. = FALSE
     )
   }
+
   final_diagnostics <- initial_diagnostics
   final_diagnostics[match(first_keys, initial_keys)] <-
     first_remedy_diagnostics
@@ -21980,6 +22980,7 @@ make_update_2026_total_assignment_structural_exclusion_audit <- function(
     remedy_3 = third_final_audit
   )
   expected_keys <- c("strength::11", "strength::23", "strength::26")
+
   if (any(!purrr::map_lgl(
     audits,
     ~ identical(.x$family, "total_assignment") &&
@@ -21988,6 +22989,7 @@ make_update_2026_total_assignment_structural_exclusion_audit <- function(
     stop("An assignment-derived exclusion diagnostic audit is invalid.",
          call. = FALSE)
   }
+
   parameter_counts <- purrr::imap_dfr(audits, function(audit, stage) {
     audit$parameter_failures |>
       dplyr::count(outcome, model_index, name = "parameter_failures") |>
@@ -22012,6 +23014,7 @@ make_update_2026_total_assignment_structural_exclusion_audit <- function(
     ) |>
     dplyr::arrange(model_index, stage) |>
     dplyr::mutate(stage = as.character(stage))
+
   history_keys <- paste(history$outcome, history$model_index, sep = "::")
   stage_counts <- table(factor(
     history$stage,
@@ -22027,6 +23030,7 @@ make_update_2026_total_assignment_structural_exclusion_audit <- function(
     stop("The assignment-derived exclusion history is incomplete.",
          call. = FALSE)
   }
+
   summary <- history |>
     dplyr::filter(stage == "remedy_3") |>
     dplyr::transmute(
@@ -22052,6 +23056,7 @@ make_update_2026_total_assignment_structural_exclusion_audit <- function(
       )
     ) |>
     dplyr::arrange(model_index)
+
   summary_keys <- paste(summary$outcome, summary$model_index, sep = "::")
   if (
     nrow(summary) != 3L || !setequal(summary_keys, expected_keys) ||
@@ -22060,6 +23065,7 @@ make_update_2026_total_assignment_structural_exclusion_audit <- function(
     stop("The assignment-derived exclusion summary is invalid.",
          call. = FALSE)
   }
+
   list(
     family = "total_assignment",
     excluded_models = 3L,
@@ -22089,6 +23095,7 @@ write_update_2026_total_assignment_structural_exclusion_audit <- function(
     stop("Cannot write an invalid assignment-derived exclusion audit.",
          call. = FALSE)
   }
+
   dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
   paths <- c(
     exclusion_summary = file.path(output_dir, "exclusion_summary.csv"),
@@ -22117,6 +23124,7 @@ write_update_2026_total_assignment_structural_exclusion_audit <- function(
     paths[["metadata"]],
     na = ""
   )
+
   unname(paths)
 }
 
@@ -22154,6 +23162,7 @@ make_update_2026_total_assignment_accepted_fit_manifest <- function(
       remedy_summary,
       by = c("outcome", "model_index")
     )
+
   all_remedy_keys <- paste(remedy$outcome, remedy$model_index, sep = "::")
   accepted_remedy <- remedy |>
     dplyr::filter(diagnostic_pass) |>
@@ -22172,6 +23181,7 @@ make_update_2026_total_assignment_accepted_fit_manifest <- function(
       ),
       model_index
     )
+
   accepted_keys <- paste(accepted$outcome, accepted$model_index, sep = "::")
   final_summary <- final_diagnostic_audit$diagnostic_summary |>
     dplyr::mutate(key = paste(outcome, model_index, sep = "::"))
@@ -22182,6 +23192,7 @@ make_update_2026_total_assignment_accepted_fit_manifest <- function(
     accepted$outcome,
     levels = c("whole_body", "hypertrophy", "strength", "function")
   ))
+
   if (
     nrow(initial_manifest) != 72L || length(remedy_paths) != 10L ||
       any(!file.exists(remedy_paths)) || nrow(remedy_summary) != 10L ||
@@ -22200,6 +23211,7 @@ make_update_2026_total_assignment_accepted_fit_manifest <- function(
     stop("The accepted total assignment-derived manifest is invalid.",
          call. = FALSE)
   }
+
   accepted
 }
 
@@ -22225,6 +23237,7 @@ write_update_2026_total_assignment_accepted_fit_manifest <- function(
     stop("Cannot write an invalid assignment-derived accepted manifest.",
          call. = FALSE)
   }
+
   dir.create(dirname(output_file), recursive = TRUE, showWarnings = FALSE)
   readr::write_csv(manifest, output_file, na = "")
   output_file
@@ -22284,6 +23297,7 @@ validate_update_2026_total_assignment_loo_inputs <- function(
       all(file.info(accepted_fit_manifest$fit_path)$size > 0) &&
       all(nchar(accepted_fit_manifest$sha256) == 64L)
   )
+
   ready <-
     nrow(accepted_fit_manifest) == 69L &&
     !anyDuplicated(accepted_keys) && all(checks$passed) &&
@@ -22293,6 +23307,7 @@ validate_update_2026_total_assignment_loo_inputs <- function(
     stop("The total assignment-derived LOO preflight is incomplete.",
          call. = FALSE)
   }
+
   list(
     family = "total_assignment",
     models = 69L,
@@ -22320,6 +23335,7 @@ write_update_2026_total_assignment_loo_preflight <- function(
     stop("Cannot write an invalid assignment-derived LOO preflight.",
          call. = FALSE)
   }
+
   dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
   paths <- c(
     checks = file.path(output_dir, "checks.csv"),
@@ -22329,6 +23345,7 @@ write_update_2026_total_assignment_loo_preflight <- function(
     ),
     exclusion_summary = file.path(output_dir, "exclusion_summary.csv")
   )
+
   readr::write_csv(preflight$checks, paths[["checks"]], na = "")
   readr::write_csv(
     preflight$accepted_fit_manifest,
@@ -22353,6 +23370,7 @@ make_update_2026_total_assignment_loo_records <- function(
     accepted_fit_manifest$outcome,
     levels = c("whole_body", "hypertrophy", "strength", "function")
   ))
+
   if (
     !all(required %in% names(accepted_fit_manifest)) ||
       nrow(accepted_fit_manifest) != 69L ||
@@ -22363,6 +23381,7 @@ make_update_2026_total_assignment_loo_records <- function(
     stop("The total assignment-derived LOO fit manifest is invalid.",
          call. = FALSE)
   }
+
   records <- purrr::map(
     seq_len(nrow(accepted_fit_manifest)),
     ~ purrr::map(
@@ -22396,6 +23415,7 @@ compute_update_2026_total_assignment_integrated_loo_to_file <- function(
       call. = FALSE
     )
   }
+
   fit_path <- fit_record$fit_path
   if (
     length(fit_path) != 1L || is.na(fit_path) || !file.exists(fit_path)
@@ -22403,6 +23423,7 @@ compute_update_2026_total_assignment_integrated_loo_to_file <- function(
     stop("The total assignment-derived LOO fit is unavailable.",
          call. = FALSE)
   }
+
   candidate <- read_sensitivity_fit_file(fit_path)
   if (
     !identical(unname(as.character(candidate$family)),
@@ -22418,6 +23439,7 @@ compute_update_2026_total_assignment_integrated_loo_to_file <- function(
     stop("The total assignment-derived fit does not match its LOO record.",
          call. = FALSE)
   }
+
   old_mc_cores <- getOption("mc.cores")
   on.exit(options(mc.cores = old_mc_cores), add = TRUE)
   options(mc.cores = 1L)
@@ -22433,6 +23455,7 @@ compute_update_2026_total_assignment_integrated_loo_to_file <- function(
     reloo = FALSE,
     cores = as.integer(cores)
   )
+
   result <- compute_sensitivity_exposure_integrated_psis_loo(
     job = list(
       fitted_candidate = candidate,
@@ -22443,6 +23466,7 @@ compute_update_2026_total_assignment_integrated_loo_to_file <- function(
     k_threshold = k_threshold,
     cores = cores
   )
+
   result$family <- "total_assignment"
   result$fit_record <- fit_record
   result$loo_draws <- length(draw_ids)
@@ -22456,6 +23480,7 @@ compute_update_2026_total_assignment_integrated_loo_to_file <- function(
     stop("Cannot archive an invalid total assignment-derived LOO result.",
          call. = FALSE)
   }
+
   output_dir <- file.path(output_root, result$outcome)
   dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
   output_file <- file.path(
@@ -22478,6 +23503,7 @@ make_update_2026_total_assignment_integrated_loo_manifest <- function(
     accepted_fit_manifest$model_index,
     sep = "::"
   )
+
   if (
     length(paths) != 69L || anyNA(paths) || any(!file.exists(paths)) ||
       nrow(accepted_fit_manifest) != 69L || anyDuplicated(expected_keys)
@@ -22485,6 +23511,7 @@ make_update_2026_total_assignment_integrated_loo_manifest <- function(
     stop("The assignment-derived integrated LOO file set is incomplete.",
          call. = FALSE)
   }
+
   manifest <- purrr::map_dfr(paths, function(path) {
     result <- qs::qread(path)
     if (
@@ -22517,6 +23544,7 @@ make_update_2026_total_assignment_integrated_loo_manifest <- function(
       ),
       model_index
     )
+
   manifest_keys <- paste(manifest$outcome, manifest$model_index, sep = "::")
   expected_names <- stats::setNames(
     accepted_fit_manifest$model_name,
@@ -22534,6 +23562,7 @@ make_update_2026_total_assignment_integrated_loo_manifest <- function(
     stop("The assignment-derived integrated LOO manifest is invalid.",
          call. = FALSE)
   }
+
   manifest
 }
 
@@ -22548,6 +23577,7 @@ audit_update_2026_total_assignment_integrated_loo_files <- function(
     accepted_fit_manifest$model_index,
     sep = "::"
   )
+
   if (
     nrow(manifest) != 69L || nrow(accepted_fit_manifest) != 69L ||
       anyDuplicated(manifest_keys) || anyDuplicated(accepted_keys) ||
@@ -22558,6 +23588,7 @@ audit_update_2026_total_assignment_integrated_loo_files <- function(
     stop("The assignment-derived integrated LOO manifest cannot be audited.",
          call. = FALSE)
   }
+
   results <- purrr::map(manifest$integrated_loo_path, qs::qread)
   accepted_paths <- stats::setNames(
     normalizePath(
@@ -22567,6 +23598,7 @@ audit_update_2026_total_assignment_integrated_loo_files <- function(
     ),
     accepted_keys
   )
+
   valid <- purrr::map2_lgl(results, seq_along(results), function(result, i) {
     result_key <- paste(result$outcome, result$model_index, sep = "::")
     inherits(result$loo, "loo") &&
@@ -22585,6 +23617,7 @@ audit_update_2026_total_assignment_integrated_loo_files <- function(
         unname(accepted_paths[[result_key]])
       )
   })
+
   if (!all(valid)) {
     stop("The assignment-derived integrated LOO files failed validation.",
          call. = FALSE)
@@ -22612,6 +23645,7 @@ audit_update_2026_total_assignment_integrated_loo_files <- function(
         .before = 1L
       )
   })
+
   high_k_cases <- purrr::map_dfr(results, function(result) {
     pareto_k <- as.numeric(loo::pareto_k_values(result$loo))
     observations <- which(pareto_k > k_threshold)
@@ -22627,6 +23661,7 @@ audit_update_2026_total_assignment_integrated_loo_files <- function(
         .before = 1L
       )
   })
+
   if (nrow(high_k_cases) > 0L) {
     high_k_cases <- high_k_cases |>
       dplyr::arrange(
@@ -22647,6 +23682,7 @@ audit_update_2026_total_assignment_integrated_loo_files <- function(
       fit_path = character()
     )
   }
+
   outcome_summary <- model_summary |>
     dplyr::filter(method == integrated_method) |>
     dplyr::group_by(outcome) |>
@@ -22658,12 +23694,14 @@ audit_update_2026_total_assignment_integrated_loo_files <- function(
       maximum_pareto_k = max(maximum_pareto_k),
       .groups = "drop"
     )
+
   outcome_counts <- outcome_summary |>
     dplyr::arrange(factor(
       outcome,
       levels = c("whole_body", "hypertrophy", "strength", "function")
     )) |>
     dplyr::pull(models)
+
   if (
     nrow(model_summary) != 138L ||
       !identical(as.integer(outcome_counts), c(18L, 18L, 15L, 18L))
@@ -22671,6 +23709,7 @@ audit_update_2026_total_assignment_integrated_loo_files <- function(
     stop("The assignment-derived integrated LOO audit is incomplete.",
          call. = FALSE)
   }
+
   list(
     family = "total_assignment",
     model_summary = model_summary,
@@ -22702,6 +23741,7 @@ write_update_2026_total_assignment_integrated_loo_audit <- function(
     stop("The assignment-derived integrated LOO audit is incomplete.",
          call. = FALSE)
   }
+
   dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
   paths <- c(
     reduction_manifest = file.path(output_dir, "reduction_manifest.csv"),
@@ -22724,6 +23764,7 @@ validate_update_2026_total_assignment_exact_inputs <- function(
     stop("Expected eight total assignment-derived exact-LOO records.",
          call. = FALSE)
   }
+
   checks <- purrr::map_dfr(records, function(record) {
     integrated <- qs::qread(record$integrated_loo_path)
     observation <- as.integer(record$observation)
@@ -22769,6 +23810,7 @@ validate_update_2026_total_assignment_exact_inputs <- function(
     )
   }) |>
     dplyr::arrange(case_id)
+
   observed_cases <- paste(
     checks$outcome,
     checks$model_index,
@@ -22785,6 +23827,7 @@ validate_update_2026_total_assignment_exact_inputs <- function(
     "hypertrophy::12::204",
     "hypertrophy::24::193"
   )
+
   if (
     nrow(checks) != 8L ||
       !identical(checks$case_id, seq_len(8L)) ||
@@ -22808,6 +23851,7 @@ validate_update_2026_total_assignment_exact_inputs <- function(
     stop("The total assignment-derived exact-LOO preflight is incomplete.",
          call. = FALSE)
   }
+
   checks
 }
 
@@ -22856,6 +23900,7 @@ fit_update_2026_total_assignment_exact_to_file <- function(
     stop("Total assignment-derived exact refitting is disabled.",
          call. = FALSE)
   }
+
   output_file <- update_2026_total_assignment_exact_fit_file_path(record)
   if (file.exists(output_file) && file.info(output_file)$size > 0) {
     archived <- tryCatch(
@@ -22884,6 +23929,7 @@ fit_update_2026_total_assignment_exact_to_file <- function(
       call. = FALSE
     )
   }
+
   candidate <- read_sensitivity_fit_file(record$original_fit_path)
   integrated <- qs::qread(record$integrated_loo_path)
   observation <- as.integer(record$observation)
@@ -22904,6 +23950,7 @@ fit_update_2026_total_assignment_exact_to_file <- function(
     stop("A total assignment-derived exact record failed validation.",
          call. = FALSE)
   }
+
   prediction_data <- candidate$model$data
   training_data <- prediction_data[-observation, , drop = FALSE]
   original_model <- candidate$model
@@ -22937,6 +23984,7 @@ fit_update_2026_total_assignment_exact_to_file <- function(
     ),
     save_pars = brms::save_pars(all = TRUE)
   )
+
   archive <- list(
     family = "total_assignment",
     case_id = as.integer(record$case_id),
@@ -22952,6 +24000,7 @@ fit_update_2026_total_assignment_exact_to_file <- function(
     refitted_model = refitted_model,
     refit_seconds = as.numeric(proc.time()[["elapsed"]] - start_time)
   )
+
   write_atomic_qs(archive, output_file)
 }
 
@@ -22969,6 +24018,7 @@ write_update_2026_total_assignment_exact_diagnostic_audit <- function(
     stop("The assignment-derived exact diagnostic audit is incomplete.",
          call. = FALSE)
   }
+
   dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
   output_file <- file.path(output_dir, "diagnostic_summary.csv")
   readr::write_csv(audit$diagnostic_summary, output_file, na = "")
@@ -23001,12 +24051,14 @@ compute_update_2026_total_assignment_exact_correction_to_file <- function(
     stop("Total assignment-derived exact correction is disabled.",
          call. = FALSE)
   }
+
   refit <- read_sensitivity_full_exact_loo_file(
     exact_fit_path,
     "total_assignment"
   )
   output_file <-
     update_2026_total_assignment_exact_correction_file_path(refit)
+
   if (file.exists(output_file) && file.info(output_file)$size > 0) {
     archived <- tryCatch(qs::qread(output_file), error = function(error) NULL)
     if (
@@ -23027,6 +24079,7 @@ compute_update_2026_total_assignment_exact_correction_to_file <- function(
       call. = FALSE
     )
   }
+
   correction <- compute_sensitivity_full_exact_loo_file(
     path = exact_fit_path,
     diagnostic_audit = diagnostic_audit,
@@ -23041,6 +24094,7 @@ compute_update_2026_total_assignment_exact_correction_to_file <- function(
     stop("The total assignment-derived exact correction is invalid.",
          call. = FALSE)
   }
+
   write_atomic_qs(correction, output_file)
 }
 
@@ -23050,6 +24104,7 @@ audit_update_2026_total_assignment_exact_correction_files <- function(
 ) {
   paths <- unname(unlist(paths, use.names = FALSE))
   expected <- as.integer(integrated_audit$exact_refits_required)
+
   if (
     length(paths) != expected || expected != 8L || anyNA(paths) ||
       any(!file.exists(paths)) || any(file.info(paths)$size <= 0)
@@ -23057,6 +24112,7 @@ audit_update_2026_total_assignment_exact_correction_files <- function(
     stop("The assignment-derived exact corrections are incomplete.",
          call. = FALSE)
   }
+
   corrections <- purrr::map(paths, qs::qread)
   diagnostic_summary <- purrr::map_dfr(
     corrections,
@@ -23070,6 +24126,7 @@ audit_update_2026_total_assignment_exact_correction_files <- function(
       model_index,
       observation
     )
+
   manifest <- purrr::map2_dfr(paths, corrections, function(path, result) {
     tibble::tibble(
       case_id = as.integer(result$case_id),
@@ -23088,6 +24145,7 @@ audit_update_2026_total_assignment_exact_correction_files <- function(
     )
   }) |>
     dplyr::arrange(case_id)
+
   observed_keys <- paste(
     manifest$outcome,
     manifest$model_index,
@@ -23100,6 +24158,7 @@ audit_update_2026_total_assignment_exact_correction_files <- function(
     integrated_audit$high_k_cases$observation,
     sep = "::"
   )
+
   if (
     nrow(diagnostic_summary) != 8L || nrow(manifest) != 8L ||
       anyDuplicated(observed_keys) || !setequal(observed_keys, expected_keys) ||
@@ -23110,6 +24169,7 @@ audit_update_2026_total_assignment_exact_correction_files <- function(
     stop("The assignment-derived exact-correction audit is invalid.",
          call. = FALSE)
   }
+
   list(
     diagnostic_summary = diagnostic_summary,
     correction_manifest = manifest,
@@ -23137,6 +24197,7 @@ write_update_2026_total_assignment_exact_correction_audit <- function(
     stop("Cannot write an incomplete assignment-derived correction audit.",
          call. = FALSE)
   }
+
   dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
   paths <- c(
     diagnostic_summary = file.path(output_dir, "diagnostic_summary.csv"),
@@ -23164,6 +24225,7 @@ read_update_2026_total_assignment_exact_corrections <- function(manifest) {
     stop("The assignment-derived correction manifest is invalid.",
          call. = FALSE)
   }
+
   corrections <- purrr::map(manifest$correction_path, qs::qread)
   if (
     !identical(
@@ -23175,6 +24237,7 @@ read_update_2026_total_assignment_exact_corrections <- function(manifest) {
     stop("The assignment-derived exact corrections are invalid.",
          call. = FALSE)
   }
+
   corrections
 }
 
@@ -23193,6 +24256,7 @@ make_update_2026_total_assignment_final_loo_audit <- function(
     stop("Final assignment-derived LOO inputs are incomplete.",
          call. = FALSE)
   }
+
   final_results <- purrr::map(
     integrated_manifest$integrated_loo_path,
     qs::qread
@@ -23216,6 +24280,7 @@ make_update_2026_total_assignment_final_loo_audit <- function(
     )
   }) |>
     dplyr::arrange(outcome, model_index, observation)
+
   exact_cases <- purrr::map_dfr(exact_corrections, function(result) {
     tibble::tibble(
       outcome = result$outcome,
@@ -23224,6 +24289,7 @@ make_update_2026_total_assignment_final_loo_audit <- function(
     )
   }) |>
     dplyr::arrange(outcome, model_index, observation)
+
   if (
     anyDuplicated(result_keys) || !identical(result_keys, manifest_keys) ||
       !identical(warning_cases, exact_cases)
@@ -23231,6 +24297,7 @@ make_update_2026_total_assignment_final_loo_audit <- function(
     stop("Exact corrections do not match assignment-derived high-k cases.",
          call. = FALSE)
   }
+
   corrected_keys <- unique(paste(
     exact_cases$outcome,
     exact_cases$model_index,
@@ -23256,6 +24323,7 @@ make_update_2026_total_assignment_final_loo_audit <- function(
     patched$remedy <- "integrated_observation_level_psis_plus_exact"
     final_results[[position]] <- patched
   }
+
   exact_summary <- purrr::map_dfr(
     exact_corrections,
     "exact_refit_summary"
@@ -23272,6 +24340,7 @@ make_update_2026_total_assignment_final_loo_audit <- function(
         .before = 1L
       )
   })
+
   outcome_summary <- model_summary |>
     dplyr::summarise(
       models = dplyr::n(),
@@ -23281,6 +24350,7 @@ make_update_2026_total_assignment_final_loo_audit <- function(
       maximum_remaining_pareto_k = max(maximum_pareto_k, na.rm = TRUE),
       .by = outcome
     )
+
   correction_counts <- exact_summary |>
     dplyr::count(outcome, model_index, name = "exact_corrections")
   final_manifest <- integrated_manifest |>
@@ -23296,6 +24366,7 @@ make_update_2026_total_assignment_final_loo_audit <- function(
         "integrated_observation_level_psis"
       )
     )
+
   outcome_counts <- outcome_summary |>
     dplyr::arrange(factor(
       outcome,
@@ -23305,6 +24376,7 @@ make_update_2026_total_assignment_final_loo_audit <- function(
   stacking_ready <-
     all(model_summary$n_pareto_k_gt_threshold == 0L) &&
     all(exact_summary$diagnostic_pass)
+
   if (
     !stacking_ready || nrow(model_summary) != 69L ||
       !identical(as.integer(outcome_counts), c(18L, 18L, 15L, 18L)) ||
@@ -23316,6 +24388,7 @@ make_update_2026_total_assignment_final_loo_audit <- function(
     stop("The final assignment-derived LOO audit is not stacking-ready.",
          call. = FALSE)
   }
+
   list(
     family = "total_assignment",
     results = final_results,
@@ -23346,6 +24419,7 @@ write_update_2026_total_assignment_final_loo_audit <- function(
     stop("Cannot write an incomplete final assignment-derived LOO audit.",
          call. = FALSE)
   }
+
   dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
   paths <- c(
     final_loo_manifest = file.path(output_dir, "final_loo_manifest.csv"),
@@ -23370,6 +24444,7 @@ compute_update_2026_total_assignment_stacking_weights <- function(
     stop("The assignment-derived LOO audit is not stacking-ready.",
          call. = FALSE)
   }
+
   expected_counts <- c(
     whole_body = 18L,
     hypertrophy = 18L,
@@ -23397,6 +24472,7 @@ compute_update_2026_total_assignment_stacking_weights <- function(
       method = "stacking_exact_corrected_integrated_loo"
     )
   })
+
   observed_counts <- table(factor(
     weights$outcome,
     levels = names(expected_counts)
@@ -23410,6 +24486,7 @@ compute_update_2026_total_assignment_stacking_weights <- function(
     stop("The assignment-derived stacking weights are invalid.",
          call. = FALSE)
   }
+
   weights
 }
 
@@ -23435,6 +24512,7 @@ write_update_2026_total_assignment_stacking_weights <- function(
     stop("The assignment-derived stacking weights are invalid.",
          call. = FALSE)
   }
+
   dir.create(dirname(output_file), recursive = TRUE, showWarnings = FALSE)
   readr::write_csv(weights, output_file, na = "")
   output_file
@@ -23460,6 +24538,7 @@ make_update_2026_total_assignment_prediction_records <- function(
   )
   required_weight <- c("outcome", "model_index", "model_name", "weight")
   n_draws <- as.integer(n_draws)
+
   if (
     !all(required_fit %in% names(accepted_fit_manifest)) ||
       !all(required_weight %in% names(stacking_weights)) ||
@@ -23472,6 +24551,7 @@ make_update_2026_total_assignment_prediction_records <- function(
     stop("The assignment-derived reporting inputs are invalid.",
          call. = FALSE)
   }
+
   joined <- stacking_weights |>
     dplyr::left_join(
       accepted_fit_manifest |>
@@ -23481,6 +24561,7 @@ make_update_2026_total_assignment_prediction_records <- function(
       relationship = "one-to-one"
     ) |>
     dplyr::arrange(factor(outcome, levels = outcomes), model_index)
+
   observed_counts <- table(factor(joined$outcome, levels = outcomes))
   if (
     anyNA(joined$fit_path) || any(!file.exists(joined$fit_path)) ||
@@ -23492,6 +24573,7 @@ make_update_2026_total_assignment_prediction_records <- function(
     stop("The assignment-derived fit and weight registries do not match.",
          call. = FALSE)
   }
+
   outcome_seed <- stats::setNames(
     seed + seq_along(outcomes) * 10000L,
     outcomes
@@ -23521,12 +24603,14 @@ make_update_2026_total_assignment_prediction_records <- function(
       exposure_minimum_g_day = exposure_minimum_g_day,
       grid_step_g_day = grid_step_g_day
     )
+
   allocation_audit <- allocated |>
     dplyr::summarise(
       allocated_draws = sum(draw_count),
       selected_models = sum(draw_count > 0L),
       .by = outcome
     )
+
   if (
     nrow(allocation_audit) != 4L ||
       any(allocation_audit$allocated_draws != n_draws) ||
@@ -23535,6 +24619,7 @@ make_update_2026_total_assignment_prediction_records <- function(
     stop("The assignment-derived prediction allocation is incomplete.",
          call. = FALSE)
   }
+
   allocated <- dplyr::filter(allocated, draw_count > 0L)
   purrr::map(seq_len(nrow(allocated)), function(row) {
     purrr::map(as.list(allocated[row, , drop = FALSE]), unname)
@@ -23594,6 +24679,7 @@ make_update_2026_total_assignment_reporting_preflight <- function(
       ),
       model_index
     )
+
   audit <- checks |>
     dplyr::summarise(
       selected_models = dplyr::n(),
@@ -23601,6 +24687,7 @@ make_update_2026_total_assignment_reporting_preflight <- function(
       retained_weight = sum(weight),
       .by = outcome
     )
+
   if (
     nrow(audit) != 4L || any(audit$selected_models < 1L) ||
       any(audit$allocated_draws != 4000L) ||
@@ -23616,6 +24703,7 @@ make_update_2026_total_assignment_reporting_preflight <- function(
     stop("The assignment-derived reporting preflight failed.",
          call. = FALSE)
   }
+
   checks
 }
 
@@ -23670,6 +24758,7 @@ write_update_2026_total_assignment_prediction_draw_file <- function(
     stop("An assignment-derived prediction record is invalid.",
          call. = FALSE)
   }
+
   candidate <- read_sensitivity_fit_file(record$fit_path)
   if (
     !identical(unname(as.character(candidate$family)),
@@ -23684,6 +24773,7 @@ write_update_2026_total_assignment_prediction_draw_file <- function(
     stop("An assignment-derived fit does not match its prediction record.",
          call. = FALSE)
   }
+
   prediction_data <- data_by_outcome[[record$outcome]]
   if (is.null(prediction_data) || !is.data.frame(prediction_data)) {
     stop("The assignment-derived prediction data are unavailable.",
@@ -23705,6 +24795,7 @@ write_update_2026_total_assignment_prediction_draw_file <- function(
     re_formula = NA,
     ndraws = as.integer(record$draw_count)
   ))
+
   if (ncol(draws) != nrow(grid$keys) && nrow(draws) == nrow(grid$keys)) {
     draws <- t(draws)
   }
@@ -23715,6 +24806,7 @@ write_update_2026_total_assignment_prediction_draw_file <- function(
     stop("Assignment-derived predictions do not match their allocation.",
          call. = FALSE)
   }
+
   reduction <- list(
     family = "total_assignment",
     outcome = as.character(record$outcome),
@@ -23735,6 +24827,7 @@ write_update_2026_total_assignment_prediction_draw_file <- function(
       prediction_type = "total_assignment"
     )
   )
+
   write_atomic_qs(reduction, result_path)
 }
 
@@ -23751,6 +24844,7 @@ make_update_2026_total_assignment_model_average_records <- function(
     strength = 15L,
     "function" = 18L
   )
+
   if (
     !is.data.frame(prediction_manifest) ||
       !is.data.frame(stacking_weights) ||
@@ -23760,6 +24854,7 @@ make_update_2026_total_assignment_model_average_records <- function(
     stop("The assignment-derived averaging inputs are invalid.",
          call. = FALSE)
   }
+
   purrr::map(seq_along(outcomes), function(index) {
     outcome <- outcomes[[index]]
     files <- dplyr::filter(
@@ -23804,6 +24899,7 @@ write_update_2026_total_assignment_reporting_file <- function(
   )
   outcome <- model_average$outcome
   data <- data_by_outcome[[outcome]]
+
   if (is.null(data) || !is.data.frame(data)) {
     stop("The assignment-derived reporting data are unavailable.",
          call. = FALSE)
@@ -23849,6 +24945,7 @@ write_update_2026_total_assignment_reporting_file <- function(
       )
     )
   )
+
   write_atomic_qs(report, result_path)
 }
 
@@ -23869,6 +24966,7 @@ write_update_2026_total_assignment_reporting_audit <- function(
     stop("The assignment-derived reporting audit is incomplete.",
          call. = FALSE)
   }
+
   reports <- purrr::map(
     audit$summary$reporting_path,
     read_sensitivity_full_reporting_file,
@@ -23905,6 +25003,7 @@ write_update_2026_total_assignment_reporting_audit <- function(
     local_equivalence = file.path(output_dir, "local_equivalence.csv"),
     model_weights = file.path(output_dir, "model_weights.csv")
   )
+
   readr::write_csv(audit$summary, paths[["summary"]])
   readr::write_csv(prediction_manifest, paths[["prediction_manifest"]])
   readr::write_csv(bind_report("dose_response"), paths[["dose_response"]])
@@ -23973,6 +25072,7 @@ make_update_2026_total_assignment_verification_checkpoint <- function(
       .by = analysis_outcome
     ) |>
     dplyr::arrange(factor(analysis_outcome, levels = outcomes))
+
   registry_keys <- function(table) {
     table |>
       dplyr::distinct(outcome, model_index) |>
@@ -24025,6 +25125,7 @@ make_update_2026_total_assignment_verification_checkpoint <- function(
         dplyr::select(outcome, model_index, weight_name = model_name),
       by = c("outcome", "model_index")
     )
+
   weight_sums <- stacking_weights |>
     dplyr::summarise(
       models = dplyr::n(),
@@ -24188,6 +25289,7 @@ make_update_2026_total_assignment_verification_checkpoint <- function(
         all(reporting_audit$summary$diagonal_contrasts_valid)
     )
   )
+
   failed <- is.na(checks$passed) | !checks$passed
   if (any(failed)) {
     stop(
@@ -24241,6 +25343,7 @@ make_update_2026_total_assignment_verification_checkpoint <- function(
     pairwise_support = bind_report("pairwise_support"),
     local_equivalence = bind_report("local_equivalence")
   )
+
   descriptions <- stats::setNames(
     c(
       "Final assignment-derived total-intake checkpoint checks.",
@@ -24285,6 +25388,7 @@ make_update_2026_total_assignment_verification_checkpoint <- function(
     ),
     names(artifacts)
   )
+
   list(
     checks = checks,
     artifacts = artifacts,
@@ -24321,6 +25425,7 @@ make_update_2026_total_assignment_pruning_plan <- function(
     verification_manifest,
     show_col_types = FALSE
   )
+
   if (length(verification_files) != nrow(verification_index) + 2L) {
     stop("The assignment-derived verification-file count is invalid.",
          call. = FALSE)
@@ -24335,6 +25440,7 @@ make_update_2026_total_assignment_pruning_plan <- function(
     winslash = "/",
     mustWork = TRUE
   )
+
   if (!identical(tolower(resolved_root), tolower(expected_root))) {
     stop("Refusing to plan pruning outside the assignment-derived archive.",
          call. = FALSE)
@@ -24349,6 +25455,7 @@ make_update_2026_total_assignment_pruning_plan <- function(
     stop("An expected assignment-derived fit directory is missing.",
          call. = FALSE)
   }
+
   fit_paths <- unlist(
     purrr::map(
       fit_roots,
@@ -24362,6 +25469,7 @@ make_update_2026_total_assignment_pruning_plan <- function(
     use.names = FALSE
   ) |>
     normalizePath(winslash = "/", mustWork = TRUE)
+
   accepted_paths <- normalizePath(
     accepted_fit_manifest$fit_path,
     winslash = "/",
@@ -24376,6 +25484,7 @@ make_update_2026_total_assignment_pruning_plan <- function(
     stop("Assignment-derived fit retention does not match its lineage.",
          call. = FALSE)
   }
+
   model_fit_manifest <- tibble::tibble(
     path = fit_paths,
     relative_path = substring(fit_paths, nchar(resolved_root) + 2L),
@@ -24395,6 +25504,7 @@ make_update_2026_total_assignment_pruning_plan <- function(
     lean_action = "delete frozen assignment-derived model fit"
   ) |>
     dplyr::arrange(archive_stage, outcome, model_index)
+
   stage_counts <- table(factor(
     model_fit_manifest$archive_stage,
     levels = c("initial", "remedy_1", "remedy_2", "remedy_3")
@@ -24434,6 +25544,7 @@ make_update_2026_total_assignment_pruning_plan <- function(
     lean_action = "delete frozen assignment-derived exact-deletion refit"
   ) |>
     dplyr::arrange(case_id)
+
   exact_keys <- paste(
     exact_refit_manifest$outcome,
     exact_refit_manifest$model_index,
@@ -24446,6 +25557,7 @@ make_update_2026_total_assignment_pruning_plan <- function(
     exact_diagnostic_audit$diagnostic_summary$observation,
     sep = "::"
   )
+
   if (
     nrow(exact_refit_manifest) != 8L ||
       anyNA(exact_refit_manifest[c("model_index", "case_id", "observation")]) ||
@@ -24489,6 +25601,7 @@ make_update_2026_total_assignment_pruning_plan <- function(
     stop("An expected compact assignment-derived directory is missing.",
          call. = FALSE)
   }
+
   compact_paths <- unlist(
     purrr::map(
       compact_roots,
@@ -24501,6 +25614,7 @@ make_update_2026_total_assignment_pruning_plan <- function(
     ),
     use.names = FALSE
   )
+
   compact_paths <- compact_paths[
     file.exists(compact_paths) & !file.info(compact_paths)$isdir
   ] |>
@@ -24518,6 +25632,7 @@ make_update_2026_total_assignment_pruning_plan <- function(
     )]
     if (length(matches) == 1L) matches else "unknown"
   }, character(1L))
+
   compact_manifest <- tibble::tibble(
     path = compact_paths,
     relative_path = substring(compact_paths, nchar(resolved_root) + 2L),
@@ -24530,6 +25645,7 @@ make_update_2026_total_assignment_pruning_plan <- function(
     action = "retain compact assignment-derived result"
   ) |>
     dplyr::arrange(archive_component, relative_path)
+
   compact_counts <- table(factor(
     compact_manifest$archive_component,
     levels = c("loo_psis", "exact_corrections", "reporting")
@@ -24569,6 +25685,7 @@ make_update_2026_total_assignment_pruning_plan <- function(
       "requires refitting the assignment-derived common-sample family."
     )
   )
+
   list(
     summary = summary,
     model_fit_manifest = model_fit_manifest,
@@ -24600,6 +25717,7 @@ write_update_2026_total_assignment_pruning_plan <- function(
     stop("Cannot write an invalid assignment-derived pruning plan.",
          call. = FALSE)
   }
+
   dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
   paths <- c(
     summary = file.path(output_dir, "summary.csv"),
@@ -24612,6 +25730,7 @@ write_update_2026_total_assignment_pruning_plan <- function(
       output_dir, "compact_archive_manifest.csv"
     )
   )
+
   readr::write_csv(plan$summary, paths[["summary"]])
   readr::write_csv(plan$model_fit_manifest, paths[["model_fit_manifest"]])
   readr::write_csv(plan$exact_refit_manifest, paths[["exact_refit_manifest"]])
@@ -24628,6 +25747,8 @@ write_update_2026_total_assignment_pruning_plan <- function(
 
 # Absolute total-intake errors-in-variables sensitivity ----
 
+# Prepare the absolute total-intake values and their uncertainty for the
+# measurement-error model.
 make_update_2026_total_eiv_data_by_outcome <- function(
     total_primary_data_by_outcome,
     absolute_audit
@@ -24641,6 +25762,7 @@ make_update_2026_total_eiv_data_by_outcome <- function(
     stop("The absolute total-intake EIV source registry is invalid.",
          call. = FALSE)
   }
+
   output <- purrr::map(total_primary_data_by_outcome, function(data) {
     required <- c(
       "study_no", "arm_no", "outcome_no", "yi", "vi",
@@ -24673,6 +25795,7 @@ make_update_2026_total_eiv_data_by_outcome <- function(
       ) |>
       droplevels()
   })
+
   expected_rows <- c(
     whole_body = 247L,
     hypertrophy = 373L,
@@ -24712,6 +25835,7 @@ make_update_2026_total_eiv_data_by_outcome <- function(
   coverage <- absolute_audit$outcome_coverage |>
     dplyr::filter(exposure == "total_g_day_eiv_input") |>
     dplyr::arrange(factor(outcome, levels = outcomes))
+
   if (
     !identical(vapply(output, nrow, integer(1L)), expected_rows) ||
       !identical(
@@ -24748,6 +25872,7 @@ make_update_2026_total_eiv_data_by_outcome <- function(
     stop("The absolute total-intake EIV samples are incomplete.",
          call. = FALSE)
   }
+
   output
 }
 
@@ -24801,6 +25926,7 @@ make_update_2026_total_eiv_specifications <- function(
       model_name = paste0(model_name, " [total_eiv]")
     ) |>
     dplyr::select(-key)
+
   retained <- setdiff(
     seq_len(26L),
     c(3L, 7L, 10L, 13L, 16L, 19L, 22L, 25L)
@@ -24815,6 +25941,7 @@ make_update_2026_total_eiv_specifications <- function(
     specifications$historical_schedule,
     levels = c("base", "longer_sampling", "remedy_1", "remedy_2")
   ))
+
   if (
     nrow(specifications) != 72L || anyDuplicated(keys) ||
       !identical(as.integer(outcome_counts), rep(18L, 4L)) ||
@@ -24830,6 +25957,7 @@ make_update_2026_total_eiv_specifications <- function(
     stop("The absolute total-intake EIV registry failed validation.",
          call. = FALSE)
   }
+
   output <- purrr::pmap(specifications, list)
   names(output) <- paste0(
     specifications$outcome,
@@ -24870,6 +25998,7 @@ update_2026_total_eiv_local_config <- function(specification, config) {
     as.integer(specification$max_treedepth)
   )
   outcome_offset <- match(specification$outcome, config$outcomes)
+
   if (is.na(outcome_offset)) {
     stop("Unknown outcome in the absolute total-intake EIV configuration.",
          call. = FALSE)
@@ -24889,6 +26018,7 @@ prepare_update_2026_total_eiv_input <- function(
 ) {
   data <- data_by_outcome[[specification$outcome]]
   priors <- priors_by_outcome[[specification$outcome]]
+
   if (is.null(data) || !nrow(data) || is.null(priors)) {
     stop("Absolute total-intake EIV data or priors are missing.",
          call. = FALSE)
@@ -24911,6 +26041,7 @@ prepare_update_2026_total_eiv_input <- function(
     ), 10),
     config$reference_g_day
   )))
+
   grid <- tidyr::crossing(
     resistance_exercise_code = c(0, 1),
     protein_intake_raw = exposure_values
@@ -24920,6 +26051,7 @@ prepare_update_2026_total_eiv_input <- function(
         (protein_intake_raw - config$reference_g_day) /
           config$internal_unit_g_day
     )
+
   age_grid_z <- input$stan_data$age_grid_z[[1L]]
   duration_grid_z <- input$stan_data$duration_grid_z[[1L]]
   input$family <- "total_eiv"
@@ -25009,6 +26141,7 @@ validate_update_2026_total_eiv_inputs <- function(inputs, config) {
     )
   }) |>
     dplyr::arrange(factor(outcome, levels = outcomes), model_index)
+
   keys <- paste(checks$outcome, checks$model_index, sep = "::")
   outcome_counts <- table(factor(checks$outcome, levels = outcomes))
   schedule_counts <- table(factor(
@@ -25023,6 +26156,7 @@ validate_update_2026_total_eiv_inputs <- function(inputs, config) {
       reference_g_day, internal_unit_g_day,
       grid_minimum_g_day, grid_step_g_day
     )
+
   expected_rows <- c(247L, 373L, 721L, 323L)
   expected_studies <- c(72L, 48L, 76L, 31L)
   expected_arms <- c(193L, 131L, 202L, 87L)
@@ -25045,6 +26179,7 @@ validate_update_2026_total_eiv_inputs <- function(inputs, config) {
     stop("The absolute total-intake EIV input preflight is incomplete.",
          call. = FALSE)
   }
+
   checks
 }
 
@@ -25074,6 +26209,7 @@ read_update_2026_total_eiv_fit_file <- function(path) {
     candidate$fit$output_files(),
     error = function(error) character()
   )
+
   if (
     !is.list(candidate) || !identical(candidate$family, "total_eiv") ||
       !inherits(candidate$fit, "CmdStanMCMC") ||
@@ -25088,6 +26224,7 @@ read_update_2026_total_eiv_fit_file <- function(path) {
       call. = FALSE
     )
   }
+
   candidate
 }
 
@@ -25111,6 +26248,7 @@ fit_update_2026_total_eiv_candidate_to_file <- function(
       call. = FALSE
     )
   }
+
   if (is_sensitivity_pilot_skip(model)) {
     stop("The absolute total-intake EIV Stan model was not compiled.",
          call. = FALSE)
@@ -25119,6 +26257,7 @@ fit_update_2026_total_eiv_candidate_to_file <- function(
     stop("The absolute total-intake EIV fit input is invalid.",
          call. = FALSE)
   }
+
   specification <- input$specification
   local_config <- update_2026_total_eiv_local_config(
     specification,
@@ -25146,6 +26285,7 @@ fit_update_2026_total_eiv_candidate_to_file <- function(
     ),
     algo = "sha256"
   )
+
   stan_file <- model$stan_file()
   if (length(stan_file) != 1L || is.na(stan_file) || !file.exists(stan_file)) {
     stop("The absolute total-intake EIV Stan source is unavailable.",
@@ -25216,6 +26356,7 @@ fit_update_2026_total_eiv_candidate_to_file <- function(
     refresh = 100,
     output_dir = cmdstan_dir
   )
+
   candidate <- list(
     family = "total_eiv",
     archive_stage = stage,
@@ -25233,6 +26374,7 @@ fit_update_2026_total_eiv_candidate_to_file <- function(
     stan_sha256 = stan_sha256,
     fit = fit
   )
+
   write_atomic_qs(candidate, output_file)
 }
 
@@ -25248,6 +26390,7 @@ make_update_2026_total_eiv_fit_manifest <- function(
     stop("The absolute total-intake EIV fit-file set is incomplete.",
          call. = FALSE)
   }
+
   manifest <- purrr::map_dfr(paths, function(path) {
     candidate <- read_update_2026_total_eiv_fit_file(path)
     tibble::tibble(
@@ -25278,6 +26421,7 @@ make_update_2026_total_eiv_fit_manifest <- function(
       ),
       model_index
     )
+
   keys <- paste(manifest$outcome, manifest$model_index, sep = "::")
   outcome_counts <- table(factor(
     manifest$outcome,
@@ -25287,6 +26431,7 @@ make_update_2026_total_eiv_fit_manifest <- function(
     manifest$historical_schedule,
     levels = c("base", "longer_sampling", "remedy_1", "remedy_2")
   ))
+
   if (
     nrow(manifest) != 72L || any(manifest$family != "total_eiv") ||
       anyDuplicated(keys) ||
@@ -25297,6 +26442,7 @@ make_update_2026_total_eiv_fit_manifest <- function(
     stop("The absolute total-intake EIV fit manifest is invalid.",
          call. = FALSE)
   }
+
   manifest
 }
 
@@ -25315,6 +26461,7 @@ write_update_2026_total_eiv_fit_manifest <- function(
     stop("Cannot write an invalid absolute total-intake EIV manifest.",
          call. = FALSE)
   }
+
   dir.create(dirname(output_file), recursive = TRUE, showWarnings = FALSE)
   readr::write_csv(manifest, output_file)
   output_file
@@ -25349,12 +26496,14 @@ compile_update_2026_total_eiv_diagnostic_audit <- function(
         "REQUIRES REMEDIATION"
       )
     )
+
   diagnostic_keys <- paste(summary$outcome, summary$model_index, sep = "::")
   manifest_keys <- paste(
     fit_manifest$outcome,
     fit_manifest$model_index,
     sep = "::"
   )
+
   if (
     nrow(summary) != 72L || nrow(fit_manifest) != 72L ||
       any(summary$family != "total_eiv") ||
@@ -25365,6 +26514,7 @@ compile_update_2026_total_eiv_diagnostic_audit <- function(
     stop("The absolute total-intake EIV diagnostic audit is incomplete.",
          call. = FALSE)
   }
+
   list(
     family = "total_eiv",
     diagnostic_summary = summary,
@@ -25407,6 +26557,7 @@ make_update_2026_total_eiv_remedy_inputs <- function(
     dplyr::filter(key == "whole_body::6")
   strength_failure <- failed |>
     dplyr::filter(key == "strength::9")
+
   if (
     !identical(diagnostic_audit$family, "total_eiv") ||
       diagnostic_audit$models != 72L || nrow(failed) != 2L ||
@@ -25429,6 +26580,7 @@ make_update_2026_total_eiv_remedy_inputs <- function(
     stop("The absolute total-intake EIV remedy set is invalid.",
          call. = FALSE)
   }
+
   selected <- purrr::keep(inputs, function(input) {
     paste(
       input$specification$outcome,
@@ -25477,6 +26629,7 @@ make_update_2026_total_eiv_remedy_inputs <- function(
     input$specification <- specification
     input
   })
+
   selected_keys <- purrr::map_chr(selected, function(input) {
     paste(
       input$specification$outcome,
@@ -25484,6 +26637,7 @@ make_update_2026_total_eiv_remedy_inputs <- function(
       sep = "::"
     )
   })
+
   if (
     length(selected) != 2L || anyDuplicated(selected_keys) ||
       !setequal(selected_keys, expected_keys)
@@ -25491,6 +26645,7 @@ make_update_2026_total_eiv_remedy_inputs <- function(
     stop("Could not uniquely select the absolute total-intake EIV remedies.",
          call. = FALSE)
   }
+
   selected <- selected[match(expected_keys, selected_keys)]
   names(selected) <- c("whole_body_model_06", "strength_model_09")
   selected
@@ -25555,6 +26710,7 @@ validate_update_2026_total_eiv_remedy_inputs <- function(
       ),
       model_index
     )
+
   keys <- paste(checks$outcome, checks$model_index, sep = "::")
   whole_body <- checks$outcome == "whole_body" & checks$model_index == 6L
   strength <- checks$outcome == "strength" & checks$model_index == 9L
@@ -25578,6 +26734,7 @@ validate_update_2026_total_eiv_remedy_inputs <- function(
     stop("The absolute total-intake EIV remedy preflight is incomplete.",
          call. = FALSE)
   }
+
   checks
 }
 
@@ -25627,6 +26784,7 @@ make_update_2026_total_eiv_remedy_fit_manifest <- function(paths) {
     stop("The absolute total-intake EIV remedy fit set is incomplete.",
          call. = FALSE)
   }
+
   manifest <- purrr::map_dfr(paths, function(path) {
     candidate <- read_update_2026_total_eiv_fit_file(path)
     tibble::tibble(
@@ -25658,6 +26816,7 @@ make_update_2026_total_eiv_remedy_fit_manifest <- function(paths) {
       ),
       model_index
     )
+
   keys <- paste(manifest$outcome, manifest$model_index, sep = "::")
   if (
     nrow(manifest) != 2L || any(manifest$family != "total_eiv") ||
@@ -25669,6 +26828,7 @@ make_update_2026_total_eiv_remedy_fit_manifest <- function(paths) {
     stop("The absolute total-intake EIV remedy manifest is invalid.",
          call. = FALSE)
   }
+
   manifest
 }
 
@@ -25687,6 +26847,7 @@ write_update_2026_total_eiv_remedy_fit_manifest <- function(
     stop("Cannot write an invalid absolute total-intake EIV remedy manifest.",
          call. = FALSE)
   }
+
   dir.create(dirname(output_file), recursive = TRUE, showWarnings = FALSE)
   readr::write_csv(manifest, output_file, na = "")
   output_file
@@ -25703,6 +26864,7 @@ compile_update_2026_total_eiv_final_diagnostic_audit <- function(
   remedy_keys <- paste(remedy$outcome, remedy$model_index, sep = "::")
   initial_failed_keys <- initial_keys[!initial$diagnostic_pass]
   original_remedy_rows <- initial[match(remedy_keys, initial_keys), , drop = FALSE]
+
   if (
     !identical(initial_audit$family, "total_eiv") ||
       nrow(initial) != 72L || nrow(remedy) != 2L ||
@@ -25716,6 +26878,7 @@ compile_update_2026_total_eiv_final_diagnostic_audit <- function(
     stop("The absolute total-intake EIV diagnostic replacement is invalid.",
          call. = FALSE)
   }
+
   final <- initial |>
     dplyr::filter(!paste(outcome, model_index, sep = "::") %in% remedy_keys) |>
     dplyr::select(-status) |>
@@ -25734,6 +26897,7 @@ compile_update_2026_total_eiv_final_diagnostic_audit <- function(
         "REQUIRES REMEDIATION"
       )
     )
+
   final_keys <- paste(final$outcome, final$model_index, sep = "::")
   if (
     nrow(final) != 72L || anyDuplicated(final_keys) ||
@@ -25742,6 +26906,7 @@ compile_update_2026_total_eiv_final_diagnostic_audit <- function(
     stop("The final absolute total-intake EIV audit is incomplete.",
          call. = FALSE)
   }
+
   list(
     family = "total_eiv",
     diagnostic_summary = final,
@@ -25783,6 +26948,7 @@ make_update_2026_total_eiv_accepted_fit_manifest <- function(
       ),
       model_index
     )
+
   accepted_keys <- paste(
     accepted$outcome,
     accepted$model_index,
@@ -25796,6 +26962,7 @@ make_update_2026_total_eiv_accepted_fit_manifest <- function(
     accepted$stage,
     levels = c("initial", "remedy_1")
   ))
+
   if (
     nrow(initial_manifest) != 72L || nrow(remedy_manifest) != 2L ||
       anyDuplicated(remedy_keys) ||
@@ -25818,6 +26985,7 @@ make_update_2026_total_eiv_accepted_fit_manifest <- function(
     stop("The accepted absolute total-intake EIV manifest is invalid.",
          call. = FALSE)
   }
+
   accepted
 }
 
@@ -25836,6 +27004,7 @@ write_update_2026_total_eiv_accepted_fit_manifest <- function(
     manifest$stage,
     levels = c("initial", "remedy_1")
   ))
+
   if (
     nrow(manifest) != 72L ||
       !identical(as.integer(outcome_counts), rep(18L, 4L)) ||
@@ -25846,6 +27015,7 @@ write_update_2026_total_eiv_accepted_fit_manifest <- function(
     stop("Cannot write an invalid absolute total-intake EIV manifest.",
          call. = FALSE)
   }
+
   dir.create(dirname(output_file), recursive = TRUE, showWarnings = FALSE)
   readr::write_csv(manifest, output_file, na = "")
   output_file
@@ -25903,6 +27073,7 @@ validate_update_2026_total_eiv_loo_inputs <- function(
       identical(k_threshold, 0.7) &&
       identical(as.integer(cores_per_branch), 1L)
   )
+
   ready <-
     nrow(accepted_fit_manifest) == 72L &&
     !anyDuplicated(accepted_keys) && all(checks$passed)
@@ -25910,6 +27081,7 @@ validate_update_2026_total_eiv_loo_inputs <- function(
     stop("The absolute total-intake EIV LOO preflight is incomplete.",
          call. = FALSE)
   }
+
   list(
     family = "total_eiv",
     models = 72L,
@@ -25937,6 +27109,7 @@ write_update_2026_total_eiv_loo_preflight <- function(
     stop("Cannot write an invalid absolute total-intake EIV LOO preflight.",
          call. = FALSE)
   }
+
   dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
   paths <- c(
     checks = file.path(output_dir, "checks.csv"),
@@ -25970,6 +27143,7 @@ make_update_2026_total_eiv_loo_records <- function(
       sep = "::"
     )
   })
+
   if (
     nrow(accepted_fit_manifest) != 72L || length(inputs) != 72L ||
       anyDuplicated(accepted_keys) || anyDuplicated(input_keys) ||
@@ -25979,6 +27153,7 @@ make_update_2026_total_eiv_loo_records <- function(
     stop("The absolute total-intake EIV fit/input registry is misaligned.",
          call. = FALSE)
   }
+
   records <- purrr::map(seq_len(nrow(accepted_fit_manifest)), function(row) {
     record <- purrr::map(
       as.list(accepted_fit_manifest[row, , drop = FALSE]),
@@ -25987,6 +27162,7 @@ make_update_2026_total_eiv_loo_records <- function(
     record$input <- inputs[[match(accepted_keys[[row]], input_keys)]]
     record
   })
+
   names(records) <- paste0(
     accepted_fit_manifest$outcome,
     "_model_",
@@ -26015,6 +27191,7 @@ compute_update_2026_total_eiv_integrated_loo_to_file <- function(
       call. = FALSE
     )
   }
+
   candidate <- read_update_2026_total_eiv_fit_file(fit_record$fit_path)
   input <- fit_record$input
   if (
@@ -26028,6 +27205,7 @@ compute_update_2026_total_eiv_integrated_loo_to_file <- function(
     stop("The absolute total-intake EIV LOO record is misaligned.",
          call. = FALSE)
   }
+
   available_draws <- posterior::ndraws(
     candidate$fit$draws("b_intercept")
   )
@@ -26038,6 +27216,7 @@ compute_update_2026_total_eiv_integrated_loo_to_file <- function(
     stop("The absolute total-intake EIV fit has no posterior draws.",
          call. = FALSE)
   }
+
   job <- list(
     fitted_candidate = candidate,
     input = input,
@@ -26054,6 +27233,7 @@ compute_update_2026_total_eiv_integrated_loo_to_file <- function(
     "stage", "bytes", "sha256"
   )]
   result$input <- input
+
   if (
     !inherits(result$loo, "loo") ||
       !inherits(result$conditional_loo, "loo") ||
@@ -26068,6 +27248,7 @@ compute_update_2026_total_eiv_integrated_loo_to_file <- function(
     stop("Cannot archive an invalid absolute total-intake EIV LOO result.",
          call. = FALSE)
   }
+
   output_dir <- file.path(output_root, result$outcome)
   dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
   output_file <- file.path(
@@ -26104,6 +27285,7 @@ write_update_2026_total_eiv_integrated_loo_audit <- function(
     stop("The absolute total-intake EIV integrated-LOO audit is incomplete.",
          call. = FALSE)
   }
+
   dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
   paths <- c(
     reduction_manifest = file.path(output_dir, "reduction_manifest.csv"),
@@ -26142,6 +27324,7 @@ make_update_2026_total_eiv_exact_config <- function(
     as.integer(max_treedepth)
   )
   config$seed <- as.integer(initial_config$seed + seed_offset)
+
   if (
     config$chains != 4L || config$parallel_chains != 4L ||
       config$iter_warmup != 2000L || config$iter_sampling != 6000L ||
@@ -26151,6 +27334,7 @@ make_update_2026_total_eiv_exact_config <- function(
     stop("The absolute total-intake EIV exact-LOO configuration is invalid.",
          call. = FALSE)
   }
+
   config
 }
 
@@ -26166,6 +27350,7 @@ validate_update_2026_total_eiv_exact_inputs <- function(
     "hypertrophy::23::290",
     "hypertrophy::26::290"
   )
+
   if (!is.list(records) || length(records) != expected || expected != 4L) {
     stop("Expected four absolute total-intake EIV exact-LOO records.",
          call. = FALSE)
@@ -26260,6 +27445,7 @@ validate_update_2026_total_eiv_exact_inputs <- function(
     )
   }) |>
     dplyr::arrange(case_id)
+
   observed_keys <- paste(
     checks$outcome,
     checks$model_index,
@@ -26276,6 +27462,7 @@ validate_update_2026_total_eiv_exact_inputs <- function(
     checks$outcome,
     levels = c("whole_body", "hypertrophy", "strength", "function")
   ))
+
   if (
     nrow(checks) != expected || anyDuplicated(observed_keys) ||
       !setequal(observed_keys, expected_keys) ||
@@ -26290,6 +27477,7 @@ validate_update_2026_total_eiv_exact_inputs <- function(
     stop("The absolute total-intake EIV exact-LOO preflight is incomplete.",
          call. = FALSE)
   }
+
   checks
 }
 
@@ -26326,6 +27514,7 @@ update_2026_total_eiv_exact_fit_file_path <- function(
       as.integer(record$observation)
     )
   )
+
   dir.create(directory, recursive = TRUE, showWarnings = FALSE)
   file.path(directory, "fit.qs")
 }
@@ -26340,6 +27529,7 @@ read_update_2026_total_eiv_exact_fit_file <- function(path) {
     refit$fitted_candidate$fit$output_files(),
     error = function(error) character()
   )
+
   if (
     !is.list(refit) || !identical(refit$family, "total_eiv") ||
       !identical(refit$fitted_candidate$family, "total_eiv") ||
@@ -26350,6 +27540,7 @@ read_update_2026_total_eiv_exact_fit_file <- function(path) {
     stop("The absolute total-intake EIV exact refit is invalid.",
          call. = FALSE)
   }
+
   refit
 }
 
@@ -26368,6 +27559,7 @@ fit_update_2026_total_eiv_exact_to_file <- function(
       call. = FALSE
     )
   }
+
   if (is_sensitivity_pilot_skip(model)) {
     stop("The absolute total-intake EIV Stan model was not compiled.",
          call. = FALSE)
@@ -26381,6 +27573,7 @@ fit_update_2026_total_eiv_exact_to_file <- function(
   } else {
     NULL
   }
+
   if (
     !is.null(existing) &&
       identical(as.integer(existing$case_id), as.integer(record$case_id)) &&
@@ -26401,6 +27594,7 @@ fit_update_2026_total_eiv_exact_to_file <- function(
   ) {
     return(normalizePath(output_file, winslash = "/", mustWork = TRUE))
   }
+
   if (file.exists(output_file)) {
     stop(
       paste0(
@@ -26410,6 +27604,7 @@ fit_update_2026_total_eiv_exact_to_file <- function(
       call. = FALSE
     )
   }
+
   candidate <- read_update_2026_total_eiv_fit_file(
     record$original_fit_path
   )
@@ -26421,6 +27616,7 @@ fit_update_2026_total_eiv_exact_to_file <- function(
   } else {
     numeric()
   }
+
   if (
     !identical(integrated$family, "total_eiv") ||
       !identical(candidate$family, "total_eiv") ||
@@ -26434,6 +27630,7 @@ fit_update_2026_total_eiv_exact_to_file <- function(
     stop("An absolute total-intake EIV exact-refit record is invalid.",
          call. = FALSE)
   }
+
   training_data <- make_eiv_leave_one_out_stan_data(
     input$stan_data,
     observation
@@ -26472,6 +27669,7 @@ fit_update_2026_total_eiv_exact_to_file <- function(
     refresh = 100,
     output_dir = cmdstan_dir
   )
+
   fitted_candidate <- list(
     family = "total_eiv",
     outcome = record$outcome,
@@ -26486,6 +27684,7 @@ fit_update_2026_total_eiv_exact_to_file <- function(
     ),
     fit = fit
   )
+
   refit <- list(
     case_id = as.integer(record$case_id),
     family = "total_eiv",
@@ -26502,6 +27701,7 @@ fit_update_2026_total_eiv_exact_to_file <- function(
     stan_sha256 = stan_sha256,
     refit_seconds = as.numeric(proc.time()[["elapsed"]] - start_time)
   )
+
   write_atomic_qs(refit, output_file)
 }
 
@@ -26535,6 +27735,7 @@ audit_update_2026_total_eiv_exact_diagnostics <- function(
     audit$diagnostic_summary$observation,
     sep = "::"
   )
+
   if (
     audit$exact_refits != 4L ||
       nrow(audit$diagnostic_summary) != 4L ||
@@ -26544,6 +27745,7 @@ audit_update_2026_total_eiv_exact_diagnostics <- function(
     stop("The absolute total-intake EIV exact diagnostics are incomplete.",
          call. = FALSE)
   }
+
   audit$family <- "total_eiv"
   audit
 }
@@ -26563,6 +27765,7 @@ write_update_2026_total_eiv_exact_diagnostic_audit <- function(
     stop("Cannot write an incomplete total-intake EIV exact audit.",
          call. = FALSE)
   }
+
   dir.create(dirname(output_file), recursive = TRUE, showWarnings = FALSE)
   readr::write_csv(audit$diagnostic_summary, output_file, na = "")
   output_file
@@ -26597,6 +27800,7 @@ compute_update_2026_total_eiv_exact_correction_to_file <- function(
     stop("Total-intake EIV exact corrections require passing diagnostics.",
          call. = FALSE)
   }
+
   refit <- read_update_2026_total_eiv_exact_fit_file(exact_fit_path)
   output_file <- update_2026_total_eiv_exact_correction_file_path(refit)
   existing <- if (file.exists(output_file)) {
@@ -26604,6 +27808,7 @@ compute_update_2026_total_eiv_exact_correction_to_file <- function(
   } else {
     NULL
   }
+
   if (
     is.list(existing) && identical(existing$family, "total_eiv") &&
       as.integer(existing$case_id) == refit$case_id &&
@@ -26622,6 +27827,7 @@ compute_update_2026_total_eiv_exact_correction_to_file <- function(
   ) {
     return(normalizePath(output_file, winslash = "/", mustWork = TRUE))
   }
+
   if (file.exists(output_file)) {
     stop(
       paste0(
@@ -26631,6 +27837,7 @@ compute_update_2026_total_eiv_exact_correction_to_file <- function(
       call. = FALSE
     )
   }
+
   correction <- compute_eiv_exact_loo_case(
     refit,
     loo_draws = loo_draws
@@ -26641,6 +27848,7 @@ compute_update_2026_total_eiv_exact_correction_to_file <- function(
     refit$source_integrated_loo_sha256
   correction$stan_sha256 <- refit$stan_sha256
   correction$loo_draws <- as.integer(loo_draws)
+
   if (
     as.integer(correction$case_id) != refit$case_id ||
       !inherits(correction$loo, "loo") ||
@@ -26652,6 +27860,7 @@ compute_update_2026_total_eiv_exact_correction_to_file <- function(
     stop("The total-intake EIV exact correction is invalid.",
          call. = FALSE)
   }
+
   write_atomic_qs(correction, output_file)
 }
 
@@ -26661,6 +27870,7 @@ audit_update_2026_total_eiv_exact_corrections <- function(
 ) {
   paths <- unname(unlist(paths, use.names = FALSE))
   expected <- as.integer(integrated_audit$exact_refits_required)
+
   if (
     length(paths) != expected || expected != 4L || anyNA(paths) ||
       any(!file.exists(paths)) || any(file.info(paths)$size <= 0)
@@ -26668,6 +27878,7 @@ audit_update_2026_total_eiv_exact_corrections <- function(
     stop("The total-intake EIV exact corrections are incomplete.",
          call. = FALSE)
   }
+
   corrections <- purrr::map(paths, qs::qread)
   diagnostic_summary <- purrr::map_dfr(
     corrections,
@@ -26681,6 +27892,7 @@ audit_update_2026_total_eiv_exact_corrections <- function(
       model_index,
       observation
     )
+
   manifest <- purrr::map2_dfr(paths, corrections, function(path, result) {
     tibble::tibble(
       case_id = as.integer(result$case_id),
@@ -26703,6 +27915,7 @@ audit_update_2026_total_eiv_exact_corrections <- function(
     )
   }) |>
     dplyr::arrange(case_id)
+
   observed_keys <- paste(
     manifest$outcome,
     manifest$model_index,
@@ -26715,6 +27928,7 @@ audit_update_2026_total_eiv_exact_corrections <- function(
     integrated_audit$high_k_cases$observation,
     sep = "::"
   )
+
   if (
     nrow(diagnostic_summary) != expected || nrow(manifest) != expected ||
       anyDuplicated(observed_keys) || !setequal(observed_keys, expected_keys) ||
@@ -26727,6 +27941,7 @@ audit_update_2026_total_eiv_exact_corrections <- function(
     stop("The total-intake EIV exact-correction audit is invalid.",
          call. = FALSE)
   }
+
   list(
     family = "total_eiv",
     diagnostic_summary = diagnostic_summary,
@@ -26756,6 +27971,7 @@ write_update_2026_total_eiv_exact_correction_audit <- function(
     stop("Cannot write an incomplete total-intake EIV correction audit.",
          call. = FALSE)
   }
+
   dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
   paths <- c(
     diagnostic_summary = file.path(output_dir, "diagnostic_summary.csv"),
@@ -26783,6 +27999,7 @@ read_update_2026_total_eiv_exact_corrections <- function(manifest) {
     stop("The total-intake EIV exact-correction manifest is invalid.",
          call. = FALSE)
   }
+
   corrections <- purrr::map(manifest$correction_path, qs::qread)
   corrections <- corrections[order(purrr::map_int(corrections, "case_id"))]
   if (
@@ -26796,6 +28013,7 @@ read_update_2026_total_eiv_exact_corrections <- function(manifest) {
     stop("The total-intake EIV exact corrections are incomplete.",
          call. = FALSE)
   }
+
   corrections
 }
 
@@ -26806,6 +28024,7 @@ make_update_2026_total_eiv_final_loo_audit <- function(
     accepted_fit_manifest
 ) {
   expected_indices <- sort(unique(accepted_fit_manifest$model_index))
+
   if (
     !isTRUE(exact_audit$all_exact_refit_diagnostics_pass) ||
       exact_audit$exact_refits != 4L ||
@@ -26815,6 +28034,7 @@ make_update_2026_total_eiv_final_loo_audit <- function(
     stop("Final total-intake EIV LOO requires four passing exact refits.",
          call. = FALSE)
   }
+
   final <- apply_sensitivity_full_exact_loo_corrections_from_files(
     integrated_manifest = integrated_manifest,
     exact_results = exact_corrections,
@@ -26832,6 +28052,7 @@ make_update_2026_total_eiv_final_loo_audit <- function(
       maximum_remaining_pareto_k = max(maximum_pareto_k, na.rm = TRUE),
       .groups = "drop"
     )
+
   correction_counts <- exact_audit$diagnostic_summary |>
     dplyr::count(outcome, model_index, name = "exact_corrections")
   final_manifest <- integrated_manifest |>
@@ -26847,6 +28068,7 @@ make_update_2026_total_eiv_final_loo_audit <- function(
         "outcome_effects_integrated_latent_exposure_psis"
       )
     )
+
   if (
     !isTRUE(final$stacking_ready) || nrow(final$model_summary) != 72L ||
       nrow(outcome_summary) != 4L ||
@@ -26858,6 +28080,7 @@ make_update_2026_total_eiv_final_loo_audit <- function(
     stop("The final total-intake EIV LOO is not stacking-ready.",
          call. = FALSE)
   }
+
   final$family <- "total_eiv"
   final$outcome_summary <- outcome_summary
   final$final_loo_manifest <- final_manifest
@@ -26884,6 +28107,7 @@ write_update_2026_total_eiv_final_loo_audit <- function(
     stop("Cannot write an incomplete final total-intake EIV LOO audit.",
          call. = FALSE)
   }
+
   dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
   paths <- c(
     final_loo_manifest = file.path(output_dir, "final_loo_manifest.csv"),
@@ -26927,6 +28151,7 @@ write_update_2026_total_eiv_stacking_weights <- function(
     stop("The total-intake EIV stacking weights are invalid.",
          call. = FALSE)
   }
+
   dir.create(dirname(output_file), recursive = TRUE, showWarnings = FALSE)
   readr::write_csv(weights, output_file, na = "")
   output_file
@@ -26959,6 +28184,7 @@ make_update_2026_total_eiv_prediction_records <- function(
       relationship = "one-to-one"
     ) |>
     dplyr::arrange(factor(outcome, levels = outcomes), model_index)
+
   if (
     nrow(accepted_fit_manifest) != 72L ||
       nrow(stacking_weights) != 72L || length(inputs) != 72L ||
@@ -26971,6 +28197,7 @@ make_update_2026_total_eiv_prediction_records <- function(
     stop("The total-intake EIV prediction registries do not align.",
          call. = FALSE)
   }
+
   outcome_seed <- stats::setNames(
     as.integer(seed) + seq_along(outcomes) * 10000L,
     outcomes
@@ -27001,6 +28228,7 @@ make_update_2026_total_eiv_prediction_records <- function(
       body_mass_reference_z = 0,
       prediction_type = "total_eiv"
     )
+
   allocated <- allocated |>
     dplyr::rowwise() |>
     dplyr::mutate(
@@ -27023,6 +28251,7 @@ make_update_2026_total_eiv_prediction_records <- function(
       }
     ) |>
     dplyr::ungroup()
+
   allocation_audit <- allocated |>
     dplyr::summarise(
       allocated_draws = sum(draw_count),
@@ -27035,6 +28264,7 @@ make_update_2026_total_eiv_prediction_records <- function(
     stop("The total-intake EIV draw allocation is incomplete.",
          call. = FALSE)
   }
+
   allocated <- dplyr::filter(allocated, draw_count > 0L)
   purrr::map(seq_len(nrow(allocated)), function(row) {
     purrr::map(as.list(allocated[row, , drop = FALSE]), unname)
@@ -27090,6 +28320,7 @@ make_update_2026_total_eiv_reporting_preflight <- function(records) {
       ),
       model_index
     )
+
   outcome_audit <- checks |>
     dplyr::summarise(
       selected_models = dplyr::n(),
@@ -27098,6 +28329,7 @@ make_update_2026_total_eiv_reporting_preflight <- function(records) {
       exposure_maximum_g_day = dplyr::first(exposure_maximum_g_day),
       .by = outcome
     )
+
   if (
     nrow(outcome_audit) != 4L ||
       any(outcome_audit$selected_models < 1L) ||
@@ -27112,6 +28344,7 @@ make_update_2026_total_eiv_reporting_preflight <- function(records) {
     stop("The total-intake EIV reporting preflight failed.",
          call. = FALSE)
   }
+
   checks
 }
 
@@ -27133,6 +28366,7 @@ write_update_2026_total_eiv_reporting_preflight <- function(
     stop("Cannot write an invalid total-intake EIV reporting preflight.",
          call. = FALSE)
   }
+
   dir.create(dirname(output_file), recursive = TRUE, showWarnings = FALSE)
   readr::write_csv(checks, output_file, na = "")
   output_file
@@ -27176,6 +28410,7 @@ write_update_2026_total_eiv_prediction_draw_file <- function(
     stop("A total-intake EIV prediction record is invalid.",
          call. = FALSE)
   }
+
   candidate <- read_update_2026_total_eiv_fit_file(record$fit_path)
   if (
     as.integer(candidate$model_index) != as.integer(record$model_index) ||
@@ -27185,6 +28420,7 @@ write_update_2026_total_eiv_prediction_draw_file <- function(
     stop("A total-intake EIV fit does not match its prediction record.",
          call. = FALSE)
   }
+
   all_draws <- posterior::as_draws_matrix(
     candidate$fit$draws("mu_grid")
   )
@@ -27205,6 +28441,7 @@ write_update_2026_total_eiv_prediction_draw_file <- function(
       ),
       protein_intake = protein_intake_raw
     )
+
   if (
     nrow(draws) != as.integer(record$draw_count) ||
       ncol(draws) != nrow(grid) || anyNA(draws) ||
@@ -27216,6 +28453,7 @@ write_update_2026_total_eiv_prediction_draw_file <- function(
     stop("The total-intake EIV prediction draws are incomplete.",
          call. = FALSE)
   }
+
   reduction <- list(
     family = "total_eiv",
     outcome = as.character(record$outcome),
@@ -27237,6 +28475,7 @@ write_update_2026_total_eiv_prediction_draw_file <- function(
       body_mass_reference_z = as.numeric(record$body_mass_reference_z)
     )
   )
+
   write_atomic_qs(reduction, result_path)
 }
 
@@ -27247,6 +28486,7 @@ make_update_2026_total_eiv_model_average_records <- function(
     seed = 42388L
 ) {
   outcomes <- c("whole_body", "hypertrophy", "strength", "function")
+
   if (
     !is.data.frame(prediction_manifest) ||
       !is.data.frame(stacking_weights) ||
@@ -27257,6 +28497,7 @@ make_update_2026_total_eiv_model_average_records <- function(
     stop("The total-intake EIV averaging inputs are invalid.",
          call. = FALSE)
   }
+
   purrr::map(seq_along(outcomes), function(index) {
     outcome <- outcomes[[index]]
     files <- dplyr::filter(
@@ -27300,6 +28541,7 @@ write_update_2026_total_eiv_reporting_file <- function(
   )
   outcome <- model_average$outcome
   data <- data_by_outcome[[outcome]]
+
   if (is.null(data) || !is.data.frame(data)) {
     stop("The total-intake EIV reporting data are unavailable.",
          call. = FALSE)
@@ -27346,6 +28588,7 @@ write_update_2026_total_eiv_reporting_file <- function(
       )
     )
   )
+
   write_atomic_qs(report, result_path)
 }
 
@@ -27368,6 +28611,7 @@ write_update_2026_total_eiv_reporting_audit <- function(
     stop("The total-intake EIV reporting audit is incomplete.",
          call. = FALSE)
   }
+
   reports <- purrr::map(
     audit$summary$reporting_path,
     read_sensitivity_full_reporting_file,
@@ -27407,6 +28651,7 @@ write_update_2026_total_eiv_reporting_audit <- function(
     local_equivalence = file.path(output_dir, "local_equivalence.csv"),
     model_weights = file.path(output_dir, "model_weights.csv")
   )
+
   readr::write_csv(audit$summary, paths[["summary"]], na = "")
   readr::write_csv(
     prediction_manifest,
@@ -27506,6 +28751,7 @@ make_update_2026_total_eiv_verification_checkpoint <- function(
         dplyr::select(outcome, model_index, weight_name = model_name),
       by = c("outcome", "model_index")
     )
+
   preflight_summary <- input_preflight |>
     dplyr::distinct(
       outcome, contrasts, studies, arms, outcome_rows,
@@ -27515,6 +28761,7 @@ make_update_2026_total_eiv_verification_checkpoint <- function(
       grid_step_g_day
     ) |>
     dplyr::arrange(factor(outcome, levels = outcomes))
+
   accepted_stage_counts <- table(accepted_fit_manifest$stage)
   weight_sums <- stacking_weights |>
     dplyr::summarise(
@@ -27531,6 +28778,7 @@ make_update_2026_total_eiv_verification_checkpoint <- function(
       .by = outcome
     ) |>
     dplyr::arrange(factor(outcome, levels = outcomes))
+
   reports <- purrr::map(
     reporting_audit$summary$reporting_path,
     read_sensitivity_full_reporting_file,
@@ -27656,6 +28904,7 @@ make_update_2026_total_eiv_verification_checkpoint <- function(
         all(abs(reporting_weight_sums$weight_sum - 1) < 1e-8)
     )
   )
+
   failed <- is.na(checks$passed) | !checks$passed
   if (any(failed)) {
     stop(
@@ -27707,6 +28956,7 @@ make_update_2026_total_eiv_verification_checkpoint <- function(
     pairwise_support = bind_report("pairwise_support"),
     local_equivalence = bind_report("local_equivalence")
   )
+
   descriptions <- stats::setNames(
     c(
       "Final total-intake EIV checkpoint checks.",
@@ -27750,6 +29000,7 @@ make_update_2026_total_eiv_verification_checkpoint <- function(
     ),
     names(artifacts)
   )
+
   list(
     checks = checks,
     artifacts = artifacts,
@@ -27786,6 +29037,7 @@ make_update_2026_total_eiv_pruning_plan <- function(
     verification_manifest,
     show_col_types = FALSE
   )
+
   if (length(verification_files) != nrow(verification_index) + 2L) {
     stop("The total-intake EIV verification-file count is invalid.",
          call. = FALSE)
@@ -27799,6 +29051,7 @@ make_update_2026_total_eiv_pruning_plan <- function(
     winslash = "/",
     mustWork = TRUE
   )
+
   if (!identical(tolower(resolved_root), tolower(expected_root))) {
     stop("Refusing to plan pruning outside the total-intake EIV archive.",
          call. = FALSE)
@@ -27811,6 +29064,7 @@ make_update_2026_total_eiv_pruning_plan <- function(
     stop("An expected total-intake EIV sampling directory is missing.",
          call. = FALSE)
   }
+
   deletion_paths <- unlist(
     purrr::map(
       deletion_roots,
@@ -27823,6 +29077,7 @@ make_update_2026_total_eiv_pruning_plan <- function(
     ),
     use.names = FALSE
   )
+
   deletion_paths <- deletion_paths[
     file.exists(deletion_paths) & !file.info(deletion_paths)$isdir
   ] |>
@@ -27872,6 +29127,7 @@ make_update_2026_total_eiv_pruning_plan <- function(
       model_index,
       case_id
     )
+
   model_fit_manifest <- dplyr::filter(
     fit_manifest,
     archive_stage != "exact_refit"
@@ -27896,6 +29152,7 @@ make_update_2026_total_eiv_pruning_plan <- function(
     exact_correction_audit$diagnostic_summary$observation,
     sep = "::"
   )
+
   if (
     nrow(model_fit_manifest) != 74L ||
       !identical(as.integer(stage_counts), c(72L, 2L)) ||
@@ -27921,6 +29178,7 @@ make_update_2026_total_eiv_pruning_plan <- function(
     character(1L),
     USE.NAMES = FALSE
   )
+
   fit_positions <- match(file_fit_directories, fit_manifest$fit_directory)
   file_type <- dplyr::case_when(
     basename(deletion_paths) == "fit.qs" ~ "fit_object",
@@ -27954,6 +29212,7 @@ make_update_2026_total_eiv_pruning_plan <- function(
       factor(file_type, levels = c("fit_object", "cmdstan_chain_csv")),
       relative_path
     )
+
   deletion_stage_counts <- table(factor(
     deletion_manifest$archive_stage,
     levels = c("initial", "remedy_1", "exact_refit")
@@ -27982,6 +29241,7 @@ make_update_2026_total_eiv_pruning_plan <- function(
     stop("An expected compact total-intake EIV directory is missing.",
          call. = FALSE)
   }
+
   compact_paths <- unlist(
     purrr::map(
       compact_roots,
@@ -27994,6 +29254,7 @@ make_update_2026_total_eiv_pruning_plan <- function(
     ),
     use.names = FALSE
   )
+
   compact_paths <- compact_paths[
     file.exists(compact_paths) & !file.info(compact_paths)$isdir
   ] |>
@@ -28011,6 +29272,7 @@ make_update_2026_total_eiv_pruning_plan <- function(
     )]
     if (length(matches) == 1L) matches else "unknown"
   }, character(1L))
+
   compact_manifest <- tibble::tibble(
     path = compact_paths,
     relative_path = substring(compact_paths, nchar(resolved_root) + 2L),
@@ -28023,6 +29285,7 @@ make_update_2026_total_eiv_pruning_plan <- function(
     action = "retain compact total-intake EIV result"
   ) |>
     dplyr::arrange(archive_component, relative_path)
+
   compact_counts <- table(factor(
     compact_manifest$archive_component,
     levels = c("loo_psis", "exact_corrections", "reporting")
@@ -28060,6 +29323,7 @@ make_update_2026_total_eiv_pruning_plan <- function(
       "absolute total-intake EIV sensitivity."
     )
   )
+
   list(
     summary = summary,
     model_fit_manifest = model_fit_manifest,
@@ -28096,6 +29360,7 @@ write_update_2026_total_eiv_pruning_plan <- function(
       "compact_archive_manifest.csv"
     )
   )
+
   readr::write_csv(plan$summary, paths[["summary"]], na = "")
   readr::write_csv(
     plan$model_fit_manifest,
@@ -28122,6 +29387,8 @@ write_update_2026_total_eiv_pruning_plan <- function(
 
 # Absolute-exposure study-level residual-correlation sensitivities ----
 
+# Use separate total-intake and prescribed-supplement configurations for the
+# likelihood with study-level residual correlation.
 make_update_2026_absolute_rescor_config <- function(
     family,
     seed_offset
@@ -28134,6 +29401,7 @@ make_update_2026_absolute_rescor_config <- function(
     stop("The absolute residual-correlation configuration is invalid.",
          call. = FALSE)
   }
+
   list(
     family = family,
     outcomes = c("whole_body", "hypertrophy", "strength", "function"),
@@ -28216,12 +29484,14 @@ make_update_2026_absolute_rescor_specifications <- function(
       parallel_chains = 4L
     ) |>
     dplyr::select(-key)
+
   keys <- paste(specifications$outcome, specifications$model_index, sep = "::")
   outcome_counts <- table(factor(specifications$outcome, levels = outcomes))
   schedule_counts <- table(factor(
     specifications$historical_schedule,
     levels = c("base", "remedy_1", "remedy_2", "structural_uncorrelated")
   ))
+
   if (
     nrow(specifications) != 72L || anyDuplicated(keys) ||
       !identical(as.integer(outcome_counts), rep(18L, 4L)) ||
@@ -28238,6 +29508,7 @@ make_update_2026_absolute_rescor_specifications <- function(
     stop("The absolute residual-correlation registry is invalid.",
          call. = FALSE)
   }
+
   output <- purrr::pmap(specifications, list)
   names(output) <- paste0(
     specifications$outcome,
@@ -28258,6 +29529,7 @@ prepare_update_2026_absolute_rescor_input <- function(
 ) {
   data <- data_by_outcome[[specification$outcome]]
   priors <- priors_by_outcome[[specification$outcome]]
+
   if (
     is.null(data) || !nrow(data) || is.null(priors) ||
       !identical(specification$family, family) ||
@@ -28266,6 +29538,7 @@ prepare_update_2026_absolute_rescor_input <- function(
     stop("Absolute residual-correlation inputs are unavailable.",
          call. = FALSE)
   }
+
   required <- c(
     "protein_intake_raw", "protein_intake", "mean_body_mass_kg",
     "absolute_exposure_reference_g_day",
@@ -28275,6 +29548,7 @@ prepare_update_2026_absolute_rescor_input <- function(
     stop("Absolute residual-correlation data are incomplete.",
          call. = FALSE)
   }
+
   reference <- unique(data$absolute_exposure_reference_g_day)
   unit <- unique(data$absolute_exposure_unit_g_day)
   maximum <- max(data$protein_intake_raw, na.rm = TRUE)
@@ -28288,6 +29562,7 @@ prepare_update_2026_absolute_rescor_input <- function(
     stop("The absolute residual-correlation exposure scale is invalid.",
          call. = FALSE)
   }
+
   data <- add_absolute_primary_body_mass(data)
   input <- make_rescor_candidate_data(
     data,
@@ -28299,6 +29574,7 @@ prepare_update_2026_absolute_rescor_input <- function(
       "error"
     }
   )
+
   ordered_data <- add_primary_standardised_moderators(data) |>
     dplyr::arrange(study_no, arm_no, outcome_no)
   exposure_values <- sort(unique(c(
@@ -28309,6 +29585,7 @@ prepare_update_2026_absolute_rescor_input <- function(
     ), 10),
     reference
   )))
+
   grid <- tidyr::crossing(
     resistance_exercise_code = c(0, 1),
     protein_intake_raw = exposure_values
@@ -28426,6 +29703,7 @@ validate_update_2026_absolute_rescor_inputs <- function(
     )
   }) |>
     dplyr::arrange(factor(outcome, levels = outcomes), model_index)
+
   keys <- paste(checks$outcome, checks$model_index, sep = "::")
   outcome_counts <- table(factor(checks$outcome, levels = outcomes))
   schedule_counts <- table(factor(
@@ -28434,6 +29712,7 @@ validate_update_2026_absolute_rescor_inputs <- function(
   ))
   sample_summary <- checks |>
     dplyr::distinct(outcome, contrasts, studies, arms)
+
   if (
     nrow(checks) != 72L || anyDuplicated(keys) || !all(checks$valid) ||
       !identical(as.integer(outcome_counts), rep(18L, 4L)) ||
@@ -28461,6 +29740,7 @@ validate_update_2026_absolute_rescor_inputs <- function(
     stop("The absolute residual-correlation preflight is incomplete.",
          call. = FALSE)
   }
+
   checks
 }
 
@@ -28491,6 +29771,7 @@ read_update_2026_absolute_rescor_fit_file <- function(path, family) {
     candidate$fit$output_files(),
     error = function(e) character()
   )
+
   if (
     !is.list(candidate) || !identical(candidate$family, family) ||
       !inherits(candidate$fit, "CmdStanMCMC") ||
@@ -28500,6 +29781,7 @@ read_update_2026_absolute_rescor_fit_file <- function(path, family) {
     stop("The absolute residual-correlation fit archive is invalid.",
          call. = FALSE)
   }
+
   candidate
 }
 
@@ -28514,6 +29796,7 @@ fit_update_2026_absolute_rescor_candidate_to_file <- function(
     stop("The absolute residual-correlation Stan model was not compiled.",
          call. = FALSE)
   }
+
   specification <- input$specification
   if (
     !identical(input$family, config$family) ||
@@ -28522,6 +29805,7 @@ fit_update_2026_absolute_rescor_candidate_to_file <- function(
     stop("The absolute residual-correlation fit input is misaligned.",
          call. = FALSE)
   }
+
   outcome_offset <- match(specification$outcome, config$outcomes)
   candidate_dir <- file.path(
     output_root,
@@ -28537,6 +29821,7 @@ fit_update_2026_absolute_rescor_candidate_to_file <- function(
     grid = input$grid,
     cluster_manifest = input$cluster_manifest
   )
+
   if (isTRUE(specification$fixed_metric_sampling)) {
     input_signature$metric_source_sha256 <- input$metric_source_sha256
   }
@@ -28558,6 +29843,7 @@ fit_update_2026_absolute_rescor_candidate_to_file <- function(
   } else {
     NULL
   }
+
   if (
     !is.null(existing) &&
       identical(existing$input_sha256, input_sha256) &&
@@ -28565,6 +29851,7 @@ fit_update_2026_absolute_rescor_candidate_to_file <- function(
   ) {
     return(normalizePath(output_file, winslash = "/", mustWork = TRUE))
   }
+
   sample_arguments <- list(
     data = input$stan_data,
     chains = specification$chains,
@@ -28580,6 +29867,7 @@ fit_update_2026_absolute_rescor_candidate_to_file <- function(
     refresh = 100,
     output_dir = cmdstan_dir
   )
+
   fixed_metric_sampling <- isTRUE(specification$fixed_metric_sampling)
   if (fixed_metric_sampling) {
     metric_source_path <- input$metric_source_path
@@ -28644,6 +29932,7 @@ fit_update_2026_absolute_rescor_candidate_to_file <- function(
     sample_arguments$metric_file <- metric_files
     sample_arguments$init <- metric_source$fit
   }
+
   fit <- do.call(model$sample, sample_arguments)
   candidate <- list(
     family = config$family,
@@ -28683,6 +29972,7 @@ fit_update_2026_absolute_rescor_candidate_to_file <- function(
     ),
     fit = fit
   )
+
   write_atomic_qs(candidate, output_file)
 }
 
@@ -28692,6 +29982,7 @@ make_update_2026_absolute_rescor_fit_manifest <- function(
     stage
 ) {
   paths <- unname(unlist(paths, use.names = FALSE))
+
   if (length(paths) != 72L || anyNA(paths) || any(!file.exists(paths))) {
     stop("The absolute residual-correlation fit set is incomplete.",
          call. = FALSE)
@@ -28719,6 +30010,7 @@ make_update_2026_absolute_rescor_fit_manifest <- function(
       )),
       model_index
     )
+
   if (
     anyDuplicated(manifest[c("outcome", "model_index")]) ||
       any(manifest$bytes <= 0) || any(nchar(manifest$sha256) != 64L)
@@ -28726,6 +30018,7 @@ make_update_2026_absolute_rescor_fit_manifest <- function(
     stop("The absolute residual-correlation fit manifest is invalid.",
          call. = FALSE)
   }
+
   manifest
 }
 
@@ -28747,6 +30040,7 @@ compile_update_2026_absolute_rescor_diagnostic_audit <- function(
         "REQUIRES REMEDIATION"
       )
     )
+
   if (
     nrow(summary) != 72L || any(summary$family != family) ||
       anyDuplicated(summary[c("outcome", "model_index")])
@@ -28754,6 +30048,7 @@ compile_update_2026_absolute_rescor_diagnostic_audit <- function(
     stop("The absolute residual-correlation diagnostic audit is incomplete.",
          call. = FALSE)
   }
+
   list(
     family = family,
     diagnostic_summary = summary,
@@ -28813,6 +30108,7 @@ make_update_2026_absolute_rescor_remedy_inputs <- function(
     "function::9", "function::15", "function::18", "function::20",
     "function::21", "function::24"
   )
+
   expected_convergence_keys <- "whole_body::11"
   expected_geometry_keys <- setdiff(expected_keys, expected_convergence_keys)
   failed <- diagnostic_audit$diagnostic_summary |>
@@ -28822,6 +30118,7 @@ make_update_2026_absolute_rescor_remedy_inputs <- function(
   convergence_keys <- failed$key[
     failed$geometry_pass & !failed$convergence_pass
   ]
+
   if (
     !identical(diagnostic_audit$family, family) ||
       diagnostic_audit$models != 72L || nrow(failed) != 15L ||
@@ -28918,6 +30215,7 @@ make_update_2026_absolute_rescor_remedy_inputs <- function(
       input$specification <- specification
       input
     })
+
   selected_keys <- purrr::map_chr(selected, function(input) {
     paste(
       input$specification$outcome,
@@ -28925,6 +30223,7 @@ make_update_2026_absolute_rescor_remedy_inputs <- function(
       sep = "::"
     )
   })
+
   if (
     length(selected) != 15L || anyDuplicated(selected_keys) ||
       !setequal(selected_keys, expected_keys)
@@ -28932,6 +30231,7 @@ make_update_2026_absolute_rescor_remedy_inputs <- function(
     stop("The absolute residual-correlation remedy inputs are incomplete.",
          call. = FALSE)
   }
+
   selected <- selected[match(expected_keys, selected_keys)]
   names(selected) <- paste0(
     purrr::map_chr(selected, ~ .x$specification$outcome),
@@ -28942,6 +30242,7 @@ make_update_2026_absolute_rescor_remedy_inputs <- function(
       pad = "0"
     )
   )
+
   selected
 }
 
@@ -28959,6 +30260,7 @@ make_update_2026_supplement_rescor_remedy_inputs <- function(
     "function::18", "function::20", "function::23", "function::24",
     "function::26"
   )
+
   failed <- diagnostic_audit$diagnostic_summary |>
     dplyr::filter(!diagnostic_pass) |>
     dplyr::mutate(key = paste(outcome, model_index, sep = "::"))
@@ -28974,6 +30276,7 @@ make_update_2026_supplement_rescor_remedy_inputs <- function(
     stop("The supplement residual-correlation remedy set is invalid.",
          call. = FALSE)
   }
+
   selected <- purrr::keep(inputs, function(input) {
     paste(
       input$specification$outcome,
@@ -29038,6 +30341,7 @@ make_update_2026_supplement_rescor_remedy_inputs <- function(
       input$specification <- specification
       input
     })
+
   selected_keys <- purrr::map_chr(selected, function(input) {
     paste(
       input$specification$outcome,
@@ -29045,6 +30349,7 @@ make_update_2026_supplement_rescor_remedy_inputs <- function(
       sep = "::"
     )
   })
+
   if (
     length(selected) != 24L || anyDuplicated(selected_keys) ||
       !setequal(selected_keys, expected_keys)
@@ -29052,6 +30357,7 @@ make_update_2026_supplement_rescor_remedy_inputs <- function(
     stop("The supplement residual-correlation remedy inputs are incomplete.",
          call. = FALSE)
   }
+
   selected <- selected[match(expected_keys, selected_keys)]
   names(selected) <- paste0(
     purrr::map_chr(selected, ~ .x$specification$outcome),
@@ -29062,6 +30368,7 @@ make_update_2026_supplement_rescor_remedy_inputs <- function(
       pad = "0"
     )
   )
+
   selected
 }
 
@@ -29115,6 +30422,7 @@ validate_update_2026_supplement_rescor_remedy_inputs <- function(
       )),
       model_index
     )
+
   level_counts <- table(factor(
     checks$remedy_level,
     levels = c("geometry_1", "geometry_2", "geometry_3")
@@ -29133,6 +30441,7 @@ validate_update_2026_supplement_rescor_remedy_inputs <- function(
       expected
     )
   }, logical(1L)))
+
   if (
     nrow(initial_manifest) != 72L || anyDuplicated(initial_keys) ||
       nrow(checks) != 24L ||
@@ -29145,6 +30454,7 @@ validate_update_2026_supplement_rescor_remedy_inputs <- function(
     stop("The supplement residual-correlation remedy preflight is incomplete.",
          call. = FALSE)
   }
+
   checks
 }
 
@@ -29173,6 +30483,7 @@ make_update_2026_supplement_rescor_remedy_fit_manifest <- function(paths) {
     stop("The supplement rescor remedy fit set is incomplete.",
          call. = FALSE)
   }
+
   manifest <- purrr::map_dfr(paths, function(path) {
     candidate <- read_update_2026_absolute_rescor_fit_file(
       path,
@@ -29197,6 +30508,7 @@ make_update_2026_supplement_rescor_remedy_fit_manifest <- function(paths) {
       )),
       model_index
     )
+
   if (
     nrow(manifest) != 24L ||
       any(manifest$family != "supplement_rescor") ||
@@ -29207,6 +30519,7 @@ make_update_2026_supplement_rescor_remedy_fit_manifest <- function(paths) {
     stop("The supplement rescor remedy manifest is invalid.",
          call. = FALSE)
   }
+
   manifest
 }
 
@@ -29226,6 +30539,7 @@ write_update_2026_supplement_rescor_remedy_fit_manifest <- function(
     stop("Cannot write an invalid supplement rescor remedy manifest.",
          call. = FALSE)
   }
+
   dir.create(dirname(output_file), recursive = TRUE, showWarnings = FALSE)
   readr::write_csv(manifest, output_file, na = "")
   output_file
@@ -29259,6 +30573,7 @@ make_update_2026_supplement_rescor_second_remedy_inputs <- function(
     previous_manifest$model_index,
     sep = "::"
   )
+
   if (
     !identical(diagnostic_audit$family, "supplement_rescor") ||
       diagnostic_audit$models != 72L || nrow(failed) != 10L ||
@@ -29276,6 +30591,7 @@ make_update_2026_supplement_rescor_second_remedy_inputs <- function(
     stop("The second supplement rescor remedy set is invalid.",
          call. = FALSE)
   }
+
   selected <- purrr::keep(inputs, function(input) {
     paste(
       input$specification$outcome,
@@ -29337,6 +30653,7 @@ make_update_2026_supplement_rescor_second_remedy_inputs <- function(
       input$specification <- specification
       input
     })
+
   selected_keys <- purrr::map_chr(selected, function(input) {
     paste(
       input$specification$outcome,
@@ -29344,6 +30661,7 @@ make_update_2026_supplement_rescor_second_remedy_inputs <- function(
       sep = "::"
     )
   })
+
   if (
     length(selected) != 10L || anyDuplicated(selected_keys) ||
       !setequal(selected_keys, expected_keys)
@@ -29351,6 +30669,7 @@ make_update_2026_supplement_rescor_second_remedy_inputs <- function(
     stop("The second supplement rescor inputs are incomplete.",
          call. = FALSE)
   }
+
   selected <- selected[match(expected_keys, selected_keys)]
   names(selected) <- paste0(
     purrr::map_chr(selected, ~ .x$specification$outcome),
@@ -29361,6 +30680,7 @@ make_update_2026_supplement_rescor_second_remedy_inputs <- function(
       pad = "0"
     )
   )
+
   selected
 }
 
@@ -29412,6 +30732,7 @@ validate_update_2026_supplement_rescor_second_remedy_inputs <- function(
       factor(outcome, levels = c("hypertrophy", "function")),
       model_index
     )
+
   level_counts <- table(factor(
     checks$remedy_level,
     levels = c("geometry_2", "geometry_3", "geometry_4")
@@ -29430,6 +30751,7 @@ validate_update_2026_supplement_rescor_second_remedy_inputs <- function(
       expected
     )
   }, logical(1L)))
+
   if (
     nrow(previous_manifest) != 24L || anyDuplicated(previous_keys) ||
       nrow(checks) != 10L ||
@@ -29442,6 +30764,7 @@ validate_update_2026_supplement_rescor_second_remedy_inputs <- function(
     stop("The second supplement rescor remedy preflight is incomplete.",
          call. = FALSE)
   }
+
   checks
 }
 
@@ -29472,6 +30795,7 @@ make_update_2026_supplement_rescor_second_remedy_fit_manifest <- function(
     stop("The second supplement rescor fit set is incomplete.",
          call. = FALSE)
   }
+
   manifest <- purrr::map_dfr(paths, function(path) {
     candidate <- read_update_2026_absolute_rescor_fit_file(
       path,
@@ -29494,6 +30818,7 @@ make_update_2026_supplement_rescor_second_remedy_fit_manifest <- function(
       factor(outcome, levels = c("hypertrophy", "function")),
       model_index
     )
+
   if (
     nrow(manifest) != 10L ||
       any(manifest$family != "supplement_rescor") ||
@@ -29504,6 +30829,7 @@ make_update_2026_supplement_rescor_second_remedy_fit_manifest <- function(
     stop("The second supplement rescor manifest is invalid.",
          call. = FALSE)
   }
+
   manifest
 }
 
@@ -29523,6 +30849,7 @@ write_update_2026_supplement_rescor_second_remedy_fit_manifest <- function(
     stop("Cannot write an invalid second supplement rescor manifest.",
          call. = FALSE)
   }
+
   dir.create(dirname(output_file), recursive = TRUE, showWarnings = FALSE)
   readr::write_csv(manifest, output_file, na = "")
   output_file
@@ -29585,6 +30912,7 @@ validate_update_2026_absolute_rescor_remedy_inputs <- function(
       )),
       model_index
     )
+
   expected <- tibble::tribble(
     ~outcome, ~model_index, ~remedy_level, ~adapt_delta,
     ~max_treedepth, ~iter_warmup, ~iter_sampling,
@@ -29604,6 +30932,7 @@ validate_update_2026_absolute_rescor_remedy_inputs <- function(
     "function", 21L, "geometry_1", 0.999, 15L, 3000L, 8000L,
     "function", 24L, "geometry_1", 0.999, 15L, 3000L, 8000L
   )
+
   comparison <- checks |>
     dplyr::left_join(
       expected,
@@ -29611,6 +30940,7 @@ validate_update_2026_absolute_rescor_remedy_inputs <- function(
       suffix = c("", "_expected")
     )
   keys <- paste(checks$outcome, checks$model_index, sep = "::")
+
   if (
     nrow(initial_manifest) != 72L || anyDuplicated(initial_keys) ||
       nrow(checks) != 15L || anyDuplicated(keys) ||
@@ -29627,6 +30957,7 @@ validate_update_2026_absolute_rescor_remedy_inputs <- function(
     stop("The absolute residual-correlation remedy preflight is incomplete.",
          call. = FALSE)
   }
+
   checks
 }
 
@@ -29659,6 +30990,7 @@ make_update_2026_absolute_rescor_remedy_fit_manifest <- function(
     stop("The absolute residual-correlation remedy fit set is incomplete.",
          call. = FALSE)
   }
+
   manifest <- purrr::map_dfr(paths, function(path) {
     candidate <- read_update_2026_absolute_rescor_fit_file(path, family)
     tibble::tibble(
@@ -29684,6 +31016,7 @@ make_update_2026_absolute_rescor_remedy_fit_manifest <- function(
       )),
       model_index
     )
+
   keys <- paste(manifest$outcome, manifest$model_index, sep = "::")
   if (
     nrow(manifest) != 15L || any(manifest$family != family) ||
@@ -29693,6 +31026,7 @@ make_update_2026_absolute_rescor_remedy_fit_manifest <- function(
     stop("The absolute residual-correlation remedy manifest is invalid.",
          call. = FALSE)
   }
+
   manifest
 }
 
@@ -29726,6 +31060,7 @@ compile_update_2026_absolute_rescor_final_diagnostic_audit <- function(
   remedy_keys <- paste(remedy$outcome, remedy$model_index, sep = "::")
   failed_keys <- initial_keys[!initial$diagnostic_pass]
   original_rows <- initial[match(remedy_keys, initial_keys), , drop = FALSE]
+
   if (
     !identical(initial_audit$family, family) ||
       nrow(initial) != 72L ||
@@ -29738,6 +31073,7 @@ compile_update_2026_absolute_rescor_final_diagnostic_audit <- function(
     stop("The absolute residual-correlation diagnostic replacement is invalid.",
          call. = FALSE)
   }
+
   final <- initial |>
     dplyr::filter(
       !paste(outcome, model_index, sep = "::") %in% remedy_keys
@@ -29768,6 +31104,7 @@ make_update_2026_absolute_rescor_second_remedy_inputs <- function(
     "function::20" = 3,
     "function::21" = 3
   )
+
   failed <- diagnostic_audit$diagnostic_summary |>
     dplyr::filter(!diagnostic_pass) |>
     dplyr::mutate(key = paste(outcome, model_index, sep = "::"))
@@ -29775,6 +31112,7 @@ make_update_2026_absolute_rescor_second_remedy_inputs <- function(
     failed$divergent_transitions,
     failed$key
   )
+
   if (
     !identical(diagnostic_audit$family, family) ||
       diagnostic_audit$models != 72L || nrow(failed) != 7L ||
@@ -29854,6 +31192,7 @@ make_update_2026_absolute_rescor_second_remedy_inputs <- function(
       input$specification <- specification
       input
     })
+
   selected_keys <- purrr::map_chr(selected, function(input) {
     paste(
       input$specification$outcome,
@@ -29861,6 +31200,7 @@ make_update_2026_absolute_rescor_second_remedy_inputs <- function(
       sep = "::"
     )
   })
+
   if (
     length(selected) != 7L || anyDuplicated(selected_keys) ||
       !setequal(selected_keys, expected_keys)
@@ -29868,6 +31208,7 @@ make_update_2026_absolute_rescor_second_remedy_inputs <- function(
     stop("The second absolute residual-correlation inputs are incomplete.",
          call. = FALSE)
   }
+
   selected <- selected[match(expected_keys, selected_keys)]
   names(selected) <- paste0(
     purrr::map_chr(selected, ~ .x$specification$outcome),
@@ -29878,6 +31219,7 @@ make_update_2026_absolute_rescor_second_remedy_inputs <- function(
       pad = "0"
     )
   )
+
   selected
 }
 
@@ -29933,6 +31275,7 @@ validate_update_2026_absolute_rescor_second_remedy_inputs <- function(
     )
   }) |>
     dplyr::arrange(model_index)
+
   expected <- tibble::tribble(
     ~model_index, ~remedy_level, ~adapt_delta, ~max_treedepth,
     ~iter_warmup, ~iter_sampling,
@@ -29944,6 +31287,7 @@ validate_update_2026_absolute_rescor_second_remedy_inputs <- function(
     20L, "geometry_2", 0.9999, 16L, 3000L, 8000L,
     21L, "geometry_2", 0.9999, 16L, 3000L, 8000L
   )
+
   comparison <- checks |>
     dplyr::left_join(
       expected,
@@ -29951,6 +31295,7 @@ validate_update_2026_absolute_rescor_second_remedy_inputs <- function(
       suffix = c("", "_expected")
     )
   keys <- paste(checks$outcome, checks$model_index, sep = "::")
+
   if (
     nrow(previous_manifest) != 15L || anyDuplicated(previous_keys) ||
       nrow(checks) != 7L || any(checks$outcome != "function") ||
@@ -29969,6 +31314,7 @@ validate_update_2026_absolute_rescor_second_remedy_inputs <- function(
       call. = FALSE
     )
   }
+
   checks
 }
 
@@ -30001,6 +31347,7 @@ make_update_2026_absolute_rescor_second_remedy_fit_manifest <- function(
       call. = FALSE
     )
   }
+
   manifest <- purrr::map_dfr(paths, function(path) {
     candidate <- read_update_2026_absolute_rescor_fit_file(path, family)
     tibble::tibble(
@@ -30021,6 +31368,7 @@ make_update_2026_absolute_rescor_second_remedy_fit_manifest <- function(
     )
   }) |>
     dplyr::arrange(model_index)
+
   keys <- paste(manifest$outcome, manifest$model_index, sep = "::")
   if (
     nrow(manifest) != 7L || any(manifest$family != family) ||
@@ -30031,6 +31379,7 @@ make_update_2026_absolute_rescor_second_remedy_fit_manifest <- function(
     stop("The second absolute residual-correlation manifest is invalid.",
          call. = FALSE)
   }
+
   manifest
 }
 
@@ -30049,6 +31398,7 @@ write_update_2026_absolute_rescor_second_remedy_fit_manifest <- function(
       call. = FALSE
     )
   }
+
   dir.create(dirname(output_file), recursive = TRUE, showWarnings = FALSE)
   readr::write_csv(manifest, output_file, na = "")
   output_file
@@ -30124,6 +31474,7 @@ make_update_2026_absolute_rescor_third_remedy_inputs <- function(
     previous_manifest$model_index,
     sep = "::"
   )
+
   if (
     !identical(diagnostic_audit$family, family) ||
       diagnostic_audit$models != 72L || nrow(failed) != expected_count ||
@@ -30186,6 +31537,7 @@ make_update_2026_absolute_rescor_third_remedy_inputs <- function(
         previous_manifest$sha256[[previous_index]]
       input
     })
+
   selected_keys <- purrr::map_chr(selected, function(input) {
     paste(
       input$specification$outcome,
@@ -30193,6 +31545,7 @@ make_update_2026_absolute_rescor_third_remedy_inputs <- function(
       sep = "::"
     )
   })
+
   if (
     length(selected) != expected_count || anyDuplicated(selected_keys) ||
       !setequal(selected_keys, expected_keys)
@@ -30200,6 +31553,7 @@ make_update_2026_absolute_rescor_third_remedy_inputs <- function(
     stop("The third absolute residual-correlation inputs are incomplete.",
          call. = FALSE)
   }
+
   selected <- selected[match(expected_keys, selected_keys)]
   names(selected) <- paste0(
     purrr::map_chr(selected, ~ .x$specification$outcome),
@@ -30210,6 +31564,7 @@ make_update_2026_absolute_rescor_third_remedy_inputs <- function(
       pad = "0"
     )
   )
+
   selected
 }
 
@@ -30294,6 +31649,7 @@ validate_update_2026_absolute_rescor_third_remedy_inputs <- function(
       ),
       model_index
     )
+
   expected <- remedy_spec$expected
   comparison <- checks |>
     dplyr::left_join(
@@ -30302,6 +31658,7 @@ validate_update_2026_absolute_rescor_third_remedy_inputs <- function(
       suffix = c("", "_expected")
     )
   keys <- paste(checks$outcome, checks$model_index, sep = "::")
+
   if (
     nrow(previous_manifest) != remedy_spec$previous_manifest_rows ||
       anyDuplicated(previous_keys) || nrow(checks) != expected_count ||
@@ -30322,6 +31679,7 @@ validate_update_2026_absolute_rescor_third_remedy_inputs <- function(
       call. = FALSE
     )
   }
+
   checks
 }
 
@@ -30332,6 +31690,7 @@ write_update_2026_absolute_rescor_third_remedy_preflight <- function(
 ) {
   remedy_spec <- update_2026_absolute_rescor_third_remedy_spec(family)
   keys <- paste(checks$outcome, checks$model_index, sep = "::")
+
   if (
     nrow(checks) != length(remedy_spec$keys) ||
       !setequal(keys, remedy_spec$keys) || !all(checks$valid)
@@ -30341,6 +31700,7 @@ write_update_2026_absolute_rescor_third_remedy_preflight <- function(
       call. = FALSE
     )
   }
+
   dir.create(dirname(output_file), recursive = TRUE, showWarnings = FALSE)
   readr::write_csv(checks, output_file, na = "")
   output_file
@@ -30353,6 +31713,7 @@ make_update_2026_absolute_rescor_third_remedy_fit_manifest <- function(
   remedy_spec <- update_2026_absolute_rescor_third_remedy_spec(family)
   expected_count <- length(remedy_spec$keys)
   paths <- unname(unlist(paths, use.names = FALSE))
+
   if (
     length(paths) != expected_count || anyNA(paths) ||
       any(!file.exists(paths)) || any(file.info(paths)$size <= 0)
@@ -30362,6 +31723,7 @@ make_update_2026_absolute_rescor_third_remedy_fit_manifest <- function(
       call. = FALSE
     )
   }
+
   manifest <- purrr::map_dfr(paths, function(path) {
     candidate <- read_update_2026_absolute_rescor_fit_file(path, family)
     tibble::tibble(
@@ -30392,6 +31754,7 @@ make_update_2026_absolute_rescor_third_remedy_fit_manifest <- function(
       ),
       model_index
     )
+
   keys <- paste(manifest$outcome, manifest$model_index, sep = "::")
   if (
     nrow(manifest) != expected_count || any(manifest$family != family) ||
@@ -30404,6 +31767,7 @@ make_update_2026_absolute_rescor_third_remedy_fit_manifest <- function(
     stop("The third absolute residual-correlation manifest is invalid.",
          call. = FALSE)
   }
+
   manifest
 }
 
@@ -30414,6 +31778,7 @@ write_update_2026_absolute_rescor_third_remedy_fit_manifest <- function(
 ) {
   remedy_spec <- update_2026_absolute_rescor_third_remedy_spec(family)
   keys <- paste(manifest$outcome, manifest$model_index, sep = "::")
+
   if (
     nrow(manifest) != length(remedy_spec$keys) ||
       any(manifest$family != family) || anyDuplicated(keys) ||
@@ -30426,6 +31791,7 @@ write_update_2026_absolute_rescor_third_remedy_fit_manifest <- function(
       call. = FALSE
     )
   }
+
   dir.create(dirname(output_file), recursive = TRUE, showWarnings = FALSE)
   readr::write_csv(manifest, output_file, na = "")
   output_file
@@ -30470,6 +31836,7 @@ make_update_2026_absolute_rescor_accepted_fit_manifest <- function(
       ) |>
       dplyr::bind_rows(replacement)
   }
+
   accepted <- initial_manifest |>
     replace_rows(remedy_manifest) |>
     replace_rows(second_remedy_manifest) |>
@@ -30481,6 +31848,7 @@ make_update_2026_absolute_rescor_accepted_fit_manifest <- function(
       ),
       model_index
     )
+
   accepted_keys <- paste(
     accepted$outcome,
     accepted$model_index,
@@ -30500,6 +31868,7 @@ make_update_2026_absolute_rescor_accepted_fit_manifest <- function(
     accepted$stage,
     levels = c("initial", "remedy_1", "remedy_2", "remedy_3")
   ))
+
   if (
     nrow(initial_manifest) != 72L ||
       nrow(remedy_manifest) != stage_spec$remedy_manifest_rows ||
@@ -30524,6 +31893,7 @@ make_update_2026_absolute_rescor_accepted_fit_manifest <- function(
     stop("The accepted absolute residual-correlation manifest is invalid.",
          call. = FALSE)
   }
+
   accepted
 }
 
@@ -30541,6 +31911,7 @@ write_update_2026_absolute_rescor_accepted_fit_manifest <- function(
     manifest$stage,
     levels = c("initial", "remedy_1", "remedy_2", "remedy_3")
   ))
+
   if (
     nrow(manifest) != 72L || any(manifest$family != family) ||
       !identical(as.integer(outcome_counts), rep(18L, 4L)) ||
@@ -30554,6 +31925,7 @@ write_update_2026_absolute_rescor_accepted_fit_manifest <- function(
     stop("Cannot write an invalid absolute residual-correlation manifest.",
          call. = FALSE)
   }
+
   dir.create(dirname(output_file), recursive = TRUE, showWarnings = FALSE)
   readr::write_csv(manifest, output_file, na = "")
   output_file
@@ -30627,6 +31999,7 @@ validate_update_2026_absolute_rescor_loo_inputs <- function(
         identical(as.integer(cores_per_branch), 1L)
     )
   )
+
   ready <-
     nrow(accepted_fit_manifest) == 72L &&
     !anyDuplicated(accepted_keys) && all(checks$passed)
@@ -30634,6 +32007,7 @@ validate_update_2026_absolute_rescor_loo_inputs <- function(
     stop("The absolute residual-correlation LOO preflight is incomplete.",
          call. = FALSE)
   }
+
   list(
     family = family,
     models = 72L,
@@ -30659,6 +32033,7 @@ write_update_2026_absolute_rescor_loo_preflight <- function(
     stop("Cannot write an invalid absolute residual-correlation LOO preflight.",
          call. = FALSE)
   }
+
   dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
   paths <- c(
     checks = file.path(output_dir, "checks.csv"),
@@ -30676,6 +32051,8 @@ write_update_2026_absolute_rescor_loo_preflight <- function(
   unname(paths)
 }
 
+# Prepare the accepted residual-correlation fits for holdout scoring while
+# retaining the exposure family and candidate identifiers.
 make_update_2026_absolute_rescor_loo_records <- function(
     accepted_fit_manifest,
     inputs,
@@ -30693,6 +32070,7 @@ make_update_2026_absolute_rescor_loo_records <- function(
       sep = "::"
     )
   })
+
   if (
     nrow(accepted_fit_manifest) != 72L || length(inputs) != 72L ||
       any(accepted_fit_manifest$family != family) ||
@@ -30703,6 +32081,7 @@ make_update_2026_absolute_rescor_loo_records <- function(
     stop("The absolute residual-correlation fit/input registry is misaligned.",
          call. = FALSE)
   }
+
   records <- purrr::map(seq_len(nrow(accepted_fit_manifest)), function(row) {
     record <- purrr::map(
       as.list(accepted_fit_manifest[row, , drop = FALSE]),
@@ -30711,6 +32090,7 @@ make_update_2026_absolute_rescor_loo_records <- function(
     record$input <- inputs[[match(accepted_keys[[row]], input_keys)]]
     record
   })
+
   names(records) <- paste0(
     accepted_fit_manifest$outcome,
     "_model_",
@@ -30744,6 +32124,7 @@ compute_update_2026_absolute_rescor_integrated_loo_to_file <- function(
       call. = FALSE
     )
   }
+
   candidate <- read_update_2026_absolute_rescor_fit_file(
     fit_record$fit_path,
     family
@@ -30760,6 +32141,7 @@ compute_update_2026_absolute_rescor_integrated_loo_to_file <- function(
     stop("The absolute residual-correlation LOO record is misaligned.",
          call. = FALSE)
   }
+
   available <- posterior::ndraws(candidate$fit$draws("b_intercept"))
   draw_ids <- make_sensitivity_loo_draw_ids(
     available,
@@ -30771,6 +32153,7 @@ compute_update_2026_absolute_rescor_integrated_loo_to_file <- function(
   integrated_log_lik <- posterior::as_draws_matrix(
     candidate$fit$draws("log_lik_cluster_integrated")
   )[draw_ids, , drop = FALSE]
+
   if (
     ncol(conditional_log_lik) != nrow(input$cluster_manifest) ||
       ncol(integrated_log_lik) != nrow(input$cluster_manifest) ||
@@ -30780,6 +32163,7 @@ compute_update_2026_absolute_rescor_integrated_loo_to_file <- function(
     stop("The absolute residual-correlation log likelihood is invalid.",
          call. = FALSE)
   }
+
   result <- list(
     family = family,
     outcome = candidate$outcome,
@@ -30800,6 +32184,7 @@ compute_update_2026_absolute_rescor_integrated_loo_to_file <- function(
     )],
     input = input
   )
+
   output_dir <- file.path(output_root, result$outcome)
   dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
   output_file <- file.path(
@@ -30822,6 +32207,7 @@ write_update_2026_absolute_rescor_integrated_loo_audit <- function(
       "integrated_study_cluster_psis"
     )
   ))
+
   if (
     !identical(audit$family, family) || audit$models != 72L ||
       nrow(manifest) != 72L || nrow(audit$model_summary) != 144L ||
@@ -30835,6 +32221,7 @@ write_update_2026_absolute_rescor_integrated_loo_audit <- function(
     stop("The absolute residual-correlation LOO audit is incomplete.",
          call. = FALSE)
   }
+
   dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
   paths <- c(
     reduction_manifest = file.path(output_dir, "reduction_manifest.csv"),
@@ -30867,6 +32254,7 @@ make_update_2026_absolute_rescor_exact_config <- function(
   config$adapt_delta_floor <- as.numeric(adapt_delta)
   config$max_treedepth_floor <- as.integer(max_treedepth)
   config$seed <- as.integer(base_config$seed + seed_offset)
+
   if (
     !config$family %in% c("total_rescor", "supplement_rescor") ||
       config$chains != 4L || config$parallel_chains != 4L ||
@@ -30877,6 +32265,7 @@ make_update_2026_absolute_rescor_exact_config <- function(
     stop("The absolute residual-correlation exact-LOO config is invalid.",
          call. = FALSE)
   }
+
   config
 }
 
@@ -30910,6 +32299,7 @@ make_update_2026_absolute_rescor_leave_one_study_out_data <- function(
     stop("Invalid held-out absolute residual-correlation study.",
          call. = FALSE)
   }
+
   first <- stan_data$cluster_start[[cluster]]
   last <- stan_data$cluster_end[[cluster]]
   keep <- setdiff(seq_len(stan_data$N), seq.int(first, last))
@@ -30917,6 +32307,7 @@ make_update_2026_absolute_rescor_leave_one_study_out_data <- function(
     "y", "se_y", "x", "study", "arm", "outcome",
     "resistance_exercise_code", "age_z", "duration_z", "body_mass_z"
   )
+
   if (
     !all(row_fields %in% names(stan_data)) ||
       any(vapply(stan_data[row_fields], length, integer(1L)) != stan_data$N)
@@ -30924,6 +32315,7 @@ make_update_2026_absolute_rescor_leave_one_study_out_data <- function(
     stop("Absolute residual-correlation row data are incomplete.",
          call. = FALSE)
   }
+
   for (field in row_fields) {
     stan_data[[field]] <- stan_data[[field]][keep]
   }
@@ -30942,6 +32334,7 @@ make_update_2026_absolute_rescor_leave_one_study_out_data <- function(
     1L,
     utils::head(stan_data$cluster_end, -1L) + 1L
   ))
+
   if (max(runs$lengths) <= 1L) {
     stop("The training data cannot identify residual correlation.",
          call. = FALSE)
@@ -30961,6 +32354,7 @@ validate_update_2026_absolute_rescor_exact_inputs <- function(
 ) {
   exact_spec <- update_2026_absolute_rescor_exact_initial_spec(config$family)
   expected <- as.integer(integrated_audit$exact_refits_required)
+
   if (
     !is.list(records) ||
       as.integer(expected_cases) != exact_spec$expected_cases ||
@@ -30970,6 +32364,7 @@ validate_update_2026_absolute_rescor_exact_inputs <- function(
     stop("The absolute residual-correlation exact-refit set has changed.",
          call. = FALSE)
   }
+
   checks <- purrr::map_dfr(records, function(record) {
     original_fit_exists <- file.exists(record$original_fit_path)
     integrated_loo_exists <- file.exists(record$integrated_loo_path)
@@ -31092,6 +32487,7 @@ validate_update_2026_absolute_rescor_exact_inputs <- function(
     )
   }) |>
     dplyr::arrange(case_id)
+
   outcome_counts <- table(factor(
     checks$outcome,
     levels = c("whole_body", "hypertrophy", "strength", "function")
@@ -31117,6 +32513,7 @@ validate_update_2026_absolute_rescor_exact_inputs <- function(
     stop("The absolute residual-correlation exact preflight is incomplete.",
          call. = FALSE)
   }
+
   checks
 }
 
@@ -31144,6 +32541,7 @@ read_update_2026_absolute_rescor_exact_fit_file <- function(path, family) {
     refit$fitted_candidate$fit$output_files(),
     error = function(e) character()
   )
+
   if (
     !is.list(refit) || !identical(refit$family, family) ||
       !inherits(refit$fitted_candidate$fit, "CmdStanMCMC") ||
@@ -31153,6 +32551,7 @@ read_update_2026_absolute_rescor_exact_fit_file <- function(path, family) {
     stop("An absolute residual-correlation exact-refit file is invalid.",
          call. = FALSE)
   }
+
   refit
 }
 
@@ -31183,6 +32582,7 @@ fit_update_2026_absolute_rescor_exact_to_file <- function(
       call. = FALSE
     )
   }
+
   if (is_sensitivity_pilot_skip(model)) {
     stop("The absolute residual-correlation Stan model was not compiled.",
          call. = FALSE)
@@ -31214,6 +32614,7 @@ fit_update_2026_absolute_rescor_exact_to_file <- function(
     metric_source_sha256 = metric_source_sha256,
     fixed_step_size = fixed_step_size
   )
+
   signature_sha256 <- digest::digest(signature, algo = "sha256")
   existing <- if (file.exists(output_file)) {
     tryCatch(
@@ -31226,12 +32627,14 @@ fit_update_2026_absolute_rescor_exact_to_file <- function(
   } else {
     NULL
   }
+
   if (
     !is.null(existing) &&
       identical(existing$signature_sha256, signature_sha256)
   ) {
     return(normalizePath(output_file, winslash = "/", mustWork = TRUE))
   }
+
   integrated_result <- qs::qread(record$integrated_loo_path)
   input <- integrated_result$input
   if (
@@ -31242,6 +32645,7 @@ fit_update_2026_absolute_rescor_exact_to_file <- function(
     stop("The absolute residual-correlation exact record is misaligned.",
          call. = FALSE)
   }
+
   training_data <-
     make_update_2026_absolute_rescor_leave_one_study_out_data(
       input$stan_data,
@@ -31268,6 +32672,7 @@ fit_update_2026_absolute_rescor_exact_to_file <- function(
     refresh = 100,
     output_dir = cmdstan_dir
   )
+
   if (fixed_metric_sampling) {
     if (
       length(metric_source_path) != 1L || is.na(metric_source_path) ||
@@ -31328,6 +32733,7 @@ fit_update_2026_absolute_rescor_exact_to_file <- function(
     specification$adapt_engaged <- FALSE
     specification$step_size <- as.numeric(fixed_step_size)
   }
+
   start_time <- proc.time()[["elapsed"]]
   fit <- do.call(model$sample, sample_arguments)
   fitted_candidate <- list(
@@ -31345,6 +32751,7 @@ fit_update_2026_absolute_rescor_exact_to_file <- function(
     ),
     fit = fit
   )
+
   refit <- list(
     case_id = as.integer(record$case_id),
     family = config$family,
@@ -31374,6 +32781,7 @@ fit_update_2026_absolute_rescor_exact_to_file <- function(
     ),
     refit_seconds = proc.time()[["elapsed"]] - start_time
   )
+
   write_atomic_qs(refit, output_file)
 }
 
@@ -31391,6 +32799,7 @@ make_update_2026_absolute_rescor_exact_fit_manifest <- function(
     stop("The absolute residual-correlation exact-fit set is incomplete.",
          call. = FALSE)
   }
+
   manifest <- purrr::map_dfr(paths, function(path) {
     refit <- read_update_2026_absolute_rescor_exact_fit_file(path, family)
     tibble::tibble(
@@ -31411,6 +32820,7 @@ make_update_2026_absolute_rescor_exact_fit_manifest <- function(
     )
   }) |>
     dplyr::arrange(case_id)
+
   if (
     nrow(manifest) != expected_cases ||
       !identical(manifest$case_id, as.integer(expected_case_ids)) ||
@@ -31426,6 +32836,7 @@ make_update_2026_absolute_rescor_exact_fit_manifest <- function(
     stop("The absolute residual-correlation exact manifest is invalid.",
          call. = FALSE)
   }
+
   manifest
 }
 
@@ -31454,6 +32865,7 @@ write_update_2026_absolute_rescor_exact_audit <- function(
     stop("The absolute residual-correlation exact audit is incomplete.",
          call. = FALSE)
   }
+
   dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
   paths <- c(
     fit_manifest = file.path(output_dir, "fit_manifest.csv"),
@@ -31547,6 +32959,7 @@ make_update_2026_absolute_rescor_exact_remedy_config <- function(
     as.integer(max_treedepth)
   )
   config$seed <- as.integer(exact_config$seed + seed_offset)
+
   if (
     !config$family %in% c("total_rescor", "supplement_rescor") ||
       config$chains != 4L || config$parallel_chains != 4L ||
@@ -31559,6 +32972,7 @@ make_update_2026_absolute_rescor_exact_remedy_config <- function(
       call. = FALSE
     )
   }
+
   config
 }
 
@@ -31581,6 +32995,7 @@ select_update_2026_absolute_rescor_exact_remedy_records <- function(
     sep = "::"
   )
   expected_keys <- remedy_spec$keys
+
   if (
     exact_audit$exact_refits != remedy_spec$initial_cases ||
       exact_audit$exact_refits_requiring_remediation !=
@@ -31602,6 +33017,7 @@ select_update_2026_absolute_rescor_exact_remedy_records <- function(
       call. = FALSE
     )
   }
+
   selected <- purrr::keep(records, function(record) {
     paste(
       as.integer(record$case_id),
@@ -31611,6 +33027,7 @@ select_update_2026_absolute_rescor_exact_remedy_records <- function(
       sep = "::"
     ) %in% expected_keys
   })
+
   selected_keys <- purrr::map_chr(selected, function(record) {
     paste(
       as.integer(record$case_id),
@@ -31620,6 +33037,7 @@ select_update_2026_absolute_rescor_exact_remedy_records <- function(
       sep = "::"
     )
   })
+
   if (
     length(selected) != remedy_spec$remedy_cases ||
       !identical(selected_keys, expected_keys)
@@ -31629,6 +33047,7 @@ select_update_2026_absolute_rescor_exact_remedy_records <- function(
       call. = FALSE
     )
   }
+
   names(selected) <- sprintf(
     "case_%03d_%s_model_%02d_observation_%03d",
     purrr::map_int(selected, ~ as.integer(.x$case_id)),
@@ -31647,6 +33066,7 @@ validate_update_2026_absolute_rescor_exact_remedy_inputs <- function(
   remedy_spec <- update_2026_absolute_rescor_exact_remedy_spec(
     config$family
   )
+
   if (
     !is.list(records) || length(records) != remedy_spec$remedy_cases ||
       !is.data.frame(initial_manifest) ||
@@ -31655,6 +33075,7 @@ validate_update_2026_absolute_rescor_exact_remedy_inputs <- function(
     stop("The exact-remedy record or initial-refit count is invalid.",
          call. = FALSE)
   }
+
   checks <- purrr::map_dfr(records, function(record) {
     initial_row <- initial_manifest |>
       dplyr::filter(.data$case_id == as.integer(record$case_id))
@@ -31733,6 +33154,7 @@ validate_update_2026_absolute_rescor_exact_remedy_inputs <- function(
     )
   }) |>
     dplyr::arrange(case_id)
+
   observed_keys <- paste(
     checks$case_id,
     checks$outcome,
@@ -31740,6 +33162,7 @@ validate_update_2026_absolute_rescor_exact_remedy_inputs <- function(
     checks$observation,
     sep = "::"
   )
+
   if (
     nrow(checks) != remedy_spec$remedy_cases ||
       !identical(observed_keys, remedy_spec$keys) ||
@@ -31756,6 +33179,7 @@ validate_update_2026_absolute_rescor_exact_remedy_inputs <- function(
       call. = FALSE
     )
   }
+
   checks
 }
 
@@ -31786,6 +33210,7 @@ audit_update_2026_absolute_rescor_exact_remedy_diagnostics <- function(
     summary$observation,
     sep = "::"
   )
+
   if (
     nrow(summary) != remedy_spec$remedy_cases ||
       !identical(keys, remedy_spec$keys) ||
@@ -31793,6 +33218,7 @@ audit_update_2026_absolute_rescor_exact_remedy_diagnostics <- function(
   ) {
     stop("The exact-remedy diagnostic set is incomplete.", call. = FALSE)
   }
+
   list(
     diagnostic_summary = summary,
     exact_refits = nrow(summary),
@@ -31818,6 +33244,7 @@ write_update_2026_absolute_rescor_exact_remedy_audit <- function(
   ) {
     stop("The exact-remedy audit is incomplete.", call. = FALSE)
   }
+
   dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
   paths <- c(
     fit_manifest = file.path(output_dir, "fit_manifest.csv"),
@@ -31885,6 +33312,7 @@ make_update_2026_absolute_rescor_exact_second_remedy_config <- function(
   config$adapt_delta_floor <- as.numeric(adapt_delta)
   config$max_treedepth_floor <- as.integer(max_treedepth)
   config$seed <- as.integer(remedy_config$seed + seed_offset)
+
   if (
     !config$family %in% c("total_rescor", "supplement_rescor") ||
       config$chains != 4L || config$parallel_chains != 4L ||
@@ -31901,6 +33329,7 @@ make_update_2026_absolute_rescor_exact_second_remedy_config <- function(
       call. = FALSE
     )
   }
+
   config
 }
 
@@ -31920,6 +33349,7 @@ select_update_2026_absolute_rescor_exact_second_remedy_records <- function(
     failed$observation,
     sep = "::"
   )
+
   if (
     remedy_audit$exact_refits != remedy_spec$previous_cases ||
       remedy_audit$exact_refits_requiring_remediation !=
@@ -31941,6 +33371,7 @@ select_update_2026_absolute_rescor_exact_second_remedy_records <- function(
       call. = FALSE
     )
   }
+
   selected <- purrr::keep(records, function(record) {
     paste(
       as.integer(record$case_id),
@@ -31950,6 +33381,7 @@ select_update_2026_absolute_rescor_exact_second_remedy_records <- function(
       sep = "::"
     ) %in% remedy_spec$keys
   })
+
   selected_keys <- purrr::map_chr(selected, function(record) {
     paste(
       as.integer(record$case_id),
@@ -31959,6 +33391,7 @@ select_update_2026_absolute_rescor_exact_second_remedy_records <- function(
       sep = "::"
     )
   })
+
   if (
     length(selected) != remedy_spec$remedy_cases ||
       !identical(selected_keys, remedy_spec$keys)
@@ -31966,6 +33399,7 @@ select_update_2026_absolute_rescor_exact_second_remedy_records <- function(
     stop("Could not uniquely select the second exact-remedy records.",
          call. = FALSE)
   }
+
   names(selected) <- sprintf(
     "case_%03d_%s_model_%02d_observation_%03d",
     purrr::map_int(selected, ~ as.integer(.x$case_id)),
@@ -31984,6 +33418,7 @@ validate_update_2026_absolute_rescor_exact_second_remedy_inputs <- function(
   remedy_spec <- update_2026_absolute_rescor_exact_second_remedy_spec(
     config$family
   )
+
   if (
     !is.list(records) || length(records) != remedy_spec$remedy_cases ||
       !is.data.frame(previous_manifest) ||
@@ -31992,6 +33427,7 @@ validate_update_2026_absolute_rescor_exact_second_remedy_inputs <- function(
     stop("The second-remedy record or prior-remedy count is invalid.",
          call. = FALSE)
   }
+
   checks <- purrr::map_dfr(records, function(record) {
     previous_row <- previous_manifest |>
       dplyr::filter(.data$case_id == as.integer(record$case_id))
@@ -32072,6 +33508,7 @@ validate_update_2026_absolute_rescor_exact_second_remedy_inputs <- function(
     )
   }) |>
     dplyr::arrange(case_id)
+
   observed_keys <- paste(
     checks$case_id,
     checks$outcome,
@@ -32079,6 +33516,7 @@ validate_update_2026_absolute_rescor_exact_second_remedy_inputs <- function(
     checks$observation,
     sep = "::"
   )
+
   if (
     nrow(checks) != remedy_spec$remedy_cases ||
       !identical(observed_keys, remedy_spec$keys) ||
@@ -32092,6 +33530,7 @@ validate_update_2026_absolute_rescor_exact_second_remedy_inputs <- function(
   ) {
     stop("The second exact-remedy preflight failed.", call. = FALSE)
   }
+
   checks
 }
 
@@ -32109,6 +33548,7 @@ audit_update_2026_absolute_rescor_exact_second_remedy_diagnostic <- function(
     summary$observation,
     sep = "::"
   )
+
   if (
     nrow(summary) != remedy_spec$remedy_cases ||
       !identical(keys, remedy_spec$keys) ||
@@ -32116,6 +33556,7 @@ audit_update_2026_absolute_rescor_exact_second_remedy_diagnostic <- function(
   ) {
     stop("The second exact-remedy diagnostic is incomplete.", call. = FALSE)
   }
+
   list(
     diagnostic_summary = summary,
     exact_refits = nrow(summary),
@@ -32169,6 +33610,7 @@ make_update_2026_absolute_rescor_exact_third_remedy_config <- function(
   config$iter_sampling <- as.integer(iter_sampling)
   config$max_treedepth_floor <- as.integer(max_treedepth)
   config$seed <- as.integer(second_remedy_config$seed + seed_offset)
+
   if (
     !config$family %in% c("total_rescor", "supplement_rescor") ||
       config$chains != 4L || config$parallel_chains != 4L ||
@@ -32181,6 +33623,7 @@ make_update_2026_absolute_rescor_exact_third_remedy_config <- function(
       call. = FALSE
     )
   }
+
   config
 }
 
@@ -32200,6 +33643,7 @@ select_update_2026_absolute_rescor_exact_third_remedy_records <- function(
     failed$observation,
     sep = "::"
   )
+
   if (
     second_remedy_audit$exact_refits != remedy_spec$previous_cases ||
       second_remedy_audit$exact_refits_requiring_remediation !=
@@ -32219,6 +33663,7 @@ select_update_2026_absolute_rescor_exact_third_remedy_records <- function(
     stop("The fixed-metric exact-refit remedy case changed.",
          call. = FALSE)
   }
+
   selected <- purrr::keep(records, function(record) {
     paste(
       as.integer(record$case_id),
@@ -32228,6 +33673,7 @@ select_update_2026_absolute_rescor_exact_third_remedy_records <- function(
       sep = "::"
     ) %in% remedy_spec$keys
   })
+
   selected_keys <- purrr::map_chr(selected, function(record) {
     paste(
       as.integer(record$case_id),
@@ -32237,6 +33683,7 @@ select_update_2026_absolute_rescor_exact_third_remedy_records <- function(
       sep = "::"
     )
   })
+
   if (
     length(selected) != remedy_spec$remedy_cases ||
       !identical(selected_keys, remedy_spec$keys)
@@ -32244,6 +33691,7 @@ select_update_2026_absolute_rescor_exact_third_remedy_records <- function(
     stop("Could not uniquely select fixed-metric exact-refit cases.",
          call. = FALSE)
   }
+
   names(selected) <- sprintf(
     "case_%03d_%s_model_%02d_observation_%03d",
     purrr::map_int(selected, ~ as.integer(.x$case_id)),
@@ -32263,6 +33711,7 @@ validate_update_2026_absolute_rescor_exact_third_remedy_inputs <- function(
   remedy_spec <- update_2026_absolute_rescor_exact_third_remedy_spec(
     config$family
   )
+
   if (
     !is.list(records) || length(records) != remedy_spec$remedy_cases ||
       !is.data.frame(previous_manifest) ||
@@ -32272,6 +33721,7 @@ validate_update_2026_absolute_rescor_exact_third_remedy_inputs <- function(
     stop("The fixed-metric exact-refit inputs are incomplete.",
          call. = FALSE)
   }
+
   checks <- purrr::map_dfr(records, function(record) {
     previous_row <- previous_manifest |>
       dplyr::filter(.data$case_id == as.integer(record$case_id))
@@ -32350,6 +33800,7 @@ validate_update_2026_absolute_rescor_exact_third_remedy_inputs <- function(
     )
   }) |>
     dplyr::arrange(case_id)
+
   observed_keys <- paste(
     checks$case_id,
     checks$outcome,
@@ -32357,6 +33808,7 @@ validate_update_2026_absolute_rescor_exact_third_remedy_inputs <- function(
     checks$observation,
     sep = "::"
   )
+
   if (
     nrow(checks) != remedy_spec$remedy_cases ||
       !identical(observed_keys, remedy_spec$keys) ||
@@ -32371,6 +33823,7 @@ validate_update_2026_absolute_rescor_exact_third_remedy_inputs <- function(
   ) {
     stop("The fixed-metric exact-refit preflight failed.", call. = FALSE)
   }
+
   checks
 }
 
@@ -32388,6 +33841,7 @@ audit_update_2026_absolute_rescor_exact_third_remedy_diagnostic <- function(
     summary$observation,
     sep = "::"
   )
+
   if (
     nrow(summary) != remedy_spec$remedy_cases ||
       !identical(keys, remedy_spec$keys) ||
@@ -32395,6 +33849,7 @@ audit_update_2026_absolute_rescor_exact_third_remedy_diagnostic <- function(
   ) {
     stop("The third exact-remedy diagnostic is incomplete.", call. = FALSE)
   }
+
   list(
     diagnostic_summary = summary,
     exact_refits = nrow(summary),
@@ -32456,6 +33911,7 @@ make_update_2026_absolute_rescor_final_exact_audit <- function(
     manifest |>
       dplyr::mutate(stage = stage)
   }
+
   initial <- add_stage(
     initial_manifest,
     "initial",
@@ -32501,6 +33957,7 @@ make_update_2026_absolute_rescor_final_exact_audit <- function(
       relationship = "one-to-one"
     ) |>
     dplyr::arrange(case_id)
+
   stage_counts <- table(factor(
     accepted_manifest$stage,
     levels = names(final_spec$accepted_stage_counts)
@@ -32517,6 +33974,7 @@ make_update_2026_absolute_rescor_final_exact_audit <- function(
     diagnostic_summary$observation,
     sep = "::"
   )
+
   if (
     initial_audit$exact_refits != final_spec$stage_cases[["initial"]] ||
       initial_audit$exact_refits_requiring_remediation !=
@@ -32560,6 +34018,7 @@ make_update_2026_absolute_rescor_final_exact_audit <- function(
       call. = FALSE
     )
   }
+
   list(
     family = family,
     diagnostic_summary = diagnostic_summary,
@@ -32585,6 +34044,7 @@ write_update_2026_absolute_rescor_final_exact_audit <- function(
   ) {
     stop("Cannot write an incomplete final exact audit.", call. = FALSE)
   }
+
   dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
   paths <- c(
     diagnostic_summary = file.path(output_dir, "diagnostic_summary.csv"),
@@ -32613,6 +34073,7 @@ make_update_2026_absolute_rescor_accepted_exact_records <- function(
   if (length(families) != 1L) {
     stop("The accepted exact-fit family is ambiguous.", call. = FALSE)
   }
+
   final_spec <- update_2026_absolute_rescor_final_exact_spec(families[[1L]])
   if (
     !is.data.frame(manifest) || nrow(manifest) != final_spec$exact_cases ||
@@ -32622,6 +34083,7 @@ make_update_2026_absolute_rescor_accepted_exact_records <- function(
   ) {
     stop("The accepted exact-fit manifest is invalid.", call. = FALSE)
   }
+
   purrr::map(seq_len(nrow(manifest)), function(row) {
     as.list(manifest[row, , drop = FALSE])
   })
@@ -32635,6 +34097,7 @@ update_2026_absolute_rescor_held_out_integrated_log_lik <- function(
 ) {
   data <- input$stan_data
   cluster <- as.integer(cluster)
+
   if (
     cluster < 1L || cluster > data$N_cluster ||
       length(data$body_mass_z) != data$N ||
@@ -32643,6 +34106,7 @@ update_2026_absolute_rescor_held_out_integrated_log_lik <- function(
     stop("The held-out absolute-exposure cluster is invalid.",
          call. = FALSE)
   }
+
   first <- data$cluster_start[[cluster]]
   last <- data$cluster_end[[cluster]]
   rows <- seq.int(first, last)
@@ -32672,6 +34136,7 @@ update_2026_absolute_rescor_held_out_integrated_log_lik <- function(
     as.numeric(draws$b_rt),
     data$resistance_exercise_code[rows]
   )
+
   if (data$include_protein == 1L) {
     coefficient <- extract_cmdstan_indexed_draw_matrix(
       draws,
@@ -32680,6 +34145,7 @@ update_2026_absolute_rescor_held_out_integrated_log_lik <- function(
     )
     fixed_mean <- fixed_mean + coefficient %*% t(basis)
   }
+
   if (data$include_rt_interaction == 1L) {
     coefficient <- extract_cmdstan_indexed_draw_matrix(
       draws,
@@ -32695,6 +34161,7 @@ update_2026_absolute_rescor_held_out_integrated_log_lik <- function(
         byrow = TRUE
       )
   }
+
   if (data$include_moderators == 1L) {
     moderators <- extract_cmdstan_indexed_draw_matrix(
       draws,
@@ -32706,6 +34173,7 @@ update_2026_absolute_rescor_held_out_integrated_log_lik <- function(
       outer(moderators[, 2L], data$age_z[rows]) +
       outer(moderators[, 3L], data$body_mass_z[rows])
   }
+
   study_design <- if (data$include_random_slope == 1L) {
     cbind(1, basis)
   } else {
@@ -32726,6 +34194,7 @@ update_2026_absolute_rescor_held_out_integrated_log_lik <- function(
   } else {
     NULL
   }
+
   arm_match <- outer(data$arm[rows], data$arm[rows], "==")
   outcome_match <- outer(data$outcome[rows], data$outcome[rows], "==")
   residual_scale <- outer(data$se_y[rows], data$se_y[rows])
@@ -32754,6 +34223,7 @@ update_2026_absolute_rescor_held_out_integrated_log_lik <- function(
         sum(standardised^2)
     )
   }
+
   output
 }
 
@@ -32800,12 +34270,14 @@ compute_update_2026_absolute_rescor_exact_correction_to_file <- function(
       call. = FALSE
     )
   }
+
   if (!isTRUE(diagnostic_audit$all_exact_refit_diagnostics_pass)) {
     stop("Exact scoring requires passing refit diagnostics.",
          call. = FALSE)
   }
   exact_fit_path <- unname(as.character(record$exact_fit_path))
   exact_fit_sha256 <- unname(as.character(record$sha256))
+
   if (
     !file.exists(exact_fit_path) ||
       !identical(
@@ -32820,6 +34292,7 @@ compute_update_2026_absolute_rescor_exact_correction_to_file <- function(
     stop("An accepted exact refit failed checksum validation.",
          call. = FALSE)
   }
+
   refit <- read_update_2026_absolute_rescor_exact_fit_file(
     exact_fit_path,
     family
@@ -32832,6 +34305,7 @@ compute_update_2026_absolute_rescor_exact_correction_to_file <- function(
   ) {
     stop("An accepted exact-refit record is misaligned.", call. = FALSE)
   }
+
   signature <- list(
     scorer_version = 1L,
     family = family,
@@ -32843,6 +34317,7 @@ compute_update_2026_absolute_rescor_exact_correction_to_file <- function(
     loo_draws = as.integer(loo_draws),
     moderator_order = c("duration_z", "age_z", "body_mass_z")
   )
+
   signature_sha256 <- digest::digest(signature, algo = "sha256")
   output_file <- update_2026_absolute_rescor_exact_correction_file_path(
     record,
@@ -32853,12 +34328,14 @@ compute_update_2026_absolute_rescor_exact_correction_to_file <- function(
   } else {
     NULL
   }
+
   if (
     !is.null(existing) && inherits(existing$loo, "loo") &&
       identical(existing$signature_sha256, signature_sha256)
   ) {
     return(normalizePath(output_file, winslash = "/", mustWork = TRUE))
   }
+
   held_out_log_lik <-
     update_2026_absolute_rescor_held_out_integrated_log_lik(
       candidate = refit$fitted_candidate,
@@ -32882,6 +34359,7 @@ compute_update_2026_absolute_rescor_exact_correction_to_file <- function(
   patched_loo$pointwise[observation, "p_loo"] <-
     full_data_lpd - exact_elpd
   patched_loo$pointwise[observation, "looic"] <- -2 * exact_elpd
+
   if ("mcse_elpd_loo" %in% colnames(patched_loo$pointwise)) {
     patched_loo$pointwise[observation, "mcse_elpd_loo"] <- exact_mcse
   }
@@ -32889,6 +34367,7 @@ compute_update_2026_absolute_rescor_exact_correction_to_file <- function(
   if (!is.null(patched_loo$diagnostics$n_eff)) {
     patched_loo$diagnostics$n_eff[[observation]] <- NA_real_
   }
+
   patched_loo <- update_primary_exact_loo_estimates(patched_loo)
   cluster_manifest <- refit$input$cluster_manifest
   cluster_row <- cluster_manifest[observation, , drop = FALSE]
@@ -32902,6 +34381,7 @@ compute_update_2026_absolute_rescor_exact_correction_to_file <- function(
       exact_minus_psis_elpd = exact_elpd - old_elpd,
       exact_elpd_mcse = exact_mcse
     )
+
   correction <- list(
     case_id = refit$case_id,
     family = family,
@@ -32918,6 +34398,7 @@ compute_update_2026_absolute_rescor_exact_correction_to_file <- function(
     signature_sha256 = signature_sha256,
     exact_refit_summary = exact_refit_summary
   )
+
   write_atomic_qs(correction, output_file)
 }
 
@@ -32929,6 +34410,7 @@ audit_update_2026_absolute_rescor_exact_correction_files <- function(
   exact_spec <- update_2026_absolute_rescor_exact_initial_spec(family)
   paths <- unname(unlist(paths, use.names = FALSE))
   expected <- as.integer(integrated_audit$exact_refits_required)
+
   if (
     length(paths) != expected || expected != exact_spec$expected_cases ||
       anyNA(paths) ||
@@ -32937,6 +34419,7 @@ audit_update_2026_absolute_rescor_exact_correction_files <- function(
     stop("The exact study-cluster corrections are incomplete.",
          call. = FALSE)
   }
+
   corrections <- purrr::map(paths, qs::qread)
   manifest <- purrr::map2_dfr(paths, corrections, function(path, result) {
     tibble::tibble(
@@ -32958,6 +34441,7 @@ audit_update_2026_absolute_rescor_exact_correction_files <- function(
     )
   }) |>
     dplyr::arrange(case_id)
+
   diagnostic_summary <- corrections |>
     purrr::map_dfr("exact_refit_summary") |>
     dplyr::arrange(case_id)
@@ -32977,6 +34461,7 @@ audit_update_2026_absolute_rescor_exact_correction_files <- function(
     manifest$outcome,
     levels = c("whole_body", "hypertrophy", "strength", "function")
   ))
+
   if (
     nrow(manifest) != exact_spec$expected_cases ||
       nrow(diagnostic_summary) != exact_spec$expected_cases ||
@@ -32997,6 +34482,7 @@ audit_update_2026_absolute_rescor_exact_correction_files <- function(
     stop("The exact study-cluster correction audit is invalid.",
          call. = FALSE)
   }
+
   list(
     family = family,
     diagnostic_summary = diagnostic_summary,
@@ -33023,6 +34509,7 @@ write_update_2026_absolute_rescor_exact_correction_audit <- function(
     stop("Cannot write an incomplete exact-correction audit.",
          call. = FALSE)
   }
+
   dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
   paths <- c(
     diagnostic_summary = file.path(output_dir, "diagnostic_summary.csv"),
@@ -33047,6 +34534,7 @@ read_update_2026_absolute_rescor_exact_corrections <- function(manifest) {
     stop("The exact-correction family is ambiguous.", call. = FALSE)
   }
   exact_spec <- update_2026_absolute_rescor_exact_initial_spec(families[[1L]])
+
   if (
     !is.data.frame(manifest) ||
       nrow(manifest) != exact_spec$expected_cases ||
@@ -33055,6 +34543,7 @@ read_update_2026_absolute_rescor_exact_corrections <- function(manifest) {
   ) {
     stop("The exact-correction manifest is invalid.", call. = FALSE)
   }
+
   corrections <- purrr::map(manifest$correction_path, qs::qread)
   corrections <- corrections[order(purrr::map_int(corrections, "case_id"))]
   if (
@@ -33067,6 +34556,7 @@ read_update_2026_absolute_rescor_exact_corrections <- function(manifest) {
     stop("The exact study-cluster corrections are invalid.",
          call. = FALSE)
   }
+
   corrections
 }
 
@@ -33081,6 +34571,7 @@ make_update_2026_absolute_rescor_final_loo_audit <- function(
     seq_len(26L),
     c(3L, 7L, 10L, 13L, 16L, 19L, 22L, 25L)
   )
+
   if (!isTRUE(exact_audit$all_exact_refit_diagnostics_pass)) {
     stop("Final residual-correlation LOO requires passing exact refits.",
          call. = FALSE)
@@ -33102,6 +34593,7 @@ make_update_2026_absolute_rescor_final_loo_audit <- function(
     }
     result
   })
+
   outcome_summary <- final$model_summary |>
     dplyr::summarise(
       models = dplyr::n(),
@@ -33111,6 +34603,7 @@ make_update_2026_absolute_rescor_final_loo_audit <- function(
       maximum_remaining_pareto_k = max(maximum_pareto_k, na.rm = TRUE),
       .by = outcome
     )
+
   correction_counts <- exact_audit$diagnostic_summary |>
     dplyr::count(outcome, model_index, name = "exact_corrections")
   final_manifest <- integrated_manifest |>
@@ -33126,6 +34619,7 @@ make_update_2026_absolute_rescor_final_loo_audit <- function(
         "integrated_study_cluster_psis"
       )
     )
+
   if (
     !isTRUE(final$stacking_ready) || nrow(final$model_summary) != 72L ||
       nrow(outcome_summary) != 4L || any(outcome_summary$models != 18L) ||
@@ -33137,6 +34631,7 @@ make_update_2026_absolute_rescor_final_loo_audit <- function(
     stop("The final residual-correlation LOO audit is not stacking-ready.",
          call. = FALSE)
   }
+
   final$family <- family
   final$outcome_summary <- outcome_summary
   final$final_loo_manifest <- final_manifest
@@ -33161,6 +34656,7 @@ write_update_2026_absolute_rescor_final_loo_audit <- function(
     stop("Cannot write an incomplete final residual-correlation LOO audit.",
          call. = FALSE)
   }
+
   dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
   paths <- c(
     final_loo_manifest = file.path(output_dir, "final_loo_manifest.csv"),
@@ -33194,6 +34690,7 @@ write_update_2026_absolute_rescor_stacking_weights <- function(
     stop("The residual-correlation stacking weights are invalid.",
          call. = FALSE)
   }
+
   dir.create(dirname(output_file), recursive = TRUE, showWarnings = FALSE)
   readr::write_csv(weights, output_file, na = "")
   output_file
@@ -33222,6 +34719,7 @@ make_update_2026_absolute_rescor_prediction_records <- function(
       relationship = "one-to-one"
     ) |>
     dplyr::arrange(factor(outcome, levels = outcomes), model_index)
+
   if (
     nrow(accepted_fit_manifest) != 72L || nrow(stacking_weights) != 72L ||
       length(inputs) != 72L || anyDuplicated(input_keys) ||
@@ -33232,6 +34730,7 @@ make_update_2026_absolute_rescor_prediction_records <- function(
     stop("The residual-correlation prediction registries do not align.",
          call. = FALSE)
   }
+
   outcome_seed <- stats::setNames(
     as.integer(seed) + seq_along(outcomes) * 10000L,
     outcomes
@@ -33257,6 +34756,7 @@ make_update_2026_absolute_rescor_prediction_records <- function(
       n_draws = as.integer(n_draws),
       prediction_type = family
     )
+
   allocated <- allocated |>
     dplyr::rowwise() |>
     dplyr::mutate(
@@ -33276,6 +34776,7 @@ make_update_2026_absolute_rescor_prediction_records <- function(
     ) |>
     dplyr::ungroup() |>
     dplyr::select(-input_position)
+
   allocation_audit <- allocated |>
     dplyr::summarise(allocated_draws = sum(draw_count), .by = outcome)
   if (
@@ -33285,6 +34786,7 @@ make_update_2026_absolute_rescor_prediction_records <- function(
     stop("The residual-correlation draw allocation is incomplete.",
          call. = FALSE)
   }
+
   allocated <- dplyr::filter(allocated, draw_count > 0L)
   purrr::map(seq_len(nrow(allocated)), function(row) {
     purrr::map(as.list(allocated[row, , drop = FALSE]), unname)
@@ -33299,6 +34801,7 @@ make_update_2026_absolute_rescor_reporting_preflight <- function(
     stop("The residual-correlation reporting allocation is incomplete.",
          call. = FALSE)
   }
+
   checks <- purrr::map_dfr(records, function(record) {
     tibble::tibble(
       outcome = record$outcome,
@@ -33336,6 +34839,7 @@ make_update_2026_absolute_rescor_reporting_preflight <- function(
       )),
       model_index
     )
+
   outcome_audit <- checks |>
     dplyr::summarise(
       selected_models = dplyr::n(),
@@ -33343,6 +34847,7 @@ make_update_2026_absolute_rescor_reporting_preflight <- function(
       retained_weight = sum(weight),
       .by = outcome
     )
+
   if (
     nrow(outcome_audit) != 4L || any(outcome_audit$selected_models < 1L) ||
       any(outcome_audit$allocated_draws != 4000L) ||
@@ -33354,6 +34859,7 @@ make_update_2026_absolute_rescor_reporting_preflight <- function(
     stop("The residual-correlation reporting preflight failed.",
          call. = FALSE)
   }
+
   checks
 }
 
@@ -33389,6 +34895,7 @@ update_2026_absolute_rescor_reporting_path <- function(
     stop("The residual-correlation reporting family is invalid.",
          call. = FALSE)
   }
+
   directory <- here::here(
     "model_archive", "update_2026", "absolute_exposure", exposure,
     "rescor", "reporting", stage, outcome
@@ -33420,6 +34927,7 @@ write_update_2026_absolute_rescor_prediction_draw_file <- function(
     stop("A residual-correlation prediction record is invalid.",
          call. = FALSE)
   }
+
   candidate <- read_update_2026_absolute_rescor_fit_file(
     record$fit_path,
     family
@@ -33432,6 +34940,7 @@ write_update_2026_absolute_rescor_prediction_draw_file <- function(
     stop("A residual-correlation fit does not match its prediction record.",
          call. = FALSE)
   }
+
   all_draws <- posterior::as_draws_matrix(candidate$fit$draws("mu_grid"))
   set.seed(as.integer(record$prediction_seed))
   selected <- sample(
@@ -33450,6 +34959,7 @@ write_update_2026_absolute_rescor_prediction_draw_file <- function(
       ),
       protein_intake = protein_intake_raw
     )
+
   if (
     nrow(draws) != as.integer(record$draw_count) ||
       ncol(draws) != nrow(grid) || anyNA(draws) ||
@@ -33461,6 +34971,7 @@ write_update_2026_absolute_rescor_prediction_draw_file <- function(
     stop("The residual-correlation prediction draws are incomplete.",
          call. = FALSE)
   }
+
   reduction <- list(
     family = family,
     outcome = as.character(record$outcome),
@@ -33482,6 +34993,7 @@ write_update_2026_absolute_rescor_prediction_draw_file <- function(
       body_mass_reference_z = as.numeric(record$body_mass_reference_z)
     )
   )
+
   write_atomic_qs(reduction, result_path)
 }
 
@@ -33493,6 +35005,7 @@ make_update_2026_absolute_rescor_model_average_records <- function(
     seed = 44388L
 ) {
   outcomes <- c("whole_body", "hypertrophy", "strength", "function")
+
   if (
     !is.data.frame(prediction_manifest) || !is.data.frame(stacking_weights) ||
       nrow(stacking_weights) != 72L ||
@@ -33502,6 +35015,7 @@ make_update_2026_absolute_rescor_model_average_records <- function(
     stop("The residual-correlation averaging inputs are invalid.",
          call. = FALSE)
   }
+
   purrr::map(seq_along(outcomes), function(index) {
     outcome <- outcomes[[index]]
     files <- dplyr::filter(
@@ -33548,6 +35062,7 @@ write_update_2026_absolute_rescor_reporting_file <- function(
   )
   outcome <- model_average$outcome
   data <- data_by_outcome[[outcome]]
+
   if (is.null(data) || !is.data.frame(data)) {
     stop("The residual-correlation reporting data are unavailable.",
          call. = FALSE)
@@ -33594,6 +35109,7 @@ write_update_2026_absolute_rescor_reporting_file <- function(
       )
     )
   )
+
   write_atomic_qs(report, result_path)
 }
 
@@ -33614,6 +35130,7 @@ write_update_2026_absolute_rescor_reporting_audit <- function(
     stop("The residual-correlation reporting audit is incomplete.",
          call. = FALSE)
   }
+
   reports <- purrr::map(
     audit$summary$reporting_path,
     read_sensitivity_full_reporting_file,
@@ -33643,6 +35160,7 @@ write_update_2026_absolute_rescor_reporting_audit <- function(
     local_equivalence = file.path(output_dir, "local_equivalence.csv"),
     model_weights = file.path(output_dir, "model_weights.csv")
   )
+
   readr::write_csv(audit$summary, paths[["summary"]], na = "")
   readr::write_csv(prediction_manifest, paths[["prediction_manifest"]], na = "")
   readr::write_csv(bind_report("dose_response"), paths[["dose_response"]])
@@ -33775,6 +35293,7 @@ make_update_2026_total_rescor_verification_checkpoint <- function(
         dplyr::select(outcome, model_index, weight_name = model_name),
       by = c("outcome", "model_index")
     )
+
   preflight_summary <- input_preflight |>
     dplyr::distinct(
       outcome, contrasts, studies, arms, exposure_minimum_g_day,
@@ -33802,6 +35321,7 @@ make_update_2026_total_rescor_verification_checkpoint <- function(
       .by = outcome
     ) |>
     dplyr::arrange(factor(outcome, levels = outcomes))
+
   reports <- purrr::map(
     reporting_audit$summary$reporting_path,
     read_sensitivity_full_reporting_file,
@@ -33956,6 +35476,7 @@ make_update_2026_total_rescor_verification_checkpoint <- function(
         all(abs(reporting_weight_sums$weight_sum - 1) < 1e-8)
     )
   )
+
   failed <- is.na(checks$passed) | !checks$passed
   if (any(failed)) {
     stop(
@@ -33964,6 +35485,7 @@ make_update_2026_total_rescor_verification_checkpoint <- function(
       call. = FALSE
     )
   }
+
   artifacts <- list(
     verification_checks = checks,
     source_manifest = source_manifest,
@@ -34006,6 +35528,7 @@ make_update_2026_total_rescor_verification_checkpoint <- function(
     pairwise_support = bind_report("pairwise_support"),
     local_equivalence = bind_report("local_equivalence")
   )
+
   descriptions <- stats::setNames(
     paste("Frozen", verification_spec$label, "artifact:", names(artifacts)),
     names(artifacts)
@@ -34072,6 +35595,7 @@ make_update_2026_total_rescor_pruning_plan <- function(
     winslash = "/",
     mustWork = TRUE
   )
+
   if (!identical(tolower(resolved_root), tolower(expected_root))) {
     stop("Refusing to plan pruning outside the residual-correlation archive.",
          call. = FALSE)
@@ -34080,6 +35604,7 @@ make_update_2026_total_rescor_pruning_plan <- function(
   model_roots <- file.path(archive_root, stages)
   exact_roots <- file.path(archive_root, "loo", "exact", stages)
   deletion_roots <- c(model_roots, exact_roots)
+
   if (any(!dir.exists(deletion_roots))) {
     stop("An expected residual-correlation sampling directory is missing.",
          call. = FALSE)
@@ -34136,6 +35661,7 @@ make_update_2026_total_rescor_pruning_plan <- function(
     bytes = as.numeric(file.info(fit_paths)$size)
   ) |>
     dplyr::arrange(fit_class, archive_stage, outcome, model_index, case_id)
+
   model_fit_manifest <- dplyr::filter(fit_manifest, fit_class == "model_fit")
   exact_refit_manifest <- dplyr::filter(fit_manifest, fit_class == "exact_refit")
   if (
@@ -34153,6 +35679,7 @@ make_update_2026_total_rescor_pruning_plan <- function(
   ) {
     stop("The residual-correlation fit inventory is invalid.", call. = FALSE)
   }
+
   fit_positions <- vapply(deletion_paths, function(path) {
     matches <- which(
       path == fit_manifest$path |
@@ -34160,6 +35687,7 @@ make_update_2026_total_rescor_pruning_plan <- function(
     )
     if (length(matches) == 1L) matches else NA_integer_
   }, integer(1L))
+
   if (anyNA(fit_positions)) {
     stop("A residual-correlation sampling file is not attached to one fit archive.",
          call. = FALSE)
@@ -34195,6 +35723,7 @@ make_update_2026_total_rescor_pruning_plan <- function(
   ) |>
     dplyr::arrange(fit_class, archive_stage, outcome, model_index, case_id,
                    relative_path)
+
   if (
     any(deletion_manifest$file_type == "unknown") ||
       sum(deletion_manifest$file_type == "fit_object") !=
@@ -34204,6 +35733,7 @@ make_update_2026_total_rescor_pruning_plan <- function(
     stop("The residual-correlation deletion inventory is incomplete.",
          call. = FALSE)
   }
+
   compact_roots <- c(
     loo_psis = file.path(archive_root, "loo", "study_integrated"),
     exact_corrections = file.path(archive_root, "loo", "exact", "corrections"),
@@ -34213,6 +35743,7 @@ make_update_2026_total_rescor_pruning_plan <- function(
     stop("An expected compact residual-correlation directory is missing.",
          call. = FALSE)
   }
+
   compact_paths <- unlist(purrr::map(compact_roots, function(root) {
     list.files(root, recursive = TRUE, full.names = TRUE, all.files = TRUE)
   }), use.names = FALSE)
@@ -34233,6 +35764,7 @@ make_update_2026_total_rescor_pruning_plan <- function(
     )]
     if (length(matches) == 1L) matches else "unknown"
   }, character(1L))
+
   compact_manifest <- tibble::tibble(
     path = compact_paths,
     relative_path = substring(compact_paths, nchar(resolved_root) + 2L),
@@ -34245,6 +35777,7 @@ make_update_2026_total_rescor_pruning_plan <- function(
     action = paste("retain compact", pruning_spec$label, "result")
   ) |>
     dplyr::arrange(archive_component, relative_path)
+
   compact_counts <- table(factor(
     compact_manifest$archive_component,
     levels = c("loo_psis", "exact_corrections", "reporting")
@@ -34263,6 +35796,7 @@ make_update_2026_total_rescor_pruning_plan <- function(
     stop("The compact residual-correlation archive is incomplete.",
          call. = FALSE)
   }
+
   summary <- tibble::tibble(
     mode = "lean",
     model_fit_archives_deleted = nrow(model_fit_manifest),
@@ -34283,6 +35817,7 @@ make_update_2026_total_rescor_pruning_plan <- function(
       paste0(pruning_spec$label, " family.")
     )
   )
+
   list(
     summary = summary,
     model_fit_manifest = model_fit_manifest,
@@ -34323,6 +35858,8 @@ write_update_2026_total_rescor_pruning_plan <- function(
 
 # Absolute total-intake protein-manipulation strategy family ----
 
+# Extend the total-intake candidate formulas with the reviewed strategy
+# classification and record which models include dose-by-strategy terms.
 make_update_2026_total_strategy_specifications <- function(
     total_primary_specifications
 ) {
@@ -34341,6 +35878,7 @@ make_update_2026_total_strategy_specifications <- function(
       specification
     }
   )
+
   registry <- dplyr::bind_rows(specifications)
   keys <- paste(registry$outcome, registry$model_index, sep = "::")
   outcome_counts <- table(factor(
@@ -34359,6 +35897,7 @@ make_update_2026_total_strategy_specifications <- function(
     registry$formula,
     ~ !inherits(try(stats::as.formula(.x), silent = TRUE), "try-error")
   )
+
   if (
     length(specifications) != 72L || anyDuplicated(keys) ||
       !identical(as.integer(outcome_counts), rep(18L, 4L)) ||
@@ -34376,6 +35915,7 @@ make_update_2026_total_strategy_specifications <- function(
       call. = FALSE
     )
   }
+
   names(specifications) <- paste0(
     registry$outcome,
     "_model_",
@@ -34391,6 +35931,7 @@ prepare_update_2026_total_strategy_input <- function(
 ) {
   data <- data_by_outcome[[specification$outcome]]
   priors <- priors_by_outcome[[specification$outcome]]
+
   if (is.null(data) || !nrow(data) || is.null(priors)) {
     stop("Total-intake strategy data or priors are missing.", call. = FALSE)
   }
@@ -34398,18 +35939,21 @@ prepare_update_2026_total_strategy_input <- function(
   if (isTRUE(specification$regularised_variance_priors)) {
     priors <- add_regularised_variance_priors(priors)
   }
+
   if (isTRUE(specification$includes_moderators)) {
     data <- add_absolute_primary_body_mass(data)
     data <- add_primary_standardised_moderators(data)
     priors <- add_primary_standardised_moderator_priors(priors)
     priors <- add_absolute_primary_body_mass_prior(priors)
   }
+
   if (isTRUE(specification$targeted_smooth_prior)) {
     priors <- add_primary_targeted_smooth_prior(
       priors,
       scale = specification$smooth_prior_scale
     )
   }
+
   list(
     family = "total_strategy",
     formula = specification$formula,
@@ -34436,6 +35980,7 @@ validate_update_2026_total_strategy_inputs <- function(
       call. = FALSE
     )
   }
+
   checks <- purrr::map_dfr(specifications, function(specification) {
     input <- prepare_update_2026_total_strategy_input(
       specification,
@@ -34493,6 +36038,7 @@ validate_update_2026_total_strategy_inputs <- function(
       ),
       model_index
     )
+
   keys <- paste(checks$outcome, checks$model_index, sep = "::")
   outcome_counts <- table(factor(
     checks$outcome,
@@ -34501,6 +36047,7 @@ validate_update_2026_total_strategy_inputs <- function(
   expected_reference <- absolute_audit$scaling_plan$reference_g_day[
     absolute_audit$scaling_plan$exposure == "total_g_day"
   ]
+
   if (
     nrow(checks) != 72L || anyDuplicated(keys) || !all(checks$valid) ||
       !identical(as.integer(outcome_counts), rep(18L, 4L)) ||
@@ -34514,6 +36061,7 @@ validate_update_2026_total_strategy_inputs <- function(
     stop("The total-intake strategy input preflight is incomplete.",
          call. = FALSE)
   }
+
   checks
 }
 
@@ -34566,6 +36114,7 @@ make_update_2026_total_strategy_remedy_specifications <- function(
       ),
       model_index
     )
+
   expected_keys <- c("strength::15", "function::9")
   failed_keys <- paste(failed$outcome, failed$model_index, sep = "::")
   if (
@@ -34578,6 +36127,7 @@ make_update_2026_total_strategy_remedy_specifications <- function(
     stop("The total-intake strategy remedy no longer matches its audit.",
          call. = FALSE)
   }
+
   specification_keys <- purrr::map_chr(
     specifications,
     ~ paste(.x$outcome, .x$model_index, sep = "::")
@@ -34587,6 +36137,7 @@ make_update_2026_total_strategy_remedy_specifications <- function(
     stop("Could not uniquely select the total-strategy remedy models.",
          call. = FALSE)
   }
+
   selected <- purrr::map(selected, function(specification) {
     specification$adapt_delta <- max(
       as.numeric(specification$adapt_delta),
@@ -34603,6 +36154,7 @@ make_update_2026_total_strategy_remedy_specifications <- function(
     )
     specification
   })
+
   names(selected) <- c("strength_model_15", "function_model_09")
   selected
 }
@@ -34646,6 +36198,7 @@ validate_update_2026_total_strategy_remedy_inputs <- function(
       factor(outcome, levels = c("strength", "function")),
       model_index
     )
+
   keys <- paste(checks$outcome, checks$model_index, sep = "::")
   if (
     nrow(checks) != 2L ||
@@ -34661,6 +36214,7 @@ validate_update_2026_total_strategy_remedy_inputs <- function(
     stop("The total-intake strategy remedy preflight is incomplete.",
          call. = FALSE)
   }
+
   checks
 }
 
@@ -34689,6 +36243,7 @@ combine_update_2026_total_strategy_remedy_diagnostics <- function(
     stop("Expected two total-intake strategy remedy diagnostics.",
          call. = FALSE)
   }
+
   remedy_summary <- dplyr::bind_rows(
     purrr::map(remedy_diagnostics, "summary")
   )
@@ -34697,6 +36252,7 @@ combine_update_2026_total_strategy_remedy_diagnostics <- function(
     remedy_summary$model_index,
     sep = "::"
   )
+
   if (
     nrow(remedy_summary) != 2L ||
       !setequal(remedy_keys, expected_keys)
@@ -34704,6 +36260,7 @@ combine_update_2026_total_strategy_remedy_diagnostics <- function(
     stop("The total-intake strategy remedy diagnostics are invalid.",
          call. = FALSE)
   }
+
   summary <- initial_audit$diagnostic_summary |>
     dplyr::filter(
       !paste(outcome, model_index, sep = "::") %in% expected_keys
@@ -34724,6 +36281,7 @@ combine_update_2026_total_strategy_remedy_diagnostics <- function(
         TRUE ~ "PASS"
       )
     )
+
   parameter_failures <- initial_audit$parameter_failures |>
     dplyr::filter(
       !paste(outcome, model_index, sep = "::") %in% expected_keys
@@ -34736,6 +36294,7 @@ combine_update_2026_total_strategy_remedy_diagnostics <- function(
           .before = 1L
         )
     }))
+
   outcome_summary <- summary |>
     dplyr::group_by(outcome) |>
     dplyr::summarise(
@@ -34747,6 +36306,7 @@ combine_update_2026_total_strategy_remedy_diagnostics <- function(
       maximum_coverage = max(predictive_90_interval_coverage),
       .groups = "drop"
     )
+
   if (
     nrow(summary) != 72L ||
       anyDuplicated(paste(summary$outcome, summary$model_index)) ||
@@ -34755,6 +36315,7 @@ combine_update_2026_total_strategy_remedy_diagnostics <- function(
     stop("The final total-intake strategy diagnostic audit is incomplete.",
          call. = FALSE)
   }
+
   list(
     family = "total_strategy",
     models = 72L,
@@ -34773,6 +36334,7 @@ make_update_2026_total_strategy_accepted_fit_manifest <- function(
     final_diagnostic_audit
 ) {
   remedy_paths <- unname(unlist(remedy_fit_paths, use.names = FALSE))
+
   if (
     nrow(initial_manifest) != 72L || length(remedy_paths) != 2L ||
       !isTRUE(final_diagnostic_audit$all_sampling_diagnostics_pass) ||
@@ -34785,6 +36347,7 @@ make_update_2026_total_strategy_accepted_fit_manifest <- function(
       call. = FALSE
     )
   }
+
   remedy <- tibble::tibble(
     outcome = basename(dirname(remedy_paths)),
     model_index = as.integer(stringr::str_match(
@@ -34807,6 +36370,7 @@ make_update_2026_total_strategy_accepted_fit_manifest <- function(
     dplyr::select(
       outcome, model_index, model_name, fit_path, stage, bytes, sha256
     )
+
   remedy_keys <- paste(remedy$outcome, remedy$model_index, sep = "::")
   accepted <- initial_manifest |>
     dplyr::anti_join(
@@ -34821,6 +36385,7 @@ make_update_2026_total_strategy_accepted_fit_manifest <- function(
       ),
       model_index
     )
+
   retained_indices <- setdiff(
     seq_len(26L),
     c(3L, 7L, 10L, 13L, 16L, 19L, 22L, 25L)
@@ -34832,6 +36397,7 @@ make_update_2026_total_strategy_accepted_fit_manifest <- function(
       indices_valid = setequal(model_index, retained_indices),
       .groups = "drop"
     )
+
   if (
     !setequal(remedy_keys, c("strength::15", "function::9")) ||
       nrow(accepted) != 72L ||
@@ -34846,6 +36412,7 @@ make_update_2026_total_strategy_accepted_fit_manifest <- function(
     stop("The accepted total-intake strategy manifest is invalid.",
          call. = FALSE)
   }
+
   accepted
 }
 
@@ -34890,6 +36457,7 @@ validate_update_2026_total_strategy_loo_inputs <- function(
     identical(as.numeric(k_threshold), 0.7) &&
       identical(as.integer(cores_per_branch), 1L)
   )
+
   ready <-
     identical(final_diagnostic_audit$family, "total_strategy") &&
     nrow(accepted_fit_manifest) == 72L &&
@@ -34899,6 +36467,7 @@ validate_update_2026_total_strategy_loo_inputs <- function(
     stop("The total-intake strategy LOO preflight is incomplete.",
          call. = FALSE)
   }
+
   list(
     family = "total_strategy",
     models = 72L,
@@ -34942,6 +36511,7 @@ compute_update_2026_total_strategy_integrated_loo_to_file <- function(
     seq_len(26L),
     c(3L, 7L, 10L, 13L, 16L, 19L, 22L, 25L)
   )
+
   if (!isTRUE(enabled)) {
     stop(
       "Total-intake strategy LOO is disabled. Set ",
@@ -34949,6 +36519,7 @@ compute_update_2026_total_strategy_integrated_loo_to_file <- function(
       call. = FALSE
     )
   }
+
   if (
     !file.exists(record$fit_path) ||
       !record$model_index %in% retained_indices ||
@@ -34957,6 +36528,7 @@ compute_update_2026_total_strategy_integrated_loo_to_file <- function(
   ) {
     stop("A total-intake strategy LOO record is invalid.", call. = FALSE)
   }
+
   candidate <- qs::qread(record$fit_path)
   if (
     !identical(candidate$outcome, record$outcome) ||
@@ -34965,6 +36537,7 @@ compute_update_2026_total_strategy_integrated_loo_to_file <- function(
     stop("A total-strategy fit does not match its LOO record.",
          call. = FALSE)
   }
+
   initial <- compute_primary_candidate_psis_loo(
     fitted_candidate = candidate,
     cores = cores,
@@ -34989,6 +36562,7 @@ compute_update_2026_total_strategy_integrated_loo_to_file <- function(
   temporary_file <- paste0(output_file, ".tmp-", Sys.getpid())
   on.exit(unlink(temporary_file, force = TRUE), add = TRUE)
   qs::qsave(integrated, temporary_file, preset = "high")
+
   if (!file.copy(temporary_file, output_file, overwrite = TRUE)) {
     stop("Could not finalise a total-strategy LOO reduction.",
          call. = FALSE)
@@ -35019,6 +36593,8 @@ write_update_2026_total_strategy_integrated_loo_audit <- function(
   write_update_2026_total_primary_integrated_loo_audit(audit, output_dir)
 }
 
+# Identify the total-intake strategy candidates that need to be refitted to
+# align their observations for model comparison.
 make_update_2026_total_strategy_common_sample_specifications <- function(
     specifications,
     integrated_loo_audit
@@ -35028,6 +36604,7 @@ make_update_2026_total_strategy_common_sample_specifications <- function(
   hypertrophy_counts <- integrated_loo_audit$observation_set_audit |>
     dplyr::filter(outcome == "hypertrophy") |>
     dplyr::count(observations)
+
   if (
     !identical(integrated_loo_audit$family, "total_strategy") ||
       nrow(alignment) != 4L ||
@@ -35046,6 +36623,7 @@ make_update_2026_total_strategy_common_sample_specifications <- function(
       call. = FALSE
     )
   }
+
   expected_indices <- c(1L, 2L, 4L, 9L, 11L, 15L, 17L, 21L, 23L)
   selected <- purrr::keep(
     specifications,
@@ -35055,6 +36633,7 @@ make_update_2026_total_strategy_common_sample_specifications <- function(
         as.integer(specification$model_index) %in% expected_indices
     }
   )
+
   observed_indices <- sort(unname(
     purrr::map_int(selected, "model_index")
   ))
@@ -35065,6 +36644,7 @@ make_update_2026_total_strategy_common_sample_specifications <- function(
     stop("The total-strategy common-sample model set is invalid.",
          call. = FALSE)
   }
+
   selected <- purrr::map(selected, function(specification) {
     specification$archive_stage <- "common_sample_1"
     specification$common_sample_reason <- paste(
@@ -35074,6 +36654,7 @@ make_update_2026_total_strategy_common_sample_specifications <- function(
     )
     specification
   })
+
   names(selected) <- paste0(
     "hypertrophy_model_",
     stringr::str_pad(
@@ -35082,6 +36663,7 @@ make_update_2026_total_strategy_common_sample_specifications <- function(
       pad = "0"
     )
   )
+
   selected
 }
 
@@ -35099,6 +36681,7 @@ prepare_update_2026_total_strategy_common_sample_input <- function(
       call. = FALSE
     )
   }
+
   common_data <- data_by_outcome
   common_data[["hypertrophy"]] <- common_data[["hypertrophy"]] |>
     dplyr::filter(is.finite(mean_body_mass_kg)) |>
@@ -35127,6 +36710,7 @@ validate_update_2026_total_strategy_common_sample_inputs <- function(
       yi = as.numeric(yi),
       vi = as.numeric(vi)
     )
+
   if (nrow(reference) != 412L) {
     stop("The total-strategy common-sample reference is invalid.",
          call. = FALSE)
@@ -35176,6 +36760,7 @@ validate_update_2026_total_strategy_common_sample_inputs <- function(
     )
   }) |>
     dplyr::arrange(model_index)
+
   expected_indices <- c(1L, 2L, 4L, 9L, 11L, 15L, 17L, 21L, 23L)
   if (
     nrow(checks) != 9L ||
@@ -35188,6 +36773,7 @@ validate_update_2026_total_strategy_common_sample_inputs <- function(
     stop("The total-strategy common-sample preflight is incomplete.",
          call. = FALSE)
   }
+
   checks
 }
 
@@ -35246,6 +36832,7 @@ make_update_2026_total_strategy_common_sample_accepted_fit_manifest <-
     stop("The common-sample total-strategy fits are not yet acceptable.",
          call. = FALSE)
   }
+
   manifest <- tibble::tibble(
     outcome = basename(dirname(paths)),
     model_index = as.integer(stringr::str_match(
@@ -35268,6 +36855,7 @@ make_update_2026_total_strategy_common_sample_accepted_fit_manifest <-
       outcome, model_index, model_name, fit_path, stage, bytes, sha256
     ) |>
     dplyr::arrange(model_index)
+
   expected_indices <- c(1L, 2L, 4L, 9L, 11L, 15L, 17L, 21L, 23L)
   if (
     nrow(manifest) != 9L ||
@@ -35279,6 +36867,7 @@ make_update_2026_total_strategy_common_sample_accepted_fit_manifest <-
     stop("The accepted total-strategy common-sample manifest is invalid.",
          call. = FALSE)
   }
+
   manifest
 }
 
@@ -35323,6 +36912,7 @@ validate_update_2026_total_strategy_common_sample_loo_inputs <- function(
     identical(as.numeric(k_threshold), 0.7) &&
       identical(as.integer(cores_per_branch), 1L)
   )
+
   ready <-
     identical(diagnostic_audit$family, "total_strategy_common_sample") &&
     !anyDuplicated(accepted_fit_manifest[c("outcome", "model_index")]) &&
@@ -35331,6 +36921,7 @@ validate_update_2026_total_strategy_common_sample_loo_inputs <- function(
     stop("The total-strategy common-sample LOO preflight is incomplete.",
          call. = FALSE)
   }
+
   list(
     family = "total_strategy_common_sample",
     models = 9L,
@@ -35376,6 +36967,7 @@ compute_update_2026_total_strategy_common_sample_loo_to_file <- function(
     k_threshold = 0.7
 ) {
   expected_indices <- c(1L, 2L, 4L, 9L, 11L, 15L, 17L, 21L, 23L)
+
   if (!isTRUE(enabled)) {
     stop(
       "Total-strategy common-sample LOO is disabled. Set ",
@@ -35383,6 +36975,7 @@ compute_update_2026_total_strategy_common_sample_loo_to_file <- function(
       call. = FALSE
     )
   }
+
   if (
     !file.exists(record$fit_path) ||
       record$outcome != "hypertrophy" ||
@@ -35391,6 +36984,7 @@ compute_update_2026_total_strategy_common_sample_loo_to_file <- function(
     stop("A total-strategy common-sample LOO record is invalid.",
          call. = FALSE)
   }
+
   candidate <- qs::qread(record$fit_path)
   if (
     !identical(candidate$outcome, record$outcome) ||
@@ -35399,6 +36993,7 @@ compute_update_2026_total_strategy_common_sample_loo_to_file <- function(
     stop("A common-sample strategy fit does not match its LOO record.",
          call. = FALSE)
   }
+
   initial <- compute_primary_candidate_psis_loo(
     fitted_candidate = candidate,
     cores = cores,
@@ -35422,6 +37017,7 @@ compute_update_2026_total_strategy_common_sample_loo_to_file <- function(
   temporary_file <- paste0(output_file, ".tmp-", Sys.getpid())
   on.exit(unlink(temporary_file, force = TRUE), add = TRUE)
   qs::qsave(integrated, temporary_file, preset = "high")
+
   if (!file.copy(temporary_file, output_file, overwrite = TRUE)) {
     stop("Could not finalise a common-sample strategy LOO reduction.",
          call. = FALSE)
@@ -35464,6 +37060,7 @@ make_update_2026_total_strategy_final_fit_manifest <- function(
     c(3L, 7L, 10L, 13L, 16L, 19L, 22L, 25L)
   )
   replacement_indices <- c(1L, 2L, 4L, 9L, 11L, 15L, 17L, 21L, 23L)
+
   if (
     nrow(accepted_fit_manifest) != 72L ||
       nrow(common_sample_accepted_fit_manifest) != 9L ||
@@ -35476,6 +37073,7 @@ make_update_2026_total_strategy_final_fit_manifest <- function(
     stop("The final total-strategy fit inputs are incomplete.",
          call. = FALSE)
   }
+
   manifest <- accepted_fit_manifest |>
     dplyr::anti_join(
       common_sample_accepted_fit_manifest |>
@@ -35490,6 +37088,7 @@ make_update_2026_total_strategy_final_fit_manifest <- function(
       ),
       model_index
     )
+
   outcome_audit <- manifest |>
     dplyr::group_by(outcome) |>
     dplyr::summarise(
@@ -35501,6 +37100,7 @@ make_update_2026_total_strategy_final_fit_manifest <- function(
     manifest$stage,
     levels = c("initial", "remedy_1", "common_sample_1")
   ))
+
   if (
     nrow(manifest) != 72L ||
       anyDuplicated(manifest[c("outcome", "model_index")]) ||
@@ -35514,6 +37114,7 @@ make_update_2026_total_strategy_final_fit_manifest <- function(
     stop("The final total-intake strategy fit manifest is invalid.",
          call. = FALSE)
   }
+
   manifest
 }
 
@@ -35593,6 +37194,7 @@ make_update_2026_total_strategy_prediction_records <- function(
     grid_step_g_day = grid_step_g_day,
     seed = seed
   )
+
   purrr::map(records, function(record) {
     record$family <- "total_strategy"
     record$prediction_type <- "total_strategy"
@@ -35655,6 +37257,7 @@ make_update_2026_total_strategy_reporting_preflight <- function(
       ),
       model_index
     )
+
   audit <- checks |>
     dplyr::summarise(
       selected_models = dplyr::n(),
@@ -35662,6 +37265,7 @@ make_update_2026_total_strategy_reporting_preflight <- function(
       retained_weight = sum(weight),
       .by = outcome
     )
+
   if (
     nrow(audit) != 4L || any(audit$selected_models < 1L) ||
       any(audit$allocated_draws != 4000L) ||
@@ -35673,6 +37277,7 @@ make_update_2026_total_strategy_reporting_preflight <- function(
     stop("The total-intake strategy reporting preflight failed.",
          call. = FALSE)
   }
+
   checks
 }
 
@@ -35706,12 +37311,14 @@ make_update_2026_total_strategy_prediction_grid <- function(
     "resistance_exercise_code", "absolute_exposure_reference_g_day",
     "absolute_exposure_unit_g_day"
   )
+
   if (!all(required %in% names(data)) || !nrow(data)) {
     stop("The total-strategy prediction data are invalid.", call. = FALSE)
   }
   reference <- unique(data$absolute_exposure_reference_g_day)
   unit <- unique(data$absolute_exposure_unit_g_day)
   exposure_maximum_g_day <- max(data$protein_intake_raw, na.rm = TRUE)
+
   if (
     length(reference) != 1L || reference != 78.785 ||
       length(unit) != 1L || unit != 50 ||
@@ -35722,6 +37329,7 @@ make_update_2026_total_strategy_prediction_grid <- function(
     stop("The total-strategy prediction-grid limits are invalid.",
          call. = FALSE)
   }
+
   exposure_values <- sort(unique(c(
     round(seq(
       exposure_minimum_g_day,
@@ -35730,6 +37338,7 @@ make_update_2026_total_strategy_prediction_grid <- function(
     ), 10),
     reference
   )))
+
   keys <- tidyr::crossing(
     protein_strategy = c("Substitution", "Addition"),
     resistance_exercise_code = c(0, 1),
@@ -35738,6 +37347,7 @@ make_update_2026_total_strategy_prediction_grid <- function(
     dplyr::mutate(
       strategy_code = ifelse(protein_strategy == "Addition", 1, 0)
     )
+
   template_data <- fitted_candidate$model$data
   grouping_variables <- intersect(
     c("study_no", "arm_no", "outcome_no", "study_factor"),
@@ -35746,6 +37356,7 @@ make_update_2026_total_strategy_prediction_grid <- function(
   complete <- stats::complete.cases(
     template_data[, grouping_variables, drop = FALSE]
   )
+
   if (!any(complete)) {
     stop("No complete row is available for the strategy grid.",
          call. = FALSE)
@@ -35757,12 +37368,14 @@ make_update_2026_total_strategy_prediction_grid <- function(
   ]
   newdata$protein_strategy <- keys$protein_strategy
   newdata$strategy_code <- keys$strategy_code
+
   if ("strategy_factor" %in% names(newdata)) {
     newdata$strategy_factor <- factor(
       keys$protein_strategy,
       levels = c("Substitution", "Addition")
     )
   }
+
   newdata$resistance_exercise_code <- keys$resistance_exercise_code
   newdata$protein_intake_raw <- keys$protein_intake
   newdata$total_g_day <- keys$protein_intake
@@ -35771,12 +37384,14 @@ make_update_2026_total_strategy_prediction_grid <- function(
   if ("resistance_exercise_yes_no" %in% names(newdata)) {
     newdata$resistance_exercise_yes_no <- exercise_label
   }
+
   if ("resistance_exercise_factor" %in% names(newdata)) {
     newdata$resistance_exercise_factor <- factor(
       exercise_label,
       levels = levels(data$resistance_exercise_factor)
     )
   }
+
   if ("age_centre" %in% names(newdata)) newdata$age_centre <- 0
   if ("duration_centre" %in% names(newdata)) newdata$duration_centre <- 0
   if ("vi" %in% names(newdata)) newdata$vi <- 0
@@ -35842,6 +37457,7 @@ write_update_2026_total_strategy_prediction_draw_file <- function(
   ) {
     stop("A total-strategy prediction record is invalid.", call. = FALSE)
   }
+
   candidate <- qs::qread(record$fit_path)
   if (
     !identical(candidate$outcome, as.character(record$outcome)) ||
@@ -35852,6 +37468,7 @@ write_update_2026_total_strategy_prediction_draw_file <- function(
     stop("A total-strategy fit does not match its prediction record.",
          call. = FALSE)
   }
+
   grid <- make_update_2026_total_strategy_prediction_grid(
     data = data_by_outcome[[record$outcome]],
     fitted_candidate = candidate,
@@ -35868,6 +37485,7 @@ write_update_2026_total_strategy_prediction_draw_file <- function(
     re_formula = NA,
     ndraws = as.integer(record$draw_count)
   ))
+
   if (ncol(draws) != nrow(grid$keys) && nrow(draws) == nrow(grid$keys)) {
     draws <- t(draws)
   }
@@ -35878,6 +37496,7 @@ write_update_2026_total_strategy_prediction_draw_file <- function(
     stop("Total-strategy predictions do not match their allocation.",
          call. = FALSE)
   }
+
   reduction <- list(
     family = "total_strategy",
     outcome = as.character(record$outcome),
@@ -35898,6 +37517,7 @@ write_update_2026_total_strategy_prediction_draw_file <- function(
       prediction_type = "total_strategy"
     )
   )
+
   write_atomic_qs(reduction, result_path)
 }
 
@@ -35952,6 +37572,7 @@ write_update_2026_total_strategy_reporting_audit <- function(
     stop("The total-strategy reporting audit is incomplete.",
          call. = FALSE)
   }
+
   reports <- purrr::map(
     audit$summary$reporting_path,
     read_protein_strategy_full_reporting_file,
@@ -35991,6 +37612,7 @@ write_update_2026_total_strategy_reporting_audit <- function(
     local_equivalence = file.path(output_dir, "local_equivalence.csv"),
     model_weights = file.path(output_dir, "model_weights.csv")
   )
+
   readr::write_csv(audit$summary, paths[["summary"]])
   readr::write_csv(prediction_manifest, paths[["prediction_manifest"]])
   readr::write_csv(bind_report("dose_response"), paths[["dose_response"]])
@@ -36091,6 +37713,7 @@ make_update_2026_total_strategy_verification_checkpoint <- function(
         dplyr::select(outcome, model_index, weight_name = model_name),
       by = c("outcome", "model_index")
     )
+
   fit_stage_counts <- table(factor(
     final_fit_manifest$stage,
     levels = c("initial", "remedy_1", "common_sample_1")
@@ -36240,6 +37863,7 @@ make_update_2026_total_strategy_verification_checkpoint <- function(
         all(abs(reporting_weight_sums$weight_sum - 1) < 1e-8)
     )
   )
+
   failed <- is.na(checks$passed) | !checks$passed
   if (any(failed)) {
     stop(
@@ -36292,6 +37916,7 @@ make_update_2026_total_strategy_verification_checkpoint <- function(
     pairwise_support = bind_report("pairwise_support"),
     local_equivalence = bind_report("local_equivalence")
   )
+
   descriptions <- stats::setNames(
     paste("Frozen absolute total-strategy artifact:", names(artifacts)),
     names(artifacts)
@@ -36329,6 +37954,7 @@ make_update_2026_total_strategy_pruning_plan <- function(
     winslash = "/",
     mustWork = TRUE
   )
+
   if (!identical(tolower(resolved_root), tolower(expected_root))) {
     stop("Refusing to plan pruning outside the total-strategy archive.",
          call. = FALSE)
@@ -36337,6 +37963,7 @@ make_update_2026_total_strategy_pruning_plan <- function(
     archive_root,
     c("initial", "remedy_1", "common_sample_1")
   )
+
   if (any(!dir.exists(fit_roots))) {
     stop("An expected total-strategy fit directory is missing.",
          call. = FALSE)
@@ -36368,6 +37995,7 @@ make_update_2026_total_strategy_pruning_plan <- function(
     lean_action = "delete frozen absolute total-strategy model fit archive"
   ) |>
     dplyr::arrange(archive_stage, outcome, model_index)
+
   stage_counts <- table(factor(
     model_fit_manifest$archive_stage,
     levels = c("initial", "remedy_1", "common_sample_1")
@@ -36376,6 +38004,7 @@ make_update_2026_total_strategy_pruning_plan <- function(
     model_fit_manifest$archive_stage[model_fit_manifest$accepted_fit],
     levels = c("initial", "remedy_1", "common_sample_1")
   ))
+
   if (
     nrow(model_fit_manifest) != 83L ||
       !identical(as.integer(stage_counts), c(72L, 2L, 9L)) ||
@@ -36388,6 +38017,7 @@ make_update_2026_total_strategy_pruning_plan <- function(
     stop("The absolute total-strategy fit inventory is invalid.",
          call. = FALSE)
   }
+
   deletion_manifest <- model_fit_manifest |>
     dplyr::transmute(
       path,
@@ -36413,6 +38043,7 @@ make_update_2026_total_strategy_pruning_plan <- function(
     stop("An expected compact total-strategy directory is missing.",
          call. = FALSE)
   }
+
   compact_paths <- unlist(purrr::map(compact_roots, function(root) {
     list.files(root, recursive = TRUE, full.names = TRUE, all.files = TRUE)
   }), use.names = FALSE)
@@ -36433,6 +38064,7 @@ make_update_2026_total_strategy_pruning_plan <- function(
     )]
     if (length(matches) == 1L) matches else "unknown"
   }, character(1L))
+
   compact_manifest <- tibble::tibble(
     path = compact_paths,
     relative_path = substring(compact_paths, nchar(resolved_root) + 2L),
@@ -36445,6 +38077,7 @@ make_update_2026_total_strategy_pruning_plan <- function(
     action = "retain compact absolute total-strategy result"
   ) |>
     dplyr::arrange(archive_component, relative_path)
+
   compact_counts <- table(factor(
     compact_manifest$archive_component,
     levels = c("loo", "reporting")
@@ -36460,6 +38093,7 @@ make_update_2026_total_strategy_pruning_plan <- function(
     stop("The compact absolute total-strategy archive is incomplete.",
          call. = FALSE)
   }
+
   summary <- tibble::tibble(
     mode = "lean",
     model_fit_archives_deleted = nrow(model_fit_manifest),
@@ -36480,6 +38114,7 @@ make_update_2026_total_strategy_pruning_plan <- function(
       "total-intake strategy family."
     )
   )
+
   list(
     summary = summary,
     model_fit_manifest = model_fit_manifest,
@@ -36527,6 +38162,10 @@ write_update_2026_total_strategy_pruning_plan <- function(
   unname(paths)
 }
 
+# Strict within-study comparisons by total-intake strategy ----
+
+# Prepare the total-intake contrasts and carry the strategy label used by the
+# interaction models.
 make_update_2026_total_strategy_within_data_by_outcome <- function(
     total_within_data_by_outcome,
     strategy_audit
@@ -36536,6 +38175,7 @@ make_update_2026_total_strategy_within_data_by_outcome <- function(
     stop("The total within-study outcome registry is incomplete.",
          call. = FALSE)
   }
+
   output <- purrr::map(
     total_within_data_by_outcome,
     prepare_protein_strategy_within_data,
@@ -36554,6 +38194,7 @@ make_update_2026_total_strategy_within_data_by_outcome <- function(
       all(data$absolute_exposure_reference_g_day == 78.785) &&
       all(data$absolute_exposure_unit_g_day == 50)
   })
+
   if (!all(valid)) {
     stop("An absolute total strategy-within dataset is invalid.",
          call. = FALSE)
@@ -36581,6 +38222,7 @@ make_update_2026_total_strategy_within_specifications <- function(
     registry$historical_schedule,
     levels = c("base", "longer_sampling")
   ))
+
   if (
     length(specifications) != 72L || anyDuplicated(keys) ||
       !identical(as.integer(counts), rep(18L, 4L)) ||
@@ -36590,6 +38232,7 @@ make_update_2026_total_strategy_within_specifications <- function(
     stop("The absolute total strategy-within registry is invalid.",
          call. = FALSE)
   }
+
   names(specifications) <- paste0(
     registry$outcome,
     "_model_",
@@ -36704,6 +38347,7 @@ validate_update_2026_total_strategy_within_inputs <- function(
       ),
       model_index
     )
+
   keys <- paste(checks$outcome, checks$model_index, sep = "::")
   outcome_counts <- table(factor(
     checks$outcome,
@@ -36715,6 +38359,7 @@ validate_update_2026_total_strategy_within_inputs <- function(
   ))
   moderator_formula_valid <-
     checks$body_mass_in_formula == checks$includes_moderators
+
   if (
     nrow(checks) != 72L || anyDuplicated(keys) ||
       !identical(as.integer(outcome_counts), rep(18L, 4L)) ||
@@ -36732,6 +38377,7 @@ validate_update_2026_total_strategy_within_inputs <- function(
     stop("The absolute total strategy-within preflight failed.",
          call. = FALSE)
   }
+
   checks
 }
 
@@ -36790,6 +38436,7 @@ make_update_2026_total_strategy_within_remedy_specifications <- function(
   failed <- diagnostic_audit$diagnostic_summary |>
     dplyr::filter(!diagnostic_pass) |>
     dplyr::mutate(key = paste(outcome, model_index, sep = "::"))
+
   if (
     !identical(diagnostic_audit$family, "total_strategy_within") ||
       nrow(failed) != 1L || failed$key[[1L]] != "strength::26" ||
@@ -36801,6 +38448,7 @@ make_update_2026_total_strategy_within_remedy_specifications <- function(
     stop("The total strategy-within remedy set no longer matches its audit.",
          call. = FALSE)
   }
+
   keys <- purrr::map_chr(
     specifications,
     ~ paste(.x$outcome, .x$model_index, sep = "::")
@@ -36810,6 +38458,7 @@ make_update_2026_total_strategy_within_remedy_specifications <- function(
     stop("Could not select the total strategy-within remedy model.",
          call. = FALSE)
   }
+
   selected <- purrr::map(selected, function(specification) {
     specification$adapt_delta <- max(
       as.numeric(specification$adapt_delta),
@@ -36829,6 +38478,7 @@ make_update_2026_total_strategy_within_remedy_specifications <- function(
     )
     specification
   })
+
   names(selected) <- "strength_model_26"
   selected
 }
@@ -36873,6 +38523,7 @@ validate_update_2026_total_strategy_within_remedy_inputs <- function(
       valid = TRUE
     )
   })
+
   if (
     nrow(checks) != 1L || checks$outcome[[1L]] != "strength" ||
       checks$model_index[[1L]] != 26L ||
@@ -36886,6 +38537,7 @@ validate_update_2026_total_strategy_within_remedy_inputs <- function(
     stop("The total strategy-within remedy preflight is invalid.",
          call. = FALSE)
   }
+
   checks
 }
 
@@ -36930,6 +38582,7 @@ combine_update_2026_total_strategy_within_remedy_diagnostics <- function(
   diagnostic_key <- function(x) {
     paste(x$summary$outcome[[1L]], x$summary$model_index[[1L]], sep = "::")
   }
+
   if (length(initial_diagnostics) != 72L ||
       length(remedy_diagnostics) != 1L) {
     stop("The total strategy-within remedy diagnostics are incomplete.",
@@ -36940,6 +38593,7 @@ combine_update_2026_total_strategy_within_remedy_diagnostics <- function(
   failed_keys <- initial_diagnostics |>
     purrr::keep(~ !.x$summary$diagnostic_pass[[1L]]) |>
     purrr::map_chr(diagnostic_key)
+
   if (
     anyDuplicated(initial_keys) || anyDuplicated(remedy_keys) ||
       !identical(unname(remedy_keys), "strength::26") ||
@@ -36949,6 +38603,7 @@ combine_update_2026_total_strategy_within_remedy_diagnostics <- function(
     stop("The total strategy-within diagnostic replacement is invalid.",
          call. = FALSE)
   }
+
   final_diagnostics <- initial_diagnostics
   final_diagnostics[match(remedy_keys, initial_keys)] <- remedy_diagnostics
   compile_update_2026_total_primary_diagnostic_audit(
@@ -36963,6 +38618,7 @@ make_update_2026_total_strategy_within_accepted_fit_manifest <- function(
     final_diagnostic_audit
 ) {
   remedy_paths <- unname(unlist(remedy_fit_paths, use.names = FALSE))
+
   if (
     nrow(initial_manifest) != 72L || length(remedy_paths) != 1L ||
       any(!file.exists(remedy_paths)) ||
@@ -36974,6 +38630,7 @@ make_update_2026_total_strategy_within_accepted_fit_manifest <- function(
     stop("Accepted total strategy-within fits require 72 passing diagnostics.",
          call. = FALSE)
   }
+
   initial_manifest <- initial_manifest |>
     dplyr::mutate(
       model_name = dplyr::if_else(
@@ -36985,6 +38642,7 @@ make_update_2026_total_strategy_within_accepted_fit_manifest <- function(
         paste0(model_name, " [total_strategy_within]")
       )
     )
+
   remedy <- tibble::tibble(
     outcome = basename(dirname(remedy_paths)),
     model_index = as.integer(stringr::str_match(
@@ -37007,6 +38665,7 @@ make_update_2026_total_strategy_within_accepted_fit_manifest <- function(
     dplyr::select(
       outcome, model_index, model_name, fit_path, stage, bytes, sha256
     )
+
   accepted <- initial_manifest |>
     dplyr::anti_join(
       remedy |> dplyr::select(outcome, model_index),
@@ -37020,6 +38679,7 @@ make_update_2026_total_strategy_within_accepted_fit_manifest <- function(
       ),
       model_index
     )
+
   remedy_key <- paste(remedy$outcome, remedy$model_index, sep = "::")
   if (
     nrow(remedy) != 1L || remedy_key != "strength::26" ||
@@ -37038,6 +38698,7 @@ make_update_2026_total_strategy_within_accepted_fit_manifest <- function(
     stop("The accepted total strategy-within manifest is invalid.",
          call. = FALSE)
   }
+
   accepted
 }
 
@@ -37077,6 +38738,7 @@ validate_update_2026_total_strategy_within_loo_inputs <- function(
     identical(k_threshold, 0.7) &&
       identical(as.integer(cores_per_branch), 1L)
   )
+
   ready <-
     nrow(accepted_fit_manifest) == 72L &&
     !anyDuplicated(accepted_fit_manifest[c("outcome", "model_index")]) &&
@@ -37085,6 +38747,7 @@ validate_update_2026_total_strategy_within_loo_inputs <- function(
     stop("The total strategy-within LOO preflight is incomplete.",
          call. = FALSE)
   }
+
   list(
     family = "total_strategy_within",
     models = 72L,
@@ -37115,6 +38778,7 @@ compute_update_2026_total_strategy_within_integrated_loo_to_file <- function(
       call. = FALSE
     )
   }
+
   result <- compute_mundlak_full_file_integrated_loo(
     fit_record = fit_record,
     loo_draws = loo_draws,
@@ -37123,6 +38787,7 @@ compute_update_2026_total_strategy_within_integrated_loo_to_file <- function(
     family = "total_strategy_within",
     slope_description = "strategy_modified_within_contrast_basis_slopes"
   )
+
   if (
     !inherits(result$loo, "loo") ||
       !inherits(result$conditional_loo, "loo") ||
@@ -37133,6 +38798,7 @@ compute_update_2026_total_strategy_within_integrated_loo_to_file <- function(
     stop("Cannot archive an invalid total strategy-within LOO result.",
          call. = FALSE)
   }
+
   output_dir <- file.path(output_root, result$outcome)
   dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
   output_file <- file.path(
@@ -37151,6 +38817,7 @@ validate_update_2026_total_strategy_within_exact_inputs <- function(
     config
 ) {
   expected <- as.integer(integrated_audit$exact_refits_required)
+
   if (!is.list(records) || length(records) != expected || expected != 49L) {
     stop("Expected 49 total strategy-within exact-LOO records.",
          call. = FALSE)
@@ -37202,6 +38869,7 @@ validate_update_2026_total_strategy_within_exact_inputs <- function(
     )
   }) |>
     dplyr::arrange(case_id)
+
   observed_keys <- paste(
     checks$outcome,
     checks$model_index,
@@ -37218,6 +38886,7 @@ validate_update_2026_total_strategy_within_exact_inputs <- function(
     checks$outcome,
     levels = c("whole_body", "hypertrophy", "strength", "function")
   ))
+
   if (
     nrow(checks) != expected || anyDuplicated(observed_keys) ||
       !setequal(observed_keys, expected_keys) ||
@@ -37233,6 +38902,7 @@ validate_update_2026_total_strategy_within_exact_inputs <- function(
     stop("The total strategy-within exact-LOO preflight is incomplete.",
          call. = FALSE)
   }
+
   checks
 }
 
@@ -37303,6 +38973,7 @@ fit_update_2026_total_strategy_within_exact_to_file <- function(
     stop("An existing total strategy-within exact archive is invalid.",
          call. = FALSE)
   }
+
   candidate <- read_sensitivity_fit_file(record$original_fit_path)
   integrated <- qs::qread(record$integrated_loo_path)
   observation <- as.integer(record$observation)
@@ -37326,6 +38997,7 @@ fit_update_2026_total_strategy_within_exact_to_file <- function(
     stop("A total strategy-within exact record failed validation.",
          call. = FALSE)
   }
+
   prediction_data <- candidate$model$data
   training_data <- prediction_data[-observation, , drop = FALSE]
   original_model <- candidate$model
@@ -37357,6 +39029,7 @@ fit_update_2026_total_strategy_within_exact_to_file <- function(
     ),
     save_pars = brms::save_pars(all = TRUE)
   )
+
   archive <- list(
     family = "total_strategy_within",
     case_id = as.integer(record$case_id),
@@ -37372,6 +39045,7 @@ fit_update_2026_total_strategy_within_exact_to_file <- function(
     refitted_model = refitted_model,
     refit_seconds = as.numeric(proc.time()[["elapsed"]] - start_time)
   )
+
   write_atomic_qs(archive, output_file)
 }
 
@@ -37419,12 +39093,14 @@ compute_update_2026_total_strategy_within_correction_to_file <- function(
     stop("Total strategy-within exact correction is disabled.",
          call. = FALSE)
   }
+
   refit <- read_sensitivity_full_exact_loo_file(
     exact_fit_path,
     "total_strategy_within"
   )
   output_file <-
     update_2026_total_strategy_within_correction_file_path(refit)
+
   if (file.exists(output_file) && file.info(output_file)$size > 0) {
     archived <- tryCatch(qs::qread(output_file), error = function(error) NULL)
     if (
@@ -37440,6 +39116,7 @@ compute_update_2026_total_strategy_within_correction_to_file <- function(
     stop("An existing total strategy-within correction is invalid.",
          call. = FALSE)
   }
+
   correction <- compute_sensitivity_full_exact_loo_file(
     path = exact_fit_path,
     diagnostic_audit = diagnostic_audit,
@@ -37454,6 +39131,7 @@ compute_update_2026_total_strategy_within_correction_to_file <- function(
     stop("The total strategy-within exact correction is invalid.",
          call. = FALSE)
   }
+
   write_atomic_qs(correction, output_file)
 }
 
@@ -37463,6 +39141,7 @@ audit_update_2026_total_strategy_within_corrections <- function(
 ) {
   paths <- unname(unlist(paths, use.names = FALSE))
   expected <- as.integer(integrated_audit$exact_refits_required)
+
   if (
     length(paths) != expected || expected != 49L || anyNA(paths) ||
       any(!file.exists(paths)) || any(file.info(paths)$size <= 0)
@@ -37470,6 +39149,7 @@ audit_update_2026_total_strategy_within_corrections <- function(
     stop("The total strategy-within exact corrections are incomplete.",
          call. = FALSE)
   }
+
   corrections <- purrr::map(paths, qs::qread)
   diagnostic_summary <- purrr::map_dfr(
     corrections,
@@ -37483,6 +39163,7 @@ audit_update_2026_total_strategy_within_corrections <- function(
       model_index,
       observation
     )
+
   manifest <- purrr::map2_dfr(paths, corrections, function(path, result) {
     tibble::tibble(
       case_id = as.integer(result$case_id),
@@ -37501,6 +39182,7 @@ audit_update_2026_total_strategy_within_corrections <- function(
     )
   }) |>
     dplyr::arrange(case_id)
+
   observed_keys <- paste(
     manifest$outcome,
     manifest$model_index,
@@ -37513,6 +39195,7 @@ audit_update_2026_total_strategy_within_corrections <- function(
     integrated_audit$high_k_cases$observation,
     sep = "::"
   )
+
   if (
     nrow(diagnostic_summary) != 49L || nrow(manifest) != 49L ||
       anyDuplicated(observed_keys) || !setequal(observed_keys, expected_keys) ||
@@ -37522,6 +39205,7 @@ audit_update_2026_total_strategy_within_corrections <- function(
     stop("The total strategy-within correction audit is invalid.",
          call. = FALSE)
   }
+
   list(
     family = "total_strategy_within",
     diagnostic_summary = diagnostic_summary,
@@ -37550,6 +39234,7 @@ write_update_2026_total_strategy_within_correction_audit <- function(
     stop("Cannot write an incomplete total strategy-within correction audit.",
          call. = FALSE)
   }
+
   dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
   paths <- c(
     diagnostic_summary = file.path(output_dir, "diagnostic_summary.csv"),
@@ -37576,6 +39261,7 @@ read_update_2026_total_strategy_within_corrections <- function(manifest) {
     stop("The total strategy-within correction manifest is invalid.",
          call. = FALSE)
   }
+
   corrections <- purrr::map(manifest$correction_path, qs::qread)
   corrections <- corrections[order(purrr::map_int(corrections, "case_id"))]
   if (
@@ -37586,6 +39272,7 @@ read_update_2026_total_strategy_within_corrections <- function(manifest) {
     stop("The total strategy-within exact corrections are invalid.",
          call. = FALSE)
   }
+
   corrections
 }
 
@@ -37598,6 +39285,7 @@ make_update_2026_total_strategy_within_final_loo_audit <- function(
     seq_len(26L),
     c(3L, 7L, 10L, 13L, 16L, 19L, 22L, 25L)
   )
+
   if (!isTRUE(exact_audit$all_exact_refit_diagnostics_pass)) {
     stop("Final total strategy-within LOO requires passing exact refits.",
          call. = FALSE)
@@ -37618,6 +39306,7 @@ make_update_2026_total_strategy_within_final_loo_audit <- function(
       maximum_remaining_pareto_k = max(maximum_pareto_k, na.rm = TRUE),
       .by = outcome
     )
+
   correction_counts <- exact_audit$diagnostic_summary |>
     dplyr::count(outcome, model_index, name = "exact_corrections")
   final_manifest <- integrated_manifest |>
@@ -37633,6 +39322,7 @@ make_update_2026_total_strategy_within_final_loo_audit <- function(
         "integrated_observation_level_psis"
       )
     )
+
   if (
     !isTRUE(final$stacking_ready) || nrow(final$model_summary) != 72L ||
       nrow(outcome_summary) != 4L || any(outcome_summary$models != 18L) ||
@@ -37643,6 +39333,7 @@ make_update_2026_total_strategy_within_final_loo_audit <- function(
     stop("The final total strategy-within LOO audit is not stacking-ready.",
          call. = FALSE)
   }
+
   final$family <- "total_strategy_within"
   final$outcome_summary <- outcome_summary
   final$final_loo_manifest <- final_manifest
@@ -37668,6 +39359,7 @@ write_update_2026_total_strategy_within_final_loo_audit <- function(
     stop("Cannot write an incomplete final total strategy-within LOO audit.",
          call. = FALSE)
   }
+
   dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
   paths <- c(
     final_loo_manifest = file.path(output_dir, "final_loo_manifest.csv"),
@@ -37701,6 +39393,7 @@ make_update_2026_total_strategy_within_prediction_records <- function(
     grid_step_g_day = grid_step_g_day,
     seed = seed
   )
+
   purrr::map(records, function(record) {
     record$family <- "total_strategy_within"
     record$prediction_type <- "total_strategy_within"
@@ -37718,6 +39411,7 @@ make_update_2026_total_strategy_within_reporting_preflight <- function(
     stop("The total strategy-within prediction allocation is incomplete.",
          call. = FALSE)
   }
+
   checks <- purrr::map_dfr(records, function(record) {
     prediction_data <- data_by_outcome[[record$outcome]]
     protein_max <- if (
@@ -37761,6 +39455,7 @@ make_update_2026_total_strategy_within_reporting_preflight <- function(
       ),
       model_index
     )
+
   outcome_audit <- checks |>
     dplyr::summarise(
       selected_models = dplyr::n(),
@@ -37768,6 +39463,7 @@ make_update_2026_total_strategy_within_reporting_preflight <- function(
       retained_weight = sum(weight),
       .by = outcome
     )
+
   if (
     nrow(outcome_audit) != 4L ||
       any(outcome_audit$selected_models < 1L) ||
@@ -37781,6 +39477,7 @@ make_update_2026_total_strategy_within_reporting_preflight <- function(
     stop("The total strategy-within reporting preflight failed.",
          call. = FALSE)
   }
+
   checks
 }
 
@@ -37836,6 +39533,7 @@ write_update_2026_total_strategy_within_prediction_draw_file <- function(
     stop("A total strategy-within prediction record is invalid.",
          call. = FALSE)
   }
+
   candidate <- read_sensitivity_fit_file(record$fit_path)
   if (
     !identical(unname(as.character(candidate$family)),
@@ -37849,6 +39547,7 @@ write_update_2026_total_strategy_within_prediction_draw_file <- function(
     stop("A total strategy-within prediction fit does not match its record.",
          call. = FALSE)
   }
+
   data <- data_by_outcome[[record$outcome]]
   grid <- make_protein_strategy_within_prediction_grid(
     fitted_candidate = candidate,
@@ -37858,6 +39557,7 @@ write_update_2026_total_strategy_within_prediction_draw_file <- function(
     grid_step = as.numeric(record$grid_step),
     reference_raw = 78.785
   )
+
   old_mc_cores <- getOption("mc.cores")
   on.exit(options(mc.cores = old_mc_cores), add = TRUE)
   options(mc.cores = 1L)
@@ -37868,6 +39568,7 @@ write_update_2026_total_strategy_within_prediction_draw_file <- function(
     re_formula = NA,
     ndraws = as.integer(record$draw_count)
   ))
+
   if (ncol(draws) != nrow(grid$keys) && nrow(draws) == nrow(grid$keys)) {
     draws <- t(draws)
   }
@@ -37876,6 +39577,7 @@ write_update_2026_total_strategy_within_prediction_draw_file <- function(
     stop("Total strategy-within prediction draws are incomplete.",
          call. = FALSE)
   }
+
   reduction <- list(
     family = "total_strategy_within",
     outcome = record$outcome,
@@ -37896,6 +39598,7 @@ write_update_2026_total_strategy_within_prediction_draw_file <- function(
       internal_unit_g_day = 50
     )
   )
+
   write_atomic_qs(reduction, result_path)
 }
 
@@ -37960,6 +39663,7 @@ write_update_2026_total_strategy_within_reporting_file <- function(
       )
     }
   )
+
   bind_component <- function(name) {
     dplyr::bind_rows(purrr::map(strategy_reports, name))
   }
@@ -37989,6 +39693,7 @@ write_update_2026_total_strategy_within_reporting_file <- function(
       )
     )
   )
+
   write_atomic_qs(report, result_path)
 }
 
@@ -38009,6 +39714,7 @@ write_update_2026_total_strategy_within_reporting_audit <- function(
     stop("The total strategy-within reporting audit is incomplete.",
          call. = FALSE)
   }
+
   reports <- purrr::map(
     audit$summary$reporting_path,
     read_protein_strategy_within_full_reporting_file,
@@ -38036,6 +39742,7 @@ write_update_2026_total_strategy_within_reporting_audit <- function(
     local_equivalence = file.path(output_dir, "local_equivalence.csv"),
     model_weights = file.path(output_dir, "model_weights.csv")
   )
+
   readr::write_csv(audit$summary, paths[["summary"]])
   readr::write_csv(prediction_manifest, paths[["prediction_manifest"]])
   readr::write_csv(bind_report("dose_response"), paths[["dose_response"]])
@@ -38124,6 +39831,7 @@ make_update_2026_total_strategy_within_verification_checkpoint <- function(
         dplyr::select(outcome, model_index, weight_name = model_name),
       by = c("outcome", "model_index")
     )
+
   accepted_stages <- table(factor(
     accepted_fit_manifest$stage,
     levels = c("initial", "remedy_1")
@@ -38235,6 +39943,7 @@ make_update_2026_total_strategy_within_verification_checkpoint <- function(
         all(abs(reporting_weight_sums$weight_sum - 1) < 1e-8)
     )
   )
+
   failed <- is.na(checks$passed) | !checks$passed
   if (any(failed)) {
     stop(
@@ -38243,6 +39952,7 @@ make_update_2026_total_strategy_within_verification_checkpoint <- function(
       call. = FALSE
     )
   }
+
   artifacts <- list(
     verification_checks = checks,
     source_manifest = source_manifest,
@@ -38280,6 +39990,7 @@ make_update_2026_total_strategy_within_verification_checkpoint <- function(
     pairwise_support = bind_report("pairwise_support"),
     local_equivalence = bind_report("local_equivalence")
   )
+
   descriptions <- stats::setNames(
     paste("Frozen total strategy-within artifact:", names(artifacts)),
     names(artifacts)
@@ -38317,6 +40028,7 @@ make_update_2026_total_strategy_within_pruning_plan <- function(
     winslash = "/",
     mustWork = TRUE
   )
+
   if (!identical(tolower(resolved_root), tolower(expected_root))) {
     stop("Refusing to plan pruning outside the total strategy-within archive.",
          call. = FALSE)
@@ -38347,6 +40059,7 @@ make_update_2026_total_strategy_within_pruning_plan <- function(
     accepted_fit = TRUE,
     bytes = as.numeric(file.info(exact_paths)$size)
   )
+
   if (
     nrow(model_manifest) != 73L || sum(model_manifest$accepted_fit) != 72L ||
       sum(!model_manifest$accepted_fit) != 1L ||
@@ -38356,6 +40069,7 @@ make_update_2026_total_strategy_within_pruning_plan <- function(
     stop("The total strategy-within fit inventory is invalid.",
          call. = FALSE)
   }
+
   deletion_manifest <- dplyr::bind_rows(model_manifest, exact_manifest) |>
     dplyr::mutate(
       artifact_role = dplyr::case_when(
@@ -38365,6 +40079,7 @@ make_update_2026_total_strategy_within_pruning_plan <- function(
       ),
       lean_action = "delete refittable total strategy-within fit archive"
     )
+
   compact_roots <- c(
     loo_psis = file.path(archive_root, "loo", "integrated"),
     exact_corrections = file.path(archive_root, "loo", "exact_correction"),
@@ -38386,6 +40101,7 @@ make_update_2026_total_strategy_within_pruning_plan <- function(
     ),
     names(compact_roots)
   )
+
   component <- vapply(compact_paths, function(path) {
     matches <- names(roots)[vapply(
       roots,
@@ -38394,6 +40110,7 @@ make_update_2026_total_strategy_within_pruning_plan <- function(
     )]
     if (length(matches) == 1L) matches else "unknown"
   }, character(1L))
+
   compact_manifest <- tibble::tibble(
     path = compact_paths,
     relative_path = substring(compact_paths, nchar(resolved_root) + 2L),
@@ -38405,6 +40122,7 @@ make_update_2026_total_strategy_within_pruning_plan <- function(
     ),
     action = "retain compact total strategy-within result"
   )
+
   compact_counts <- table(factor(
     compact_manifest$archive_component,
     levels = c("loo_psis", "exact_corrections", "reporting")
@@ -38419,6 +40137,7 @@ make_update_2026_total_strategy_within_pruning_plan <- function(
     stop("The compact total strategy-within archive is incomplete.",
          call. = FALSE)
   }
+
   summary <- tibble::tibble(
     mode = "lean",
     model_fit_archives_deleted = nrow(model_manifest),
@@ -38437,6 +40156,7 @@ make_update_2026_total_strategy_within_pruning_plan <- function(
       "total strategy-within family."
     )
   )
+
   list(
     summary = summary,
     model_fit_manifest = model_manifest,
@@ -38471,6 +40191,10 @@ write_update_2026_total_strategy_within_pruning_plan <- function(
   unname(paths)
 }
 
+# Prescribed supplement dose by manipulation strategy ----
+
+# Start from the supplement primary specifications and record how the strategy
+# classification changes each formula.
 make_update_2026_supplement_strategy_specifications <- function(
     supplement_primary_specifications
 ) {
@@ -38489,6 +40213,7 @@ make_update_2026_supplement_strategy_specifications <- function(
       specification
     }
   )
+
   registry <- dplyr::bind_rows(specifications)
   keys <- paste(registry$outcome, registry$model_index, sep = "::")
   counts <- table(factor(
@@ -38503,6 +40228,7 @@ make_update_2026_supplement_strategy_specifications <- function(
     registry$formula,
     "strategy_code:|by\\s*=\\s*strategy_code"
   )
+
   if (
     length(specifications) != 72L || anyDuplicated(keys) ||
       !identical(as.integer(counts), rep(18L, 4L)) ||
@@ -38513,6 +40239,7 @@ make_update_2026_supplement_strategy_specifications <- function(
     stop("The supplement strategy specification registry is invalid.",
          call. = FALSE)
   }
+
   names(specifications) <- paste0(
     registry$outcome,
     "_model_",
@@ -38536,6 +40263,7 @@ read_update_2026_supplement_strategy_audit <- function(
     show_col_types = FALSE,
     progress = FALSE
   )
+
   required <- c(
     "study_no", "pmid", "doi", "authors", "year", "title",
     "arm_count", "arm_mix", "primary_strategy", "strategy_detail",
@@ -38554,6 +40282,7 @@ read_update_2026_supplement_strategy_audit <- function(
   } else {
     TRUE
   }
+
   extension <- extension |>
     dplyr::arrange(as.integer(study_no))
   if (
@@ -38578,6 +40307,7 @@ read_update_2026_supplement_strategy_audit <- function(
       call. = FALSE
     )
   }
+
   extension <- extension |>
     dplyr::mutate(
       classification_confirmed = TRUE,
@@ -38587,12 +40317,14 @@ read_update_2026_supplement_strategy_audit <- function(
     dplyr::select(dplyr::all_of(names(strategy_audit)))
   combined <- dplyr::bind_rows(strategy_audit, extension) |>
     dplyr::arrange(as.integer(study_no))
+
   if (
     nrow(combined) != nrow(strategy_audit) + 2L ||
       anyDuplicated(combined$study_no)
   ) {
     stop("The supplement strategy audit is incomplete.", call. = FALSE)
   }
+
   combined
 }
 
@@ -38627,6 +40359,7 @@ validate_update_2026_supplement_strategy_inputs <- function(
     stop("The supplement strategy source audits have not passed.",
          call. = FALSE)
   }
+
   checks <- purrr::map_dfr(specifications, function(specification) {
     input <- prepare_update_2026_supplement_strategy_input(
       specification,
@@ -38674,6 +40407,7 @@ validate_update_2026_supplement_strategy_inputs <- function(
       ),
       model_index
     )
+
   counts <- table(factor(
     checks$outcome,
     levels = c("whole_body", "hypertrophy", "strength", "function")
@@ -38693,6 +40427,7 @@ validate_update_2026_supplement_strategy_inputs <- function(
     stop("The supplement strategy input preflight is incomplete.",
          call. = FALSE)
   }
+
   checks
 }
 
@@ -38737,6 +40472,7 @@ make_update_2026_supplement_strategy_remedy_specifications <- function(
   failed <- diagnostic_audit$diagnostic_summary |>
     dplyr::filter(!diagnostic_pass) |>
     dplyr::mutate(key = paste(outcome, model_index, sep = "::"))
+
   if (
     !identical(diagnostic_audit$family, "supplement_strategy") ||
       nrow(failed) != 1L || failed$key[[1L]] != "hypertrophy::2" ||
@@ -38748,6 +40484,7 @@ make_update_2026_supplement_strategy_remedy_specifications <- function(
     stop("The supplement strategy remedy set no longer matches its audit.",
          call. = FALSE)
   }
+
   keys <- purrr::map_chr(
     specifications,
     ~ paste(.x$outcome, .x$model_index, sep = "::")
@@ -38757,6 +40494,7 @@ make_update_2026_supplement_strategy_remedy_specifications <- function(
     stop("Could not select the supplement strategy remedy model.",
          call. = FALSE)
   }
+
   selected <- purrr::map(selected, function(specification) {
     specification$adapt_delta <- max(
       as.numeric(specification$adapt_delta),
@@ -38776,6 +40514,7 @@ make_update_2026_supplement_strategy_remedy_specifications <- function(
     )
     specification
   })
+
   names(selected) <- "hypertrophy_model_02"
   selected
 }
@@ -38815,6 +40554,7 @@ validate_update_2026_supplement_strategy_remedy_inputs <- function(
       valid = TRUE
     )
   })
+
   if (
     nrow(checks) != 1L || checks$outcome[[1L]] != "hypertrophy" ||
       checks$model_index[[1L]] != 2L ||
@@ -38829,6 +40569,7 @@ validate_update_2026_supplement_strategy_remedy_inputs <- function(
     stop("The supplement strategy remedy preflight is invalid.",
          call. = FALSE)
   }
+
   checks
 }
 
@@ -38870,6 +40611,7 @@ combine_update_2026_supplement_strategy_remedy_diagnostics <- function(
   diagnostic_key <- function(x) {
     paste(x$summary$outcome[[1L]], x$summary$model_index[[1L]], sep = "::")
   }
+
   if (length(initial_diagnostics) != 72L ||
       length(remedy_diagnostics) != 1L) {
     stop("The supplement strategy remedy diagnostics are incomplete.",
@@ -38880,6 +40622,7 @@ combine_update_2026_supplement_strategy_remedy_diagnostics <- function(
   failed_keys <- initial_diagnostics |>
     purrr::keep(~ !.x$summary$diagnostic_pass[[1L]]) |>
     purrr::map_chr(diagnostic_key)
+
   if (
     anyDuplicated(initial_keys) || anyDuplicated(remedy_keys) ||
       !identical(unname(remedy_keys), "hypertrophy::2") ||
@@ -38889,6 +40632,7 @@ combine_update_2026_supplement_strategy_remedy_diagnostics <- function(
     stop("The supplement strategy diagnostic replacement is invalid.",
          call. = FALSE)
   }
+
   final_diagnostics <- initial_diagnostics
   final_diagnostics[match(remedy_keys, initial_keys)] <- remedy_diagnostics
   compile_update_2026_total_primary_diagnostic_audit(
@@ -38903,6 +40647,7 @@ make_update_2026_supplement_strategy_accepted_fit_manifest <- function(
     final_diagnostic_audit
 ) {
   remedy_paths <- unname(unlist(remedy_fit_paths, use.names = FALSE))
+
   if (
     nrow(initial_manifest) != 72L || length(remedy_paths) != 1L ||
       !identical(final_diagnostic_audit$family, "supplement_strategy") ||
@@ -38914,6 +40659,7 @@ make_update_2026_supplement_strategy_accepted_fit_manifest <- function(
     stop("Accepted supplement-strategy fits require 72 passing diagnostics.",
          call. = FALSE)
   }
+
   remedy <- tibble::tibble(
     outcome = basename(dirname(remedy_paths)),
     model_index = as.integer(stringr::str_match(
@@ -38936,6 +40682,7 @@ make_update_2026_supplement_strategy_accepted_fit_manifest <- function(
     dplyr::select(
       outcome, model_index, model_name, fit_path, stage, bytes, sha256
     )
+
   accepted <- initial_manifest |>
     dplyr::anti_join(
       remedy |> dplyr::select(outcome, model_index),
@@ -38949,6 +40696,7 @@ make_update_2026_supplement_strategy_accepted_fit_manifest <- function(
       ),
       model_index
     )
+
   retained_indices <- setdiff(
     seq_len(26L),
     c(3L, 7L, 10L, 13L, 16L, 19L, 22L, 25L)
@@ -38959,6 +40707,7 @@ make_update_2026_supplement_strategy_accepted_fit_manifest <- function(
       indices_valid = setequal(model_index, retained_indices),
       .by = outcome
     )
+
   if (
     nrow(remedy) != 1L || remedy$outcome[[1L]] != "hypertrophy" ||
       remedy$model_index[[1L]] != 2L || nrow(accepted) != 72L ||
@@ -38973,6 +40722,7 @@ make_update_2026_supplement_strategy_accepted_fit_manifest <- function(
     stop("The accepted supplement-strategy fit manifest is invalid.",
          call. = FALSE)
   }
+
   accepted
 }
 
@@ -39005,6 +40755,7 @@ validate_update_2026_supplement_strategy_loo_inputs <- function(
     identical(as.numeric(k_threshold), 0.7) &&
       identical(as.integer(cores_per_branch), 1L)
   )
+
   ready <-
     nrow(accepted_fit_manifest) == 72L &&
     !anyDuplicated(accepted_fit_manifest[c("outcome", "model_index")]) &&
@@ -39013,6 +40764,7 @@ validate_update_2026_supplement_strategy_loo_inputs <- function(
     stop("The supplement-strategy LOO preflight is incomplete.",
          call. = FALSE)
   }
+
   list(
     family = "supplement_strategy",
     models = 72L,
@@ -39059,6 +40811,7 @@ compute_update_2026_supplement_strategy_integrated_loo_to_file <- function(
     seq_len(26L),
     c(3L, 7L, 10L, 13L, 16L, 19L, 22L, 25L)
   )
+
   if (!isTRUE(enabled)) {
     stop(
       "Supplement-strategy LOO is disabled. Set ",
@@ -39066,6 +40819,7 @@ compute_update_2026_supplement_strategy_integrated_loo_to_file <- function(
       call. = FALSE
     )
   }
+
   if (
     !file.exists(record$fit_path) ||
       !record$model_index %in% retained_indices ||
@@ -39074,6 +40828,7 @@ compute_update_2026_supplement_strategy_integrated_loo_to_file <- function(
   ) {
     stop("A supplement-strategy LOO record is invalid.", call. = FALSE)
   }
+
   candidate <- qs::qread(record$fit_path)
   if (
     !identical(candidate$outcome, record$outcome) ||
@@ -39083,6 +40838,7 @@ compute_update_2026_supplement_strategy_integrated_loo_to_file <- function(
     stop("A supplement-strategy fit does not match its LOO record.",
          call. = FALSE)
   }
+
   initial <- compute_primary_candidate_psis_loo(
     fitted_candidate = candidate,
     cores = cores,
@@ -39107,6 +40863,7 @@ compute_update_2026_supplement_strategy_integrated_loo_to_file <- function(
   temporary_file <- paste0(output_file, ".tmp-", Sys.getpid())
   on.exit(unlink(temporary_file, force = TRUE), add = TRUE)
   qs::qsave(integrated, temporary_file, preset = "high")
+
   if (!file.copy(temporary_file, output_file, overwrite = TRUE)) {
     stop("Could not finalise a supplement-strategy LOO reduction.",
          call. = FALSE)
@@ -39141,6 +40898,8 @@ write_update_2026_supplement_strategy_integrated_loo_audit <- function(
   write_update_2026_total_primary_integrated_loo_audit(audit, output_dir)
 }
 
+# Identify the supplement strategy candidates that need a common-sample refit
+# before their scores can be compared.
 make_update_2026_supplement_strategy_common_sample_specifications <-
   function(
       specifications,
@@ -39224,6 +40983,7 @@ prepare_update_2026_supplement_strategy_common_sample_input <- function(
     stop("Only non-moderator supplement-strategy models require replacement.",
          call. = FALSE)
   }
+
   outcome <- specification$outcome
   common_data <- data_by_outcome
   common_data[[outcome]] <- common_data[[outcome]] |>
@@ -39272,6 +41032,7 @@ validate_update_2026_supplement_strategy_common_sample_inputs <- function(
     }
   ) |>
     stats::setNames(names(expected_rows))
+
   if (!all(purrr::map_int(references, nrow) == expected_rows)) {
     stop("A supplement-strategy common-sample reference is invalid.",
          call. = FALSE)
@@ -39328,6 +41089,7 @@ validate_update_2026_supplement_strategy_common_sample_inputs <- function(
       ),
       model_index
     )
+
   expected_indices <- c(1L, 2L, 4L, 9L, 11L, 15L, 17L, 21L, 23L)
   observed_indices <- split(checks$model_index, checks$outcome)
   if (
@@ -39347,6 +41109,7 @@ validate_update_2026_supplement_strategy_common_sample_inputs <- function(
     stop("The supplement-strategy common-sample preflight is incomplete.",
          call. = FALSE)
   }
+
   checks
 }
 
@@ -39380,6 +41143,7 @@ fit_update_2026_supplement_strategy_common_sample_to_file <- function(
       call. = FALSE
     )
   }
+
   fit_update_2026_total_primary_candidate_to_file(
     input = input,
     enabled = TRUE,
@@ -39639,6 +41403,7 @@ audit_update_2026_supplement_strategy_common_sample_loo_files <- function(
     stop("The supplement-strategy common-sample LOO files are incomplete.",
          call. = FALSE)
   }
+
   results <- purrr::map(paths, qs::qread)
   expected_indices <- c(1L, 2L, 4L, 9L, 11L, 15L, 17L, 21L, 23L)
   expected_rows <- c(
@@ -39664,6 +41429,7 @@ audit_update_2026_supplement_strategy_common_sample_loo_files <- function(
       nrow(result$observation_manifest) == expected_rows[[result$outcome]] &&
       nrow(result$loo$pointwise) == expected_rows[[result$outcome]]
   })
+
   observation_set_audit <- purrr::map_dfr(results, function(result) {
     manifest <- result$observation_manifest |>
       dplyr::mutate(
@@ -39677,6 +41443,7 @@ audit_update_2026_supplement_strategy_common_sample_loo_files <- function(
       observation_set_sha256 = digest::digest(manifest, algo = "sha256")
     )
   })
+
   alignment <- observation_set_audit |>
     dplyr::summarise(
       models = dplyr::n(),
@@ -39685,6 +41452,7 @@ audit_update_2026_supplement_strategy_common_sample_loo_files <- function(
         dplyr::n_distinct(observation_set_sha256) == 1L,
       .by = outcome
     )
+
   if (
     !all(valid) || anyDuplicated(keys) || !setequal(keys, expected_keys) ||
       nrow(alignment) != 4L || any(alignment$models != 9L) ||
@@ -39693,6 +41461,7 @@ audit_update_2026_supplement_strategy_common_sample_loo_files <- function(
     stop("The supplement-strategy common-sample LOO set is invalid.",
          call. = FALSE)
   }
+
   method_comparison <- purrr::map_dfr(results, "comparison")
   observation_diagnostics <- purrr::map_dfr(
     results,
@@ -39707,6 +41476,7 @@ audit_update_2026_supplement_strategy_common_sample_loo_files <- function(
       ),
       model_index
     )
+
   high_k_cases <- observation_diagnostics |>
     dplyr::filter(integrated_pareto_k > k_threshold) |>
     dplyr::arrange(
@@ -39717,6 +41487,7 @@ audit_update_2026_supplement_strategy_common_sample_loo_files <- function(
       model_index,
       observation
     )
+
   outcome_summary <- model_summary |>
     dplyr::summarise(
       models = dplyr::n(),
@@ -39730,6 +41501,7 @@ audit_update_2026_supplement_strategy_common_sample_loo_files <- function(
     dplyr::mutate(
       stacking_ready = high_k_cases == 0L & observation_sets_aligned
     )
+
   reduction_manifest <- purrr::map2_dfr(
     paths,
     results,
@@ -39761,6 +41533,7 @@ audit_update_2026_supplement_strategy_common_sample_loo_files <- function(
       ),
       model_index
     )
+
   if (
     nrow(model_summary) != 36L || nrow(method_comparison) != 72L ||
       nrow(observation_set_audit) != 36L ||
@@ -39769,6 +41542,7 @@ audit_update_2026_supplement_strategy_common_sample_loo_files <- function(
     stop("The supplement-strategy common-sample LOO audit is incomplete.",
          call. = FALSE)
   }
+
   list(
     family = "supplement_strategy_common_sample",
     reduction_manifest = reduction_manifest,
@@ -39809,6 +41583,7 @@ make_update_2026_supplement_strategy_final_fit_manifest <- function(
 ) {
   replacement_keys <- common_sample_accepted_fit_manifest |>
     dplyr::select(outcome, model_index)
+
   if (
     nrow(accepted_fit_manifest) != 72L ||
       nrow(common_sample_accepted_fit_manifest) != 36L ||
@@ -39817,6 +41592,7 @@ make_update_2026_supplement_strategy_final_fit_manifest <- function(
     stop("The final supplement-strategy fit inputs are incomplete.",
          call. = FALSE)
   }
+
   manifest <- accepted_fit_manifest |>
     dplyr::anti_join(replacement_keys, by = c("outcome", "model_index")) |>
     dplyr::bind_rows(common_sample_accepted_fit_manifest) |>
@@ -39827,6 +41603,7 @@ make_update_2026_supplement_strategy_final_fit_manifest <- function(
       ),
       model_index
     )
+
   stage_counts <- table(factor(
     manifest$stage,
     levels = c("initial", "remedy_1", "common_sample_1")
@@ -39843,6 +41620,7 @@ make_update_2026_supplement_strategy_final_fit_manifest <- function(
     stop("The final supplement-strategy fit manifest is invalid.",
          call. = FALSE)
   }
+
   manifest
 }
 
@@ -39869,6 +41647,7 @@ make_update_2026_supplement_strategy_aligned_loo_manifest <- function(
     common_sample_loo_audit = common_sample_loo_audit,
     final_fit_manifest = final_fit_manifest
   )
+
   if (
     nrow(manifest) != 72L ||
       sum(manifest$loo_source == "common_sample_integrated_psis") != 36L
@@ -39876,6 +41655,7 @@ make_update_2026_supplement_strategy_aligned_loo_manifest <- function(
     stop("The aligned supplement-strategy LOO manifest is invalid.",
          call. = FALSE)
   }
+
   manifest
 }
 
@@ -39899,6 +41679,7 @@ audit_update_2026_supplement_strategy_aligned_loo <- function(
         ),
       by = key
     )
+
   expected_high_k <- audit$high_k_cases |>
     dplyr::select(outcome, model_index) |>
     dplyr::distinct()
@@ -39914,6 +41695,7 @@ audit_update_2026_supplement_strategy_aligned_loo <- function(
     stop("The aligned supplement-strategy LOO audit is invalid.",
          call. = FALSE)
   }
+
   audit$family <- "supplement_strategy_aligned"
   audit$aligned_loo_manifest <- aligned_loo_manifest
   audit$exact_refits_required <- nrow(audit$high_k_cases)
@@ -39958,6 +41740,7 @@ make_update_2026_supplement_strategy_exact_loo_records <- function(
         ),
       by = c("outcome", "model_index")
     )
+
   expected <- tibble::tibble(
     outcome = "hypertrophy",
     model_index = 6L,
@@ -39965,6 +41748,7 @@ make_update_2026_supplement_strategy_exact_loo_records <- function(
   )
   observed <- cases |>
     dplyr::select(outcome, model_index, observation)
+
   if (
     !identical(aligned_loo_audit$family, "supplement_strategy_aligned") ||
       aligned_loo_audit$exact_refits_required != 1L ||
@@ -39976,6 +41760,7 @@ make_update_2026_supplement_strategy_exact_loo_records <- function(
     stop("The supplement-strategy exact-LOO registry no longer matches its audit.",
          call. = FALSE)
   }
+
   records <- purrr::pmap(cases, list)
   names(records) <- paste0(
     cases$outcome,
@@ -39994,6 +41779,7 @@ validate_update_2026_supplement_strategy_exact_loo_inputs <- function(
     stop("Expected one supplement-strategy exact-LOO record.",
          call. = FALSE)
   }
+
   checks <- purrr::map_dfr(records, function(record) {
     candidate <- qs::qread(record$fit_path)
     integrated <- qs::qread(record$integrated_loo_path)
@@ -40052,12 +41838,14 @@ validate_update_2026_supplement_strategy_exact_loo_inputs <- function(
     )
   }) |>
     dplyr::arrange(case_id)
+
   key <- paste(
     checks$outcome,
     checks$model_index,
     checks$observation,
     sep = "::"
   )
+
   if (
     nrow(checks) != 1L || key[[1L]] != "hypertrophy::6::198" ||
       checks$case_id[[1L]] != 1L || checks$study_no[[1L]] != "124" ||
@@ -40073,6 +41861,7 @@ validate_update_2026_supplement_strategy_exact_loo_inputs <- function(
     stop("The supplement-strategy exact-LOO preflight is incomplete.",
          call. = FALSE)
   }
+
   checks
 }
 
@@ -40121,6 +41910,7 @@ fit_and_score_update_2026_supplement_strategy_exact_loo_to_file <- function(
       call. = FALSE
     )
   }
+
   output_file <- update_2026_supplement_strategy_exact_loo_file_path(record)
   if (file.exists(output_file) && file.info(output_file)$size > 0) {
     archived <- tryCatch(qs::qread(output_file), error = function(error) NULL)
@@ -40137,6 +41927,7 @@ fit_and_score_update_2026_supplement_strategy_exact_loo_to_file <- function(
     stop("An existing supplement-strategy exact correction is invalid.",
          call. = FALSE)
   }
+
   candidate <- qs::qread(record$fit_path)
   integrated <- qs::qread(record$integrated_loo_path)
   observation <- as.integer(record$observation)
@@ -40150,6 +41941,7 @@ fit_and_score_update_2026_supplement_strategy_exact_loo_to_file <- function(
     stop("A supplement-strategy exact-LOO record failed validation.",
          call. = FALSE)
   }
+
   candidate$specification$adapt_delta <- max(
     as.numeric(candidate$specification$adapt_delta),
     0.999
@@ -40167,6 +41959,7 @@ fit_and_score_update_2026_supplement_strategy_exact_loo_to_file <- function(
     fitted_candidate = candidate,
     integrated_result = integrated
   )
+
   refit <- fit_primary_integrated_exact_loo_case(
     job = job,
     chains = 4L,
@@ -40175,6 +41968,7 @@ fit_and_score_update_2026_supplement_strategy_exact_loo_to_file <- function(
     iter = 8000L,
     seed = 226888L + as.integer(record$case_id)
   )
+
   correction <- compute_primary_integrated_exact_loo_case(refit)
   correction$case_id <- as.integer(record$case_id)
   correction$fit_path <- normalizePath(
@@ -40199,6 +41993,7 @@ audit_update_2026_supplement_strategy_exact_loo_files <- function(
     stop("The supplement-strategy exact-LOO correction is incomplete.",
          call. = FALSE)
   }
+
   corrections <- purrr::map(paths, qs::qread)
   diagnostic_summary <- purrr::map_dfr(
     corrections,
@@ -40225,6 +42020,7 @@ audit_update_2026_supplement_strategy_exact_loo_files <- function(
       )
     )
   })
+
   observed_key <- paste(
     manifest$outcome,
     manifest$model_index,
@@ -40237,6 +42033,7 @@ audit_update_2026_supplement_strategy_exact_loo_files <- function(
     aligned_loo_audit$high_k_cases$observation,
     sep = "::"
   )
+
   if (
     nrow(diagnostic_summary) != 1L || nrow(manifest) != 1L ||
       observed_key[[1L]] != expected_key[[1L]] ||
@@ -40245,6 +42042,7 @@ audit_update_2026_supplement_strategy_exact_loo_files <- function(
     stop("The supplement-strategy exact-correction audit is invalid.",
          call. = FALSE)
   }
+
   list(
     diagnostic_summary = diagnostic_summary,
     correction_manifest = manifest,
@@ -40272,6 +42070,7 @@ write_update_2026_supplement_strategy_exact_loo_audit <- function(
     stop("Cannot write an incomplete supplement-strategy exact-correction audit.",
          call. = FALSE)
   }
+
   dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
   paths <- c(
     diagnostic_summary = file.path(output_dir, "diagnostic_summary.csv"),
@@ -40302,6 +42101,7 @@ make_update_2026_supplement_strategy_final_loo_manifest <- function(
     stop("Final supplement-strategy LOO assembly requires one passing exact refit.",
          call. = FALSE)
   }
+
   exact <- exact_loo_audit$correction_manifest |>
     dplyr::select(
       outcome,
@@ -40311,6 +42111,7 @@ make_update_2026_supplement_strategy_final_loo_manifest <- function(
       correction_bytes = bytes,
       correction_sha256 = sha256
     )
+
   manifest <- aligned_loo_audit$aligned_loo_manifest |>
     dplyr::rename(
       base_loo_source = loo_source,
@@ -40351,6 +42152,7 @@ make_update_2026_supplement_strategy_final_loo_manifest <- function(
       ),
       model_index
     )
+
   if (
     nrow(manifest) != 72L ||
       sum(manifest$loo_source == "integrated_psis_plus_exact") != 1L ||
@@ -40362,6 +42164,7 @@ make_update_2026_supplement_strategy_final_loo_manifest <- function(
     stop("The final supplement-strategy LOO manifest is invalid.",
          call. = FALSE)
   }
+
   manifest
 }
 
@@ -40374,6 +42177,7 @@ audit_update_2026_supplement_strategy_final_loo <- function(
     paths = final_loo_manifest$final_loo_path,
     k_threshold = k_threshold
   )
+
   if (
     nrow(final_loo_manifest) != 72L ||
       !isTRUE(exact_loo_audit$all_exact_refit_diagnostics_pass) ||
@@ -40386,6 +42190,7 @@ audit_update_2026_supplement_strategy_final_loo <- function(
     stop("The final supplement-strategy LOO audit is not stacking-ready.",
          call. = FALSE)
   }
+
   audit$family <- "supplement_strategy"
   audit$final_loo_manifest <- final_loo_manifest
   audit$exact_refit_summary <- exact_loo_audit$diagnostic_summary
@@ -40413,6 +42218,7 @@ write_update_2026_supplement_strategy_final_loo_audit <- function(
     stop("Cannot write an incomplete final supplement-strategy LOO audit.",
          call. = FALSE)
   }
+
   dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
   paths <- c(
     final_loo_manifest = file.path(output_dir, "final_loo_manifest.csv"),
@@ -40430,6 +42236,7 @@ write_update_2026_supplement_strategy_final_loo_audit <- function(
     exact_refit_summary = file.path(output_dir, "exact_refit_summary.csv"),
     high_k_cases = file.path(output_dir, "high_k_cases.csv")
   )
+
   readr::write_csv(audit$final_loo_manifest, paths[["final_loo_manifest"]])
   readr::write_csv(audit$model_summary, paths[["model_summary"]])
   readr::write_csv(audit$outcome_summary, paths[["outcome_summary"]])
@@ -40482,6 +42289,7 @@ write_update_2026_supplement_strategy_stacking_weights <- function(
     stop("Cannot write invalid supplement-strategy stacking weights.",
          call. = FALSE)
   }
+
   dir.create(dirname(output_file), recursive = TRUE, showWarnings = FALSE)
   readr::write_csv(weights, output_file)
   output_file
@@ -40503,6 +42311,7 @@ make_update_2026_supplement_strategy_prediction_records <- function(
     grid_step_g_day = grid_step_g_day,
     seed = seed
   )
+
   records <- purrr::map(records, function(record) {
     record$family <- "supplement_strategy"
     record$prediction_type <- "supplement_strategy"
@@ -40515,6 +42324,7 @@ make_update_2026_supplement_strategy_prediction_records <- function(
     )
   }) |>
     dplyr::summarise(draws = sum(draw_count), .by = outcome)
+
   if (
     length(records) < 4L || nrow(allocated) != 4L ||
       any(allocated$draws != n_draws) ||
@@ -40527,6 +42337,7 @@ make_update_2026_supplement_strategy_prediction_records <- function(
     stop("The supplement-strategy prediction allocation is incomplete.",
          call. = FALSE)
   }
+
   records
 }
 
@@ -40588,6 +42399,7 @@ make_update_2026_supplement_strategy_reporting_preflight <- function(
       ),
       model_index
     )
+
   audit <- checks |>
     dplyr::summarise(
       selected_models = dplyr::n(),
@@ -40601,6 +42413,7 @@ make_update_2026_supplement_strategy_reporting_preflight <- function(
     strength = 94,
     `function` = 320 / 7
   )
+
   if (
     nrow(audit) != 4L || any(audit$selected_models < 1L) ||
       any(audit$allocated_draws != 4000L) ||
@@ -40618,6 +42431,7 @@ make_update_2026_supplement_strategy_reporting_preflight <- function(
     stop("The supplement-strategy reporting preflight failed.",
          call. = FALSE)
   }
+
   checks
 }
 
@@ -40637,6 +42451,7 @@ write_update_2026_supplement_strategy_reporting_preflight <- function(
     stop("Cannot write an invalid supplement-strategy reporting preflight.",
          call. = FALSE)
   }
+
   dir.create(dirname(output_file), recursive = TRUE, showWarnings = FALSE)
   readr::write_csv(checks, output_file)
   output_file
@@ -40653,6 +42468,7 @@ make_update_2026_supplement_strategy_prediction_grid <- function(
     "resistance_exercise_code", "absolute_exposure_reference_g_day",
     "absolute_exposure_unit_g_day"
   )
+
   if (!all(required %in% names(data)) || !nrow(data)) {
     stop("The supplement-strategy prediction data are invalid.",
          call. = FALSE)
@@ -40660,6 +42476,7 @@ make_update_2026_supplement_strategy_prediction_grid <- function(
   reference <- unique(data$absolute_exposure_reference_g_day)
   unit <- unique(data$absolute_exposure_unit_g_day)
   exposure_maximum_g_day <- max(data$protein_intake_raw, na.rm = TRUE)
+
   if (
     length(reference) != 1L || reference != 0 ||
       length(unit) != 1L || unit != 25 ||
@@ -40670,6 +42487,7 @@ make_update_2026_supplement_strategy_prediction_grid <- function(
     stop("The supplement-strategy prediction-grid limits are invalid.",
          call. = FALSE)
   }
+
   exposure_values <- sort(unique(c(
     round(seq(
       exposure_minimum_g_day,
@@ -40678,6 +42496,7 @@ make_update_2026_supplement_strategy_prediction_grid <- function(
     ), 10),
     reference
   )))
+
   keys <- tidyr::crossing(
     protein_strategy = c("Substitution", "Addition"),
     resistance_exercise_code = c(0, 1),
@@ -40686,6 +42505,7 @@ make_update_2026_supplement_strategy_prediction_grid <- function(
     dplyr::mutate(
       strategy_code = ifelse(protein_strategy == "Addition", 1, 0)
     )
+
   template_data <- fitted_candidate$model$data
   grouping_variables <- intersect(
     c("study_no", "arm_no", "outcome_no", "study_factor"),
@@ -40694,6 +42514,7 @@ make_update_2026_supplement_strategy_prediction_grid <- function(
   complete <- stats::complete.cases(
     template_data[, grouping_variables, drop = FALSE]
   )
+
   if (!any(complete)) {
     stop("No complete row is available for the supplement-strategy grid.",
          call. = FALSE)
@@ -40705,12 +42526,14 @@ make_update_2026_supplement_strategy_prediction_grid <- function(
   ]
   newdata$protein_strategy <- keys$protein_strategy
   newdata$strategy_code <- keys$strategy_code
+
   if ("strategy_factor" %in% names(newdata)) {
     newdata$strategy_factor <- factor(
       keys$protein_strategy,
       levels = c("Substitution", "Addition")
     )
   }
+
   newdata$resistance_exercise_code <- keys$resistance_exercise_code
   newdata$protein_intake_raw <- keys$protein_intake
   newdata$supplement_g_day <- keys$protein_intake
@@ -40719,12 +42542,14 @@ make_update_2026_supplement_strategy_prediction_grid <- function(
   if ("resistance_exercise_yes_no" %in% names(newdata)) {
     newdata$resistance_exercise_yes_no <- exercise_label
   }
+
   if ("resistance_exercise_factor" %in% names(newdata)) {
     newdata$resistance_exercise_factor <- factor(
       exercise_label,
       levels = levels(data$resistance_exercise_factor)
     )
   }
+
   if ("age_centre" %in% names(newdata)) newdata$age_centre <- 0
   if ("duration_centre" %in% names(newdata)) newdata$duration_centre <- 0
   if ("vi" %in% names(newdata)) newdata$vi <- 0
@@ -40791,6 +42616,7 @@ write_update_2026_supplement_strategy_prediction_draw_file <- function(
     stop("A supplement-strategy prediction record is invalid.",
          call. = FALSE)
   }
+
   candidate <- qs::qread(record$fit_path)
   if (
     !identical(candidate$outcome, as.character(record$outcome)) ||
@@ -40802,6 +42628,7 @@ write_update_2026_supplement_strategy_prediction_draw_file <- function(
     stop("A supplement-strategy fit does not match its prediction record.",
          call. = FALSE)
   }
+
   grid <- make_update_2026_supplement_strategy_prediction_grid(
     data = data_by_outcome[[record$outcome]],
     fitted_candidate = candidate,
@@ -40818,6 +42645,7 @@ write_update_2026_supplement_strategy_prediction_draw_file <- function(
     re_formula = NA,
     ndraws = as.integer(record$draw_count)
   ))
+
   if (ncol(draws) != nrow(grid$keys) && nrow(draws) == nrow(grid$keys)) {
     draws <- t(draws)
   }
@@ -40828,6 +42656,7 @@ write_update_2026_supplement_strategy_prediction_draw_file <- function(
     stop("Supplement-strategy predictions do not match their allocation.",
          call. = FALSE)
   }
+
   reduction <- list(
     family = "supplement_strategy",
     outcome = as.character(record$outcome),
@@ -40848,6 +42677,7 @@ write_update_2026_supplement_strategy_prediction_draw_file <- function(
       prediction_type = "supplement_strategy"
     )
   )
+
   write_atomic_qs(reduction, result_path)
 }
 
@@ -40902,6 +42732,7 @@ write_update_2026_supplement_strategy_reporting_audit <- function(
     stop("The supplement-strategy reporting audit is incomplete.",
          call. = FALSE)
   }
+
   reports <- purrr::map(
     audit$summary$reporting_path,
     read_protein_strategy_full_reporting_file,
@@ -40945,6 +42776,7 @@ write_update_2026_supplement_strategy_reporting_audit <- function(
     local_equivalence = file.path(output_dir, "local_equivalence.csv"),
     model_weights = file.path(output_dir, "model_weights.csv")
   )
+
   readr::write_csv(audit$summary, paths[["summary"]])
   readr::write_csv(prediction_manifest, paths[["prediction_manifest"]])
   readr::write_csv(bind_report("dose_response"), paths[["dose_response"]])
@@ -41047,6 +42879,7 @@ make_update_2026_supplement_strategy_verification_checkpoint <- function(
         dplyr::select(outcome, model_index, weight_name = model_name),
       by = c("outcome", "model_index")
     )
+
   fit_stage_counts <- table(factor(
     final_fit_manifest$stage,
     levels = c("initial", "remedy_1", "common_sample_1")
@@ -41216,6 +43049,7 @@ make_update_2026_supplement_strategy_verification_checkpoint <- function(
         all(abs(reporting_weight_sums$weight_sum - 1) < 1e-8)
     )
   )
+
   failed <- is.na(checks$passed) | !checks$passed
   if (any(failed)) {
     stop(
@@ -41272,6 +43106,7 @@ make_update_2026_supplement_strategy_verification_checkpoint <- function(
     pairwise_support = bind_report("pairwise_support"),
     local_equivalence = bind_report("local_equivalence")
   )
+
   descriptions <- stats::setNames(
     paste("Frozen absolute supplement-strategy artifact:", names(artifacts)),
     names(artifacts)
@@ -41302,6 +43137,7 @@ make_update_2026_supplement_strategy_pruning_plan <- function(
     verification_manifest,
     show_col_types = FALSE
   )
+
   if (length(verification_files) != nrow(verification_index) + 2L) {
     stop("The supplement-strategy verification-file count is invalid.",
          call. = FALSE)
@@ -41316,6 +43152,7 @@ make_update_2026_supplement_strategy_pruning_plan <- function(
     winslash = "/",
     mustWork = TRUE
   )
+
   if (!identical(tolower(resolved_root), tolower(expected_root))) {
     stop("Refusing to plan pruning outside the supplement-strategy archive.",
          call. = FALSE)
@@ -41329,6 +43166,7 @@ make_update_2026_supplement_strategy_pruning_plan <- function(
     stop("An expected supplement-strategy fit directory is missing.",
          call. = FALSE)
   }
+
   fit_paths <- unlist(
     purrr::map(
       fit_roots,
@@ -41342,6 +43180,7 @@ make_update_2026_supplement_strategy_pruning_plan <- function(
     use.names = FALSE
   ) |>
     normalizePath(winslash = "/", mustWork = TRUE)
+
   accepted_paths <- normalizePath(
     final_fit_manifest$fit_path,
     winslash = "/",
@@ -41356,6 +43195,7 @@ make_update_2026_supplement_strategy_pruning_plan <- function(
     stop("Supplement-strategy fit retention does not match its final lineage.",
          call. = FALSE)
   }
+
   model_fit_manifest <- tibble::tibble(
     path = fit_paths,
     relative_path = substring(fit_paths, nchar(resolved_root) + 2L),
@@ -41375,6 +43215,7 @@ make_update_2026_supplement_strategy_pruning_plan <- function(
     lean_action = "delete frozen supplement-strategy model fit"
   ) |>
     dplyr::arrange(archive_stage, outcome, model_index)
+
   stage_counts <- table(factor(
     model_fit_manifest$archive_stage,
     levels = c("initial", "remedy_1", "common_sample_1")
@@ -41383,6 +43224,7 @@ make_update_2026_supplement_strategy_pruning_plan <- function(
     model_fit_manifest$archive_stage[model_fit_manifest$accepted_fit],
     levels = c("initial", "remedy_1", "common_sample_1")
   ))
+
   if (
     any(model_fit_manifest$archive_stage == "unknown") ||
       anyNA(model_fit_manifest$model_index) ||
@@ -41395,6 +43237,7 @@ make_update_2026_supplement_strategy_pruning_plan <- function(
     stop("The supplement-strategy model-fit stages are not as expected.",
          call. = FALSE)
   }
+
   deletion_manifest <- model_fit_manifest |>
     dplyr::mutate(
       artifact_role = dplyr::if_else(
@@ -41415,6 +43258,7 @@ make_update_2026_supplement_strategy_pruning_plan <- function(
     ),
     reporting = file.path(archive_root, "reporting")
   )
+
   if (any(!dir.exists(compact_roots))) {
     stop("An expected compact supplement-strategy directory is missing.",
          call. = FALSE)
@@ -41431,6 +43275,7 @@ make_update_2026_supplement_strategy_pruning_plan <- function(
     ),
     use.names = FALSE
   )
+
   compact_paths <- compact_paths[
     file.exists(compact_paths) & !file.info(compact_paths)$isdir
   ] |>
@@ -41448,6 +43293,7 @@ make_update_2026_supplement_strategy_pruning_plan <- function(
     )]
     if (length(matches) == 1L) matches else "unknown"
   }, character(1L))
+
   compact_manifest <- tibble::tibble(
     path = compact_paths,
     relative_path = substring(compact_paths, nchar(resolved_root) + 2L),
@@ -41460,6 +43306,7 @@ make_update_2026_supplement_strategy_pruning_plan <- function(
     action = "retain compact supplement-strategy LOO and reporting result"
   ) |>
     dplyr::arrange(archive_component, relative_path)
+
   compact_counts <- table(factor(
     compact_manifest$archive_component,
     levels = c(
@@ -41467,6 +43314,7 @@ make_update_2026_supplement_strategy_pruning_plan <- function(
       "reporting"
     )
   ))
+
   if (
     nrow(compact_manifest) != 145L ||
       !identical(as.integer(compact_counts), c(72L, 36L, 1L, 36L)) ||
@@ -41501,6 +43349,7 @@ make_update_2026_supplement_strategy_pruning_plan <- function(
       "already reduced directly to its retained compact correction."
     )
   )
+
   list(
     summary = summary,
     model_fit_manifest = model_fit_manifest,
@@ -41530,6 +43379,7 @@ write_update_2026_supplement_strategy_pruning_plan <- function(
     stop("Cannot write an invalid supplement-strategy pruning plan.",
          call. = FALSE)
   }
+
   dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
   paths <- c(
     summary = file.path(output_dir, "summary.csv"),
@@ -41541,6 +43391,7 @@ write_update_2026_supplement_strategy_pruning_plan <- function(
       output_dir, "compact_archive_manifest.csv"
     )
   )
+
   readr::write_csv(plan$summary, paths[["summary"]])
   readr::write_csv(plan$model_fit_manifest, paths[["model_fit_manifest"]])
   readr::write_csv(
@@ -41556,6 +43407,8 @@ write_update_2026_supplement_strategy_pruning_plan <- function(
 
 # Absolute prescribed-supplement strict within-study strategy sensitivity ----
 
+# Prepare the supplement within-study contrasts for the strategy-specific
+# model comparisons.
 make_update_2026_supplement_strategy_within_data_by_outcome <- function(
     supplement_within_data_by_outcome,
     strategy_audit
@@ -41565,6 +43418,7 @@ make_update_2026_supplement_strategy_within_data_by_outcome <- function(
     stop("The supplement within-study outcome registry is incomplete.",
          call. = FALSE)
   }
+
   output <- purrr::map(
     supplement_within_data_by_outcome,
     prepare_protein_strategy_within_data,
@@ -41591,6 +43445,7 @@ make_update_2026_supplement_strategy_within_data_by_outcome <- function(
       )
     )
   })
+
   valid <- purrr::map_lgl(output, function(data) {
     nrow(data) > 0L &&
       setequal(unique(data$protein_strategy),
@@ -41603,6 +43458,7 @@ make_update_2026_supplement_strategy_within_data_by_outcome <- function(
       all(data$absolute_exposure_reference_g_day == 0) &&
       all(data$absolute_exposure_unit_g_day == 25)
   })
+
   if (
     !all(valid) ||
       !isTRUE(all.equal(observed, expected, check.attributes = FALSE))
@@ -41610,6 +43466,7 @@ make_update_2026_supplement_strategy_within_data_by_outcome <- function(
     stop("An absolute supplement strategy-within dataset is invalid.",
          call. = FALSE)
   }
+
   output
 }
 
@@ -41629,6 +43486,7 @@ make_update_2026_supplement_strategy_within_specifications <- function(
       specification
     }
   )
+
   registry <- dplyr::bind_rows(specifications)
   keys <- paste(registry$outcome, registry$model_index, sep = "::")
   counts <- table(factor(
@@ -41639,6 +43497,7 @@ make_update_2026_supplement_strategy_within_specifications <- function(
     registry$historical_schedule,
     levels = c("base", "longer_sampling")
   ))
+
   if (
     length(specifications) != 72L || anyDuplicated(keys) ||
       !identical(as.integer(counts), rep(18L, 4L)) ||
@@ -41649,6 +43508,7 @@ make_update_2026_supplement_strategy_within_specifications <- function(
     stop("The absolute supplement strategy-within registry is invalid.",
          call. = FALSE)
   }
+
   names(specifications) <- paste0(
     registry$outcome,
     "_model_",
@@ -41763,6 +43623,7 @@ validate_update_2026_supplement_strategy_within_inputs <- function(
       ),
       model_index
     )
+
   expected <- tibble::tribble(
     ~outcome, ~contrasts, ~studies, ~addition_studies, ~substitution_studies,
     "whole_body", 125L, 60L, 17L, 43L,
@@ -41780,6 +43641,7 @@ validate_update_2026_supplement_strategy_within_inputs <- function(
       .by = outcome
     ) |>
     dplyr::left_join(expected, by = "outcome", suffix = c("", "_expected"))
+
   outcome_counts <- table(factor(
     checks$outcome,
     levels = c("whole_body", "hypertrophy", "strength", "function")
@@ -41795,6 +43657,7 @@ validate_update_2026_supplement_strategy_within_inputs <- function(
   )
   moderator_formula_valid <-
     checks$body_mass_in_formula == checks$includes_moderators
+
   if (
     nrow(checks) != 72L || anyDuplicated(keys) || !all(checks$valid) ||
       any(checks$family != "supplement_strategy_within") ||
@@ -41823,6 +43686,7 @@ validate_update_2026_supplement_strategy_within_inputs <- function(
     stop("The absolute supplement strategy-within preflight failed.",
          call. = FALSE)
   }
+
   checks
 }
 
@@ -41860,6 +43724,7 @@ fit_update_2026_supplement_strategy_within_candidate_to_file <- function(
       call. = FALSE
     )
   }
+
   if (!identical(input$family, "supplement_strategy_within")) {
     stop("The supplement strategy-within fit input is invalid.",
          call. = FALSE)
@@ -41891,6 +43756,7 @@ make_update_2026_supplement_strategy_within_remedy_specifications <- function(
   failed <- diagnostic_audit$diagnostic_summary |>
     dplyr::filter(!diagnostic_pass) |>
     dplyr::mutate(key = paste(outcome, model_index, sep = "::"))
+
   if (
     !identical(diagnostic_audit$family, "supplement_strategy_within") ||
       nrow(failed) != 2L || anyDuplicated(failed$key) ||
@@ -41902,6 +43768,7 @@ make_update_2026_supplement_strategy_within_remedy_specifications <- function(
     stop("The supplement strategy-within remedy set is invalid.",
          call. = FALSE)
   }
+
   selected <- purrr::keep(specifications, function(specification) {
     paste(
       specification$outcome,
@@ -41909,6 +43776,7 @@ make_update_2026_supplement_strategy_within_remedy_specifications <- function(
       sep = "::"
     ) %in% expected_keys
   })
+
   if (length(selected) != 2L) {
     stop("Could not select the supplement strategy-within remedy models.",
          call. = FALSE)
@@ -41932,12 +43800,14 @@ make_update_2026_supplement_strategy_within_remedy_specifications <- function(
     )
     specification
   })
+
   selected_table <- dplyr::bind_rows(selected) |>
     dplyr::transmute(key = paste(outcome, model_index, sep = "::"))
   if (!setequal(selected_table$key, expected_keys)) {
     stop("The supplement strategy-within remedy registry changed.",
          call. = FALSE)
   }
+
   selected
 }
 
@@ -41982,6 +43852,7 @@ validate_update_2026_supplement_strategy_within_remedy_inputs <- function(
     )
   }) |>
     dplyr::arrange(outcome, model_index)
+
   keys <- paste(checks$outcome, checks$model_index, sep = "::")
   if (
     nrow(checks) != 2L || anyDuplicated(keys) ||
@@ -41996,6 +43867,7 @@ validate_update_2026_supplement_strategy_within_remedy_inputs <- function(
     stop("The supplement strategy-within remedy preflight is invalid.",
          call. = FALSE)
   }
+
   checks
 }
 
@@ -42041,6 +43913,7 @@ combine_update_2026_supplement_strategy_within_remedy_diagnostics <- function(
     paste(x$summary$outcome[[1L]], x$summary$model_index[[1L]], sep = "::")
   }
   expected_keys <- c("whole_body::9", "hypertrophy::21")
+
   if (length(initial_diagnostics) != 72L ||
       length(remedy_diagnostics) != 2L) {
     stop("The supplement strategy-within remedy diagnostics are incomplete.",
@@ -42051,6 +43924,7 @@ combine_update_2026_supplement_strategy_within_remedy_diagnostics <- function(
   failed_keys <- initial_diagnostics |>
     purrr::keep(~ !.x$summary$diagnostic_pass[[1L]]) |>
     purrr::map_chr(diagnostic_key)
+
   if (
     anyDuplicated(initial_keys) || anyDuplicated(remedy_keys) ||
       !setequal(remedy_keys, expected_keys) ||
@@ -42060,6 +43934,7 @@ combine_update_2026_supplement_strategy_within_remedy_diagnostics <- function(
     stop("The supplement strategy-within diagnostic replacement is invalid.",
          call. = FALSE)
   }
+
   final_diagnostics <- initial_diagnostics
   final_diagnostics[match(remedy_keys, initial_keys)] <- remedy_diagnostics
   compile_update_2026_total_primary_diagnostic_audit(
@@ -42670,6 +44545,7 @@ validate_update_2026_supplement_strategy_within_loo_inputs <- function(
     identical(k_threshold, 0.7) &&
       identical(as.integer(cores_per_branch), 1L)
   )
+
   ready <-
     nrow(accepted_fit_manifest) == 72L &&
     !anyDuplicated(accepted_fit_manifest[c("outcome", "model_index")]) &&
@@ -42678,6 +44554,7 @@ validate_update_2026_supplement_strategy_within_loo_inputs <- function(
     stop("The supplement strategy-within LOO preflight is incomplete.",
          call. = FALSE)
   }
+
   list(
     family = "supplement_strategy_within",
     models = 72L,
@@ -42753,6 +44630,7 @@ validate_update_2026_supplement_strategy_within_exact_inputs <- function(
     config
 ) {
   expected <- as.integer(integrated_audit$exact_refits_required)
+
   if (!is.list(records) || length(records) != expected || expected != 35L) {
     stop("Expected 35 supplement strategy-within exact-LOO records.",
          call. = FALSE)
@@ -42808,6 +44686,7 @@ validate_update_2026_supplement_strategy_within_exact_inputs <- function(
     )
   }) |>
     dplyr::arrange(case_id)
+
   observed_keys <- paste(
     checks$outcome,
     checks$model_index,
@@ -42824,6 +44703,7 @@ validate_update_2026_supplement_strategy_within_exact_inputs <- function(
     checks$outcome,
     levels = c("whole_body", "hypertrophy", "strength", "function")
   ))
+
   if (
     nrow(checks) != expected || anyDuplicated(observed_keys) ||
       !setequal(observed_keys, expected_keys) ||
@@ -42841,6 +44721,7 @@ validate_update_2026_supplement_strategy_within_exact_inputs <- function(
       call. = FALSE
     )
   }
+
   checks
 }
 
@@ -42909,6 +44790,7 @@ fit_update_2026_supplement_strategy_within_exact_to_file <- function(
     stop("An existing supplement strategy-within exact archive is invalid.",
          call. = FALSE)
   }
+
   candidate <- read_sensitivity_fit_file(record$original_fit_path)
   integrated <- qs::qread(record$integrated_loo_path)
   observation <- as.integer(record$observation)
@@ -42933,6 +44815,7 @@ fit_update_2026_supplement_strategy_within_exact_to_file <- function(
     stop("A supplement strategy-within exact record failed validation.",
          call. = FALSE)
   }
+
   prediction_data <- candidate$model$data
   training_data <- prediction_data[-observation, , drop = FALSE]
   original_model <- candidate$model
@@ -42964,6 +44847,7 @@ fit_update_2026_supplement_strategy_within_exact_to_file <- function(
     ),
     save_pars = brms::save_pars(all = TRUE)
   )
+
   archive <- list(
     family = family,
     case_id = as.integer(record$case_id),
@@ -42979,6 +44863,7 @@ fit_update_2026_supplement_strategy_within_exact_to_file <- function(
     refitted_model = refitted_model,
     refit_seconds = as.numeric(proc.time()[["elapsed"]] - start_time)
   )
+
   write_atomic_qs(archive, output_file)
 }
 
@@ -42996,6 +44881,7 @@ write_update_2026_supplement_strategy_within_exact_audit <- function(
       call. = FALSE
     )
   }
+
   dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
   output_file <- file.path(output_dir, "diagnostic_summary.csv")
   readr::write_csv(audit$diagnostic_summary, output_file, na = "")
@@ -43013,6 +44899,7 @@ make_update_2026_supplement_strategy_within_exact_remedy_config <- function(
     as.numeric(adapt_delta)
   )
   config$seed <- as.integer(exact_config$seed + seed_offset)
+
   if (
     config$chains != 4L || config$parallel_chains != 4L ||
       config$iter_warmup != 2000L || config$iter_sampling != 6000L ||
@@ -43024,6 +44911,7 @@ make_update_2026_supplement_strategy_within_exact_remedy_config <- function(
       call. = FALSE
     )
   }
+
   config
 }
 
@@ -43231,6 +45119,7 @@ make_update_2026_supplement_strategy_within_final_exact_audit <- function(
 ) {
   initial_fit_paths <- unname(unlist(initial_fit_paths, use.names = FALSE))
   remedy_fit_path <- unname(unlist(remedy_fit_path, use.names = FALSE))
+
   if (
     initial_audit$exact_refits != 35L ||
       initial_audit$exact_refits_requiring_remediation != 1L ||
@@ -43245,6 +45134,7 @@ make_update_2026_supplement_strategy_within_final_exact_audit <- function(
       call. = FALSE
     )
   }
+
   record_manifest <- purrr::map2_dfr(
     records,
     initial_fit_paths,
@@ -43265,6 +45155,7 @@ make_update_2026_supplement_strategy_within_final_exact_audit <- function(
     }
   ) |>
     dplyr::arrange(case_id)
+
   remedy_key <- "hypertrophy::12::134"
   manifest_keys <- paste(
     record_manifest$outcome,
@@ -43273,12 +45164,14 @@ make_update_2026_supplement_strategy_within_final_exact_audit <- function(
     sep = "::"
   )
   remedy_row <- match(remedy_key, manifest_keys)
+
   if (
     is.na(remedy_row) ||
       record_manifest$case_id[[remedy_row]] != 8L
   ) {
     stop("The supplement exact remedy has the wrong identity.", call. = FALSE)
   }
+
   record_manifest$stage[[remedy_row]] <- "exact_remedy_1"
   record_manifest$exact_fit_path[[remedy_row]] <- normalizePath(
     remedy_fit_path,
@@ -43293,6 +45186,7 @@ make_update_2026_supplement_strategy_within_final_exact_audit <- function(
         ~ digest::digest(file = .x, algo = "sha256", serialize = FALSE)
       )
     )
+
   case_lookup <- record_manifest |>
     dplyr::select(case_id, outcome, model_index, observation)
   initial_summary <- initial_audit$diagnostic_summary |>
@@ -43319,6 +45213,7 @@ make_update_2026_supplement_strategy_within_final_exact_audit <- function(
       relationship = "one-to-one"
     ) |>
     dplyr::arrange(case_id)
+
   stage_counts <- table(factor(
     record_manifest$stage,
     levels = c("exact_initial", "exact_remedy_1")
@@ -43340,6 +45235,7 @@ make_update_2026_supplement_strategy_within_final_exact_audit <- function(
       call. = FALSE
     )
   }
+
   list(
     family = "supplement_strategy_within",
     diagnostic_summary = diagnostic_summary,
@@ -43367,6 +45263,7 @@ write_update_2026_supplement_strategy_within_final_exact_audit <- function(
   ) {
     stop("Cannot write an incomplete final exact audit.", call. = FALSE)
   }
+
   dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
   paths <- c(
     diagnostic_summary = file.path(output_dir, "diagnostic_summary.csv"),
@@ -43426,6 +45323,7 @@ compute_update_2026_supplement_strategy_within_exact_correction <- function(
     stop("Supplement strategy-within exact correction is disabled.",
          call. = FALSE)
   }
+
   exact_fit_path <- unname(as.character(record$exact_fit_path))
   refit <- read_sensitivity_full_exact_loo_file(
     exact_fit_path,
@@ -43433,6 +45331,7 @@ compute_update_2026_supplement_strategy_within_exact_correction <- function(
   )
   output_file <-
     update_2026_supplement_strategy_within_exact_correction_path(refit)
+
   if (file.exists(output_file) && file.info(output_file)$size > 0) {
     archived <- tryCatch(qs::qread(output_file), error = function(error) NULL)
     if (
@@ -43447,6 +45346,7 @@ compute_update_2026_supplement_strategy_within_exact_correction <- function(
     }
     stop("An existing exact correction is invalid.", call. = FALSE)
   }
+
   correction <- compute_sensitivity_full_exact_loo_file(
     path = exact_fit_path,
     diagnostic_audit = diagnostic_audit,
@@ -43461,6 +45361,7 @@ compute_update_2026_supplement_strategy_within_exact_correction <- function(
     stop("The supplement strategy-within correction is invalid.",
          call. = FALSE)
   }
+
   write_atomic_qs(correction, output_file)
 }
 
@@ -43470,12 +45371,14 @@ audit_update_2026_supplement_strategy_within_exact_corrections <- function(
 ) {
   paths <- unname(unlist(paths, use.names = FALSE))
   expected <- as.integer(integrated_audit$exact_refits_required)
+
   if (
     length(paths) != expected || expected != 35L || anyNA(paths) ||
       any(!file.exists(paths)) || any(file.info(paths)$size <= 0)
   ) {
     stop("The exact-correction files are incomplete.", call. = FALSE)
   }
+
   corrections <- purrr::map(paths, qs::qread)
   diagnostic_summary <- purrr::map_dfr(
     corrections,
@@ -43488,6 +45391,7 @@ audit_update_2026_supplement_strategy_within_exact_corrections <- function(
       model_index,
       observation
     )
+
   manifest <- purrr::map2_dfr(paths, corrections, function(path, result) {
     tibble::tibble(
       case_id = as.integer(result$case_id),
@@ -43502,6 +45406,7 @@ audit_update_2026_supplement_strategy_within_exact_corrections <- function(
     )
   }) |>
     dplyr::arrange(case_id)
+
   observed_keys <- paste(
     manifest$outcome,
     manifest$model_index,
@@ -43514,6 +45419,7 @@ audit_update_2026_supplement_strategy_within_exact_corrections <- function(
     integrated_audit$high_k_cases$observation,
     sep = "::"
   )
+
   if (
     nrow(diagnostic_summary) != 35L || nrow(manifest) != 35L ||
       anyDuplicated(observed_keys) || !setequal(observed_keys, expected_keys) ||
@@ -43522,6 +45428,7 @@ audit_update_2026_supplement_strategy_within_exact_corrections <- function(
   ) {
     stop("The exact-correction audit is invalid.", call. = FALSE)
   }
+
   list(
     diagnostic_summary = diagnostic_summary,
     correction_manifest = manifest,
@@ -43546,6 +45453,7 @@ write_update_2026_supplement_strategy_within_correction_audit <- function(
   ) {
     stop("Cannot write an incomplete exact-correction audit.", call. = FALSE)
   }
+
   dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
   paths <- c(
     diagnostic_summary = file.path(output_dir, "diagnostic_summary.csv"),
@@ -43583,6 +45491,7 @@ make_update_2026_supplement_strategy_within_final_loo_audit <- function(
     seq_len(26L),
     c(3L, 7L, 10L, 13L, 16L, 19L, 22L, 25L)
   )
+
   if (!isTRUE(correction_audit$all_exact_refit_diagnostics_pass)) {
     stop("Final LOO requires all exact corrections.", call. = FALSE)
   }
@@ -43601,6 +45510,7 @@ make_update_2026_supplement_strategy_within_final_loo_audit <- function(
       maximum_remaining_pareto_k = max(maximum_pareto_k, na.rm = TRUE),
       .by = outcome
     )
+
   correction_counts <- correction_audit$diagnostic_summary |>
     dplyr::count(outcome, model_index, name = "exact_corrections")
   final_manifest <- integrated_manifest |>
@@ -43613,6 +45523,7 @@ make_update_2026_supplement_strategy_within_final_loo_audit <- function(
         "integrated_observation_level_psis"
       )
     )
+
   if (
     !isTRUE(final$stacking_ready) || nrow(final$model_summary) != 72L ||
       nrow(outcome_summary) != 4L || any(outcome_summary$models != 18L) ||
@@ -43622,6 +45533,7 @@ make_update_2026_supplement_strategy_within_final_loo_audit <- function(
   ) {
     stop("The final LOO audit is not stacking-ready.", call. = FALSE)
   }
+
   final$family <- "supplement_strategy_within"
   final$outcome_summary <- outcome_summary
   final$final_loo_manifest <- final_manifest
@@ -43645,6 +45557,7 @@ write_update_2026_supplement_strategy_within_final_loo_audit <- function(
   ) {
     stop("Cannot write an incomplete final LOO audit.", call. = FALSE)
   }
+
   dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
   paths <- c(
     final_loo_manifest = file.path(output_dir, "final_loo_manifest.csv"),
@@ -43675,6 +45588,7 @@ make_update_2026_supplement_strategy_within_prediction_records <- function(
     grid_step_g_day = grid_step_g_day,
     seed = seed
   )
+
   records <- purrr::map(records, function(record) {
     record$family <- "supplement_strategy_within"
     record$prediction_type <- "supplement_strategy_within"
@@ -43690,6 +45604,7 @@ make_update_2026_supplement_strategy_within_prediction_records <- function(
       allocated_draws = sum(allocated_draws),
       .by = outcome
     )
+
   if (
     length(records) < 4L || nrow(allocation) != 4L ||
       any(allocation$allocated_draws != n_draws) ||
@@ -43700,6 +45615,7 @@ make_update_2026_supplement_strategy_within_prediction_records <- function(
   ) {
     stop("The prediction allocation is incomplete.", call. = FALSE)
   }
+
   records
 }
 
@@ -43710,6 +45626,7 @@ make_update_2026_supplement_strategy_within_reporting_preflight <- function(
   if (!is.list(records) || length(records) < 4L) {
     stop("The prediction allocation is incomplete.", call. = FALSE)
   }
+
   checks <- purrr::map_dfr(records, function(record) {
     data <- data_by_outcome[[record$outcome]]
     maximum <- if (
@@ -43769,6 +45686,7 @@ make_update_2026_supplement_strategy_within_reporting_preflight <- function(
       ),
       model_index
     )
+
   outcome_audit <- checks |>
     dplyr::summarise(
       selected_models = dplyr::n(),
@@ -43776,6 +45694,7 @@ make_update_2026_supplement_strategy_within_reporting_preflight <- function(
       retained_weight = sum(weight),
       .by = outcome
     )
+
   if (
     nrow(outcome_audit) != 4L ||
       any(outcome_audit$selected_models < 1L) ||
@@ -43791,6 +45710,7 @@ make_update_2026_supplement_strategy_within_reporting_preflight <- function(
   ) {
     stop("The reporting preflight failed.", call. = FALSE)
   }
+
   checks
 }
 
@@ -43809,6 +45729,7 @@ write_update_2026_supplement_strategy_within_reporting_preflight <- function(
   ) {
     stop("Cannot write an invalid reporting preflight.", call. = FALSE)
   }
+
   dir.create(dirname(output_file), recursive = TRUE, showWarnings = FALSE)
   readr::write_csv(checks, output_file, na = "")
   output_file
@@ -43972,6 +45893,7 @@ write_update_2026_supplement_strategy_within_reporting_file <- function(
       )
     }
   )
+
   bind_component <- function(name) {
     dplyr::bind_rows(purrr::map(strategy_reports, name))
   }
@@ -44001,6 +45923,7 @@ write_update_2026_supplement_strategy_within_reporting_file <- function(
       )
     )
   )
+
   write_atomic_qs(report, result_path)
 }
 
@@ -44020,6 +45943,7 @@ write_update_2026_supplement_strategy_within_reporting_audit <- function(
   ) {
     stop("The reporting audit is incomplete.", call. = FALSE)
   }
+
   reports <- purrr::map(
     audit$summary$reporting_path,
     read_protein_strategy_within_full_reporting_file,
@@ -44047,6 +45971,7 @@ write_update_2026_supplement_strategy_within_reporting_audit <- function(
     local_equivalence = file.path(output_dir, "local_equivalence.csv"),
     model_weights = file.path(output_dir, "model_weights.csv")
   )
+
   readr::write_csv(audit$summary, paths[["summary"]])
   readr::write_csv(prediction_manifest, paths[["prediction_manifest"]])
   readr::write_csv(bind_report("dose_response"), paths[["dose_response"]])
@@ -44396,6 +46321,7 @@ make_update_2026_supplement_strategy_within_pruning_plan <- function(
     winslash = "/",
     mustWork = TRUE
   )
+
   if (!identical(tolower(resolved_root), tolower(expected_root))) {
     stop("Refusing to plan pruning outside the intended archive.",
          call. = FALSE)
@@ -44443,6 +46369,7 @@ make_update_2026_supplement_strategy_within_pruning_plan <- function(
     accepted_fit = exact_paths %in% accepted_exact_paths,
     bytes = as.numeric(file.info(exact_paths)$size)
   )
+
   if (
     nrow(model_manifest) != 76L ||
       sum(model_manifest$accepted_fit) != 72L ||
@@ -44454,6 +46381,7 @@ make_update_2026_supplement_strategy_within_pruning_plan <- function(
   ) {
     stop("The fit archive inventory is invalid.", call. = FALSE)
   }
+
   deletion_manifest <- dplyr::bind_rows(model_manifest, exact_manifest) |>
     dplyr::mutate(
       artifact_role = dplyr::case_when(
@@ -44464,6 +46392,7 @@ make_update_2026_supplement_strategy_within_pruning_plan <- function(
       ),
       lean_action = "delete refittable fit archive"
     )
+
   compact_roots <- c(
     loo_psis = file.path(archive_root, "loo", "integrated"),
     exact_corrections = file.path(archive_root, "loo", "exact_correction"),
@@ -44489,6 +46418,7 @@ make_update_2026_supplement_strategy_within_pruning_plan <- function(
     )]
     if (length(matches) == 1L) matches else "unknown"
   }, character(1L))
+
   compact_manifest <- tibble::tibble(
     path = compact_paths,
     relative_path = substring(compact_paths, nchar(resolved_root) + 2L),
@@ -44500,6 +46430,7 @@ make_update_2026_supplement_strategy_within_pruning_plan <- function(
     ),
     action = "retain compact supplement strategy-within result"
   )
+
   compact_counts <- table(factor(
     compact_manifest$archive_component,
     levels = c("loo_psis", "exact_corrections", "reporting")
@@ -44515,6 +46446,7 @@ make_update_2026_supplement_strategy_within_pruning_plan <- function(
   ) {
     stop("The compact archive inventory is incomplete.", call. = FALSE)
   }
+
   summary <- tibble::tibble(
     mode = "lean",
     model_fit_archives_deleted = nrow(model_manifest),
@@ -44535,6 +46467,7 @@ make_update_2026_supplement_strategy_within_pruning_plan <- function(
       "the supplement strategy-within family."
     )
   )
+
   list(
     summary = summary,
     model_fit_manifest = model_manifest,

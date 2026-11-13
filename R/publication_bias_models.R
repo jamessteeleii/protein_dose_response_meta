@@ -5,6 +5,10 @@
 # retained for descriptive figures and auditing, but are not treated as
 # independent publication units in the RoBMA fits.
 
+# Derive study-level protein contrasts ----
+
+# Enumerate eligible higher-versus-lower protein comparisons from within-study
+# arms and carry forward the information used to rank them.
 make_publication_bias_all_pair_contrasts <- function(data_by_outcome) {
   if (!is.list(data_by_outcome) || !length(data_by_outcome)) {
     stop("Publication-bias input must be a non-empty outcome list.",
@@ -19,6 +23,7 @@ make_publication_bias_all_pair_contrasts <- function(data_by_outcome) {
     "protein_intake", "protein_intake_raw"
   )
   missing <- setdiff(required, names(data))
+
   if (length(missing)) {
     stop(
       "All-pair contrast input is missing columns: ",
@@ -26,6 +31,7 @@ make_publication_bias_all_pair_contrasts <- function(data_by_outcome) {
       call. = FALSE
     )
   }
+
   if (!"authors" %in% names(data)) {
     data$authors <- paste("Study", data$study_no)
   }
@@ -238,9 +244,12 @@ make_publication_bias_all_pair_contrasts <- function(data_by_outcome) {
     stop("All-pair publication-bias contrasts failed validation.",
          call. = FALSE)
   }
+
   paired
 }
 
+# Select the high-versus-low contrast for the study-balanced sensitivity fit
+# while preserving the full candidate set for inspection.
 select_publication_bias_high_low_contrasts <- function(contrasts) {
   required <- c(
     "study_no", "outcome_group", "dose_difference", "time2", "total_n",
@@ -249,6 +258,7 @@ select_publication_bias_high_low_contrasts <- function(contrasts) {
     "p_value_two_sided", "comparison_type", "resistance_exercise_label"
   )
   missing <- setdiff(required, names(contrasts))
+
   if (length(missing)) {
     stop(
       "High-low selection is missing columns: ",
@@ -389,6 +399,7 @@ write_publication_bias_extended_data <- function(
     nominal_index_contrasts = nominal_data$index_contrasts,
     nominal_outcome_summary = nominal_data$outcome_summary
   )
+
   paths <- file.path(output_dir, paste0(names(objects), ".csv"))
   hosted_paths <- file.path(
     hosted_dir, paste0(names(objects), ".csv")
@@ -396,6 +407,7 @@ write_publication_bias_extended_data <- function(
   purrr::walk2(objects, paths, readr::write_csv)
   purrr::walk2(objects, hosted_paths, readr::write_csv)
   all_paths <- c(paths, hosted_paths)
+
   if (
     any(!file.exists(all_paths)) ||
       any(file.info(all_paths)$size <= 0)
@@ -403,9 +415,14 @@ write_publication_bias_extended_data <- function(
     stop("Extended publication-bias data files were not written.",
          call. = FALSE)
   }
+
   normalizePath(all_paths, winslash = "/", mustWork = TRUE)
 }
 
+# Display all contrasts and highlight the selected sample ----
+
+# Plot the candidate comparisons and the selected high-versus-low contrasts
+# together so readers can see which estimates enter the model.
 make_publication_bias_all_contrast_panel <- function(
     all_data,
     selected_data,
@@ -416,6 +433,7 @@ make_publication_bias_all_contrast_panel <- function(
     dplyr::filter(.data$outcome_group == .env$outcome_group)
   panel_selected <- selected_data |>
     dplyr::filter(.data$outcome_group == .env$outcome_group)
+
   if (!nrow(panel_all) || !nrow(panel_selected)) {
     stop("Missing all-contrast funnel data for ", outcome_group,
          call. = FALSE)
@@ -558,6 +576,7 @@ make_publication_bias_all_contrast_panel <- function(
       )
     }
   }
+
   plot
 }
 
@@ -576,6 +595,7 @@ make_publication_bias_all_contrast_plot <- function(
       model_estimates = model_estimates
     )
   )
+
   patchwork::wrap_plots(plots, ncol = 2, guides = "collect") +
     patchwork::plot_annotation(
       title = paste(
@@ -606,6 +626,7 @@ write_publication_bias_all_contrast_plot <- function(
   ) {
     stop("filename_stem must be a safe single file stem.", call. = FALSE)
   }
+
   dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
   paths <- file.path(
     output_dir,
@@ -623,12 +644,18 @@ write_publication_bias_all_contrast_plot <- function(
     paths[[3L]], plot, device = grDevices::cairo_pdf,
     width = 11, height = 9
   )
+
   if (any(!file.exists(paths)) || any(file.info(paths)$size <= 0)) {
     stop("All-contrast funnel plots were not written.", call. = FALSE)
   }
   normalizePath(paths, winslash = "/", mustWork = TRUE)
 }
 
+# RoBMA setup, fitting and reporting ----
+
+# Check the R package and JAGS runtime before fitting. The fit manifest links
+# each outcome's selected input data to the saved result and reporting
+# summaries.
 check_publication_bias_robma_runtime <- function(
     required_version = "4.0.0"
 ) {
@@ -641,6 +668,7 @@ check_publication_bias_robma_runtime <- function(
   version_ok <- installed &&
     utils::compareVersion(version, required_version) >= 0
   exports_ok <- FALSE
+
   if (version_ok) {
     required_exports <- c(
       "brma", "RoBMA", "as_zplot", "zplot", "summary_models",
@@ -650,6 +678,7 @@ check_publication_bias_robma_runtime <- function(
       required_exports %in% getNamespaceExports("RoBMA")
     )
   }
+
   jags_version <- NA_character_
   if (installed && requireNamespace("rjags", quietly = TRUE)) {
     jags_version <- tryCatch(
@@ -657,6 +686,7 @@ check_publication_bias_robma_runtime <- function(
       error = function(error) NA_character_
     )
   }
+
   jags_ok <- !is.na(jags_version) &&
     utils::compareVersion(jags_version, "4.3.1") >= 0
 
@@ -712,6 +742,7 @@ make_publication_bias_robma_config <- function(
     seed = 62026L
 ) {
   values <- c(chains, adapt, burnin, sample, seed)
+
   if (any(!is.finite(values)) || any(values < 1)) {
     stop("Invalid publication-bias RoBMA configuration.", call. = FALSE)
   }
@@ -762,6 +793,7 @@ make_publication_bias_model_specifications <- function(high_low_data) {
       )
     )
   })
+
   omnibus <- tibble::tibble(
     analysis_id = "secondary_omnibus",
     analysis_role = "Secondary clustered omnibus meta-regression",
@@ -774,6 +806,7 @@ make_publication_bias_model_specifications <- function(high_low_data) {
     expected_rows = nrow(data),
     expected_studies = dplyr::n_distinct(data$study_no)
   )
+
   dplyr::bind_rows(outcome_specs, omnibus)
 }
 
@@ -793,6 +826,8 @@ make_publication_bias_fit_records <- function(specifications) {
   split(records, records$fit_id)
 }
 
+# Return the study-level effect and uncertainty vectors for a single outcome
+# after checking the selected rows against its fit record.
 prepare_publication_bias_fit_data <- function(record, high_low_data) {
   if (is.list(record) && !is.data.frame(record)) {
     record <- tibble::as_tibble(record)
@@ -801,6 +836,7 @@ prepare_publication_bias_fit_data <- function(record, high_low_data) {
     stop("A publication-bias fit record must contain one row.",
          call. = FALSE)
   }
+
   data <- high_low_data$index_contrasts
   if (!is.na(record$outcome_group[[1L]])) {
     data <- data |>
@@ -808,6 +844,7 @@ prepare_publication_bias_fit_data <- function(record, high_low_data) {
         .data$outcome_group == record$outcome_group[[1L]]
       )
   }
+
   dose_sd <- stats::sd(data$dose_difference)
   if (!is.finite(dose_sd) || dose_sd <= 0) {
     dose_sd <- 1
@@ -839,6 +876,7 @@ prepare_publication_bias_fit_data <- function(record, high_low_data) {
     dplyr::mutate(
       dplyr::across(where(is.factor), droplevels)
     )
+
   if (
     nrow(data) != record$expected_rows[[1L]] ||
       dplyr::n_distinct(data$study_no) !=
@@ -849,6 +887,7 @@ prepare_publication_bias_fit_data <- function(record, high_low_data) {
     stop("Publication-bias fit data failed structural validation.",
          call. = FALSE)
   }
+
   if (!is.na(record$moderator_formula[[1L]])) {
     moderator_formula <- stats::as.formula(
       record$moderator_formula[[1L]]
@@ -866,6 +905,7 @@ prepare_publication_bias_fit_data <- function(record, high_low_data) {
       )
     }
   }
+
   data
 }
 
@@ -889,6 +929,7 @@ fit_publication_bias_model_to_file <- function(
       call. = FALSE
     )
   }
+
   assert_publication_bias_robma_runtime(preflight)
   record <- tibble::as_tibble(record)
   data <- prepare_publication_bias_fit_data(record, high_low_data)
@@ -943,6 +984,7 @@ fit_publication_bias_model_to_file <- function(
     seed = config$seed + record$seed_offset[[1L]],
     silent = TRUE
   )
+
   if (isTRUE(record$cluster_by_study[[1L]])) {
     arguments$cluster <- data$study_no
   }
@@ -951,6 +993,7 @@ fit_publication_bias_model_to_file <- function(
       record$moderator_formula[[1L]]
     )
   }
+
   fit_function <- if (identical(model_type, "brma")) {
     RoBMA::brma
   } else if (identical(model_type, "robma")) {
@@ -959,6 +1002,7 @@ fit_publication_bias_model_to_file <- function(
     stop("Unknown publication-bias model type: ", model_type,
          call. = FALSE)
   }
+
   fit <- do.call(fit_function, arguments)
 
   saveRDS(
@@ -972,6 +1016,7 @@ fit_publication_bias_model_to_file <- function(
     path,
     compress = "xz"
   )
+
   normalizePath(path, winslash = "/", mustWork = TRUE)
 }
 
@@ -1024,6 +1069,7 @@ extract_publication_bias_outcome_model_estimates <- function(manifest) {
     stop("Publication-bias fit manifest is missing required fields.",
          call. = FALSE)
   }
+
   rows <- manifest |>
     dplyr::filter(grepl("^primary_", .data$analysis_id))
   if (
@@ -1063,6 +1109,7 @@ extract_publication_bias_outcome_model_estimates <- function(manifest) {
       upper_95 = stats::quantile(draws, 0.975, names = FALSE)
     )
   })
+
   if (
     anyDuplicated(estimates[c("outcome_group", "model_type")]) ||
       any(!is.finite(estimates$estimate))
@@ -1070,6 +1117,7 @@ extract_publication_bias_outcome_model_estimates <- function(manifest) {
     stop("Extracted publication-bias model estimates are invalid.",
          call. = FALSE)
   }
+
   estimates |>
     dplyr::arrange(.data$outcome_group, .data$model_type)
 }
@@ -1095,6 +1143,7 @@ write_publication_bias_outcome_model_estimates <- function(
   ) {
     stop("Outcome model estimates are incomplete.", call. = FALSE)
   }
+
   paths <- c(result_path, hosted_path)
   purrr::walk(unique(dirname(paths)), dir.create,
               recursive = TRUE, showWarnings = FALSE)
@@ -1102,6 +1151,7 @@ write_publication_bias_outcome_model_estimates <- function(
   if (any(!file.exists(paths)) || any(file.info(paths)$size <= 0)) {
     stop("Outcome model estimate files were not written.", call. = FALSE)
   }
+
   normalizePath(paths, winslash = "/", mustWork = TRUE)
 }
 

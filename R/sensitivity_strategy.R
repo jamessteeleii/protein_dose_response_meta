@@ -4,6 +4,10 @@
 # joined only after the four outcome datasets have been prepared, so audit
 # edits cannot invalidate the completed primary or earlier sensitivity fits.
 
+# Reviewed study-level strategy classification ----
+
+# Read and validate the design classifications before using them to
+# distinguish protein manipulation strategies in the sensitivity models.
 read_protein_strategy_audit <- function(path) {
   audit <- readr::read_csv(
     path,
@@ -16,6 +20,7 @@ read_protein_strategy_audit <- function(path) {
     show_col_types = FALSE,
     progress = FALSE
   )
+
   required <- c(
     "study_no", "pmid", "doi", "authors", "year", "title",
     "arm_count", "arm_mix", "primary_strategy", "strategy_detail",
@@ -23,6 +28,7 @@ read_protein_strategy_audit <- function(path) {
     "reported_intervention", "evidence_excerpt", "page"
   )
   missing <- setdiff(required, names(audit))
+
   if (length(missing) > 0L) {
     stop(
       "The protein-strategy audit is missing: ",
@@ -30,6 +36,7 @@ read_protein_strategy_audit <- function(path) {
       call. = FALSE
     )
   }
+
   valid_strategy <- c(
     "Addition", "Substitution", "Mixed",
     "Protein-only comparison", "Unclear"
@@ -54,6 +61,7 @@ read_protein_strategy_audit <- function(path) {
        audit$energy_relation %in% clearly_matched) |
     (audit$primary_strategy == "Substitution" &
        audit$energy_relation %in% clearly_not_matched)
+
   if (
     nrow(audit) != 109L || anyNA(audit$study_no) ||
       anyDuplicated(audit$study_no) ||
@@ -67,6 +75,7 @@ read_protein_strategy_audit <- function(path) {
       call. = FALSE
     )
   }
+
   audit |>
     dplyr::mutate(
       # The lean CSV is the completed, confirmed audit. These working fields
@@ -95,6 +104,7 @@ read_update_2026_protein_strategy_audit <- function(
     show_col_types = FALSE,
     progress = FALSE
   )
+
   audit_columns <- c(
     "study_no", "pmid", "doi", "authors", "year", "title",
     "arm_count", "arm_mix", "primary_strategy", "strategy_detail",
@@ -108,6 +118,7 @@ read_update_2026_protein_strategy_audit <- function(
     c(audit_columns, provenance_columns),
     names(additions)
   )
+
   if (length(missing) > 0L) {
     stop(
       "The updated protein-strategy audit additions are missing: ",
@@ -115,6 +126,7 @@ read_update_2026_protein_strategy_audit <- function(
       call. = FALSE
     )
   }
+
   expected_studies <- as.character(c(163L, 165L, 166L, 167L, 171L, 172L))
   required_content <- setdiff(
     c(audit_columns, provenance_columns),
@@ -135,6 +147,7 @@ read_update_2026_protein_strategy_audit <- function(
        additions$energy_relation %in% clearly_matched) |
     (additions$primary_strategy == "Substitution" &
        additions$energy_relation %in% clearly_not_matched)
+
   if (
     nrow(additions) != 6L ||
       !setequal(additions$study_no, expected_studies) ||
@@ -150,6 +163,7 @@ read_update_2026_protein_strategy_audit <- function(
       call. = FALSE
     )
   }
+
   historical <- historical |>
     dplyr::mutate(
       zotero_key = NA_character_,
@@ -166,6 +180,7 @@ read_update_2026_protein_strategy_audit <- function(
       principal_eligible,
       strict_eligible
     )
+
   additions <- additions |>
     dplyr::mutate(
       classification_confirmed = review_status == "Confirmed",
@@ -174,6 +189,7 @@ read_update_2026_protein_strategy_audit <- function(
       strict_eligible = principal_eligible & confidence == "High"
     ) |>
     dplyr::select(dplyr::all_of(names(historical)))
+
   audit <- dplyr::bind_rows(historical, additions) |>
     dplyr::arrange(as.integer(study_no))
   if (
@@ -186,6 +202,7 @@ read_update_2026_protein_strategy_audit <- function(
       call. = FALSE
     )
   }
+
   audit
 }
 
@@ -227,12 +244,14 @@ audit_update_2026_protein_strategy <- function(audit, data_by_outcome) {
         all(nchar(review_rows$source_sha256) == 64L)
     )
   )
+
   if (!all(structural_checks$passed)) {
     stop(
       "The updated protein-strategy audit failed structural validation.",
       call. = FALSE
     )
   }
+
   list(
     review_rows = review_rows,
     status_summary = review_rows |>
@@ -283,12 +302,14 @@ join_protein_strategy_audit <- function(data, audit) {
       strategy_principal_eligible = principal_eligible,
       strategy_strict_eligible = strict_eligible
     )
+
   if (anyDuplicated(lookup$strategy_study_key)) {
     stop("The protein-strategy lookup is not one row per study.", call. = FALSE)
   }
   output <- data |>
     dplyr::mutate(strategy_study_key = as.character(study_no)) |>
     dplyr::left_join(lookup, by = "strategy_study_key")
+
   if (
     nrow(output) != nrow(data) ||
       anyNA(output$strategy_principal_eligible)
@@ -305,6 +326,7 @@ join_protein_strategy_audit <- function(data, audit) {
       call. = FALSE
     )
   }
+
   output
 }
 
@@ -333,6 +355,7 @@ finalise_strategy_analysis_data <- function(data, analysis) {
       -strategy_principal_eligible,
       -strategy_strict_eligible
     )
+
   study_check <- output |>
     dplyr::distinct(study_no, protein_strategy) |>
     dplyr::count(study_no, name = "strategies")
@@ -343,6 +366,7 @@ finalise_strategy_analysis_data <- function(data, analysis) {
   ) {
     stop("The strategy analysis sample failed validation.", call. = FALSE)
   }
+
   output
 }
 
@@ -379,6 +403,8 @@ summarise_strategy_support <- function(data, outcome, analysis) {
     )
 }
 
+# Attach the audited strategy labels to the analysis observations and prepare
+# the factor coding used by the model formulas.
 prepare_protein_strategy_data <- function(data_by_outcome, audit) {
   outcomes <- c("whole_body", "hypertrophy", "strength", "function")
   if (
@@ -387,6 +413,7 @@ prepare_protein_strategy_data <- function(data_by_outcome, audit) {
   ) {
     stop("The four prepared outcome datasets are required.", call. = FALSE)
   }
+
   joined <- purrr::map(data_by_outcome[outcomes],
                        join_protein_strategy_audit, audit = audit)
   principal <- purrr::map(joined, finalise_strategy_analysis_data,
@@ -420,6 +447,7 @@ prepare_protein_strategy_data <- function(data_by_outcome, audit) {
       )
     )
   })
+
   list(
     joined_by_outcome = joined,
     principal_by_outcome = principal,
@@ -477,6 +505,7 @@ make_protein_strategy_formula <- function(specification) {
     formula, "resistance_exercise_code", "strategy_code"
   )
   dose_term <- first_strategy_dose_term(formula, specification$model_index)
+
   if (is.null(dose_term)) return(formula)
   if (grepl("^s\\(", dose_term)) {
     variable <- regmatches(
@@ -490,6 +519,7 @@ make_protein_strategy_formula <- function(specification) {
   } else {
     interaction <- paste0("strategy_code:", dose_term)
   }
+
   formula <- insert_strategy_formula_term(formula, dose_term, interaction)
   if (
     grepl("strategy_code.*resistance_exercise_code|resistance_exercise_code.*strategy_code.*:",
@@ -497,6 +527,7 @@ make_protein_strategy_formula <- function(specification) {
   ) {
     stop("A strategy-by-RT three-way term was introduced.", call. = FALSE)
   }
+
   formula
 }
 
@@ -529,6 +560,7 @@ audit_protein_strategy_full_formula_registry <- function(specifications) {
       ),
       model_index
     )
+
   outcome_counts <- registry |>
     dplyr::count(outcome, name = "models")
   if (
@@ -546,6 +578,7 @@ audit_protein_strategy_full_formula_registry <- function(specifications) {
     stop("The 104-model arm-strategy formula registry is invalid.",
          call. = FALSE)
   }
+
   list(
     models = nrow(registry),
     outcomes = nrow(outcome_counts),
@@ -587,6 +620,7 @@ make_protein_strategy_remedy_config <- function(
   ) {
     stop("Invalid protein-strategy remedy configuration.", call. = FALSE)
   }
+
   config <- base_config
   config$remedy_model_indices <- remedy_model_indices
   config$iter_warmup <- as.integer(iter_warmup)
@@ -632,6 +666,7 @@ audit_protein_strategy_pilot_structure <- function(
       )
     )
   })
+
   checks <- c(
     candidate_indices = identical(
       sort(indices), sort(as.integer(expected_indices))
@@ -651,6 +686,7 @@ audit_protein_strategy_pilot_structure <- function(
       inputs, ~ identical(.x$family, "strategy")
     ))
   )
+
   if (!all(checks)) {
     stop(
       "The protein-strategy pilot failed: ",
@@ -658,6 +694,7 @@ audit_protein_strategy_pilot_structure <- function(
       call. = FALSE
     )
   }
+
   list(
     ready_to_sample = isTRUE(strategy_data$audit$audit_ready),
     analysis = "principal resolved addition/substitution studies",
@@ -761,6 +798,7 @@ compute_protein_strategy_exact_loo_case <- function(refit) {
   if (!refit$family %in% c("strategy", "strategy_within")) {
     stop("The exact-LOO refit is not a strategy candidate.", call. = FALSE)
   }
+
   if (identical(refit$family, "strategy_within")) {
     return(compute_sensitivity_mundlak_exact_loo_case(refit))
   }
@@ -784,6 +822,7 @@ collect_protein_strategy_exact_results <- function(results, jobs, family) {
     is_protein_strategy_no_exact_loo_job,
     logical(1L)
   )
+
   if (any(no_refit_jobs)) {
     if (
       length(jobs) != 1L || length(results) != 1L ||
@@ -797,6 +836,7 @@ collect_protein_strategy_exact_results <- function(results, jobs, family) {
     }
     return(list())
   }
+
   collect_sensitivity_mundlak_exact_results(
     results = results,
     jobs = jobs,
@@ -804,6 +844,10 @@ collect_protein_strategy_exact_results <- function(results, jobs, family) {
   )
 }
 
+# Strategy effects within studies ----
+
+# Prepare the strict within-study comparisons while carrying the strategy
+# information needed by the interaction terms.
 prepare_protein_strategy_within_data <- function(
     contrast_data,
     audit,
@@ -823,12 +867,14 @@ make_protein_strategy_within_formula <- function(
     formula, "resistance_exercise_code", "strategy_code"
   )
   includes_protein <- !model_index %in% c(1L, 5L)
+
   if (!includes_protein) {
     if (!is.null(contrast_names)) {
       stop("A null within-strategy model has contrast columns.", call. = FALSE)
     }
     return(formula)
   }
+
   if (is.null(contrast_names) || length(contrast_names) < 1L) {
     stop("A protein within-strategy model lacks contrast columns.", call. = FALSE)
   }
@@ -839,6 +885,7 @@ make_protein_strategy_within_formula <- function(
       paste0(contrast_name, ":strategy_code")
     )
   }
+
   formula
 }
 
@@ -954,6 +1001,7 @@ audit_protein_strategy_within_pilot_structure <- function(
       )
     )
   })
+
   support <- summarise_strategy_within_support(contrast_data)
   study_counts <- contrast_data |>
     dplyr::distinct(study_no, protein_strategy) |>
@@ -981,6 +1029,7 @@ audit_protein_strategy_within_pilot_structure <- function(
       c("Addition", "Substitution")
     )
   )
+
   if (!all(checks)) {
     stop(
       "The within-study strategy pilot failed: ",
@@ -988,6 +1037,7 @@ audit_protein_strategy_within_pilot_structure <- function(
       call. = FALSE
     )
   }
+
   list(
     ready_to_sample = isTRUE(strategy_data$audit$audit_ready),
     analysis = paste(
@@ -1029,6 +1079,10 @@ fit_protein_strategy_within_pilot <- function(
   )
 }
 
+# Expansion settings, fit checks and holdout scores ----
+
+# Expand the reviewed pilot settings to the candidate sets and diagnostic
+# remedies used before computing integrated holdout scores.
 make_protein_strategy_full_config <- function(
     base_config,
     seed_offset,
@@ -1043,6 +1097,7 @@ make_protein_strategy_full_config <- function(
   config$iter_warmup <- as.integer(iter_warmup)
   config$iter_sampling <- as.integer(iter_sampling)
   config$seed <- as.integer(base_config$seed + seed_offset)
+
   if (
     config$chains != 4L || config$parallel_chains < 1L ||
       config$iter_warmup != 1500L || config$iter_sampling != 2000L ||
@@ -1052,6 +1107,7 @@ make_protein_strategy_full_config <- function(
     stop("Invalid full protein-strategy expansion configuration.",
          call. = FALSE)
   }
+
   config
 }
 
@@ -1069,6 +1125,7 @@ make_protein_strategy_full_remedy_config <- function(
   config$adapt_delta_floor <- as.numeric(adapt_delta)
   config$max_treedepth_floor <- as.integer(max_treedepth)
   config$seed <- as.integer(full_config$seed + seed_offset)
+
   if (
     config$iter_warmup < full_config$iter_warmup ||
       config$iter_sampling <= full_config$iter_sampling ||
@@ -1080,6 +1137,7 @@ make_protein_strategy_full_remedy_config <- function(
     stop("Invalid full protein-strategy remedy configuration.",
          call. = FALSE)
   }
+
   config
 }
 
@@ -1099,6 +1157,7 @@ select_pending_protein_strategy_full_specifications <- function(
   expected_reused <- paste(
     "whole_body", c(1L, 2L, 3L, 4L, 5L, 13L, 26L)
   )
+
   if (
     !family %in% c("strategy", "strategy_within") ||
       length(specifications) != 104L || anyDuplicated(specification_keys) ||
@@ -1111,6 +1170,7 @@ select_pending_protein_strategy_full_specifications <- function(
     stop("The full protein-strategy specification/reuse set is invalid.",
          call. = FALSE)
   }
+
   specifications[!specification_keys %in% reused_keys]
 }
 
@@ -1124,6 +1184,7 @@ prepare_protein_strategy_full_input <- function(
   outcome <- specification$outcome
   data <- data_by_outcome[[outcome]]
   priors <- priors_by_outcome[[outcome]]
+
   if (
     !family %in% c("strategy", "strategy_within") ||
       is.null(data) || is.null(priors) || !outcome %in% config$outcomes
@@ -1131,6 +1192,7 @@ prepare_protein_strategy_full_input <- function(
     stop("A full protein-strategy outcome input is unavailable.",
          call. = FALSE)
   }
+
   specification$sensitivity_strategy_expansion <- TRUE
   specification$sensitivity_strategy_family <- family
   specification$sensitivity_strategy_sampling <- paste0(
@@ -1166,6 +1228,7 @@ select_protein_strategy_full_remedy_specifications <- function(
     purrr::map_chr(selected, "outcome"),
     purrr::map_int(selected, "model_index")
   )
+
   if (
     !family %in% c("strategy", "strategy_within") ||
       !identical(initial_audit$family, family) ||
@@ -1177,6 +1240,7 @@ select_protein_strategy_full_remedy_specifications <- function(
     stop("The full protein-strategy remedy set is invalid.",
          call. = FALSE)
   }
+
   selected
 }
 
@@ -1280,6 +1344,7 @@ audit_protein_strategy_full_expansion <- function(
       "strategy_code" %in% names(input$data) &&
       all(input$data$strategy_code %in% c(0, 1))
   })
+
   data_summary <- purrr::imap_dfr(data_by_outcome, function(data, outcome) {
     tibble::tibble(
       outcome = outcome,
@@ -1293,6 +1358,7 @@ audit_protein_strategy_full_expansion <- function(
       )
     )
   })
+
   if (
     !family %in% c("strategy", "strategy_within") ||
       length(pending_specifications) != 97L || length(inputs) != 97L ||
@@ -1308,6 +1374,7 @@ audit_protein_strategy_full_expansion <- function(
     stop("The full protein-strategy expansion failed its structural audit.",
          call. = FALSE)
   }
+
   list(
     family = family,
     checks = tibble::tibble(
@@ -1346,6 +1413,7 @@ fit_protein_strategy_full_candidate_to_file <- function(
     stage = "initial"
 ) {
   if (!isTRUE(enabled)) return(new_sensitivity_pilot_skip(family))
+
   if (!family %in% c("strategy", "strategy_within")) {
     stop("Unknown full protein-strategy family.", call. = FALSE)
   }
@@ -1354,6 +1422,7 @@ fit_protein_strategy_full_candidate_to_file <- function(
     stop("Unknown outcome or family in the full strategy fit.",
          call. = FALSE)
   }
+
   local_config <- config
   local_config$seed <- as.integer(
     config$seed + 100L * (outcome_offset - 1L) +
@@ -1378,6 +1447,7 @@ combine_protein_strategy_full_fit_manifest <- function(
   manifest <- dplyr::bind_rows(reused_manifest, new_manifest) |>
     dplyr::arrange(factor(outcome, levels = outcomes), model_index)
   counts <- table(factor(manifest$outcome, levels = outcomes))
+
   if (
     !family %in% c("strategy", "strategy_within") ||
       nrow(manifest) != 104L ||
@@ -1389,6 +1459,7 @@ combine_protein_strategy_full_fit_manifest <- function(
     stop("The full protein-strategy fit manifest is incomplete.",
          call. = FALSE)
   }
+
   manifest
 }
 
@@ -1421,6 +1492,7 @@ compute_protein_strategy_full_file_integrated_loo <- function(
     stop("Unknown protein-strategy family for integrated LOO.",
          call. = FALSE)
   }
+
   if (identical(family, "strategy_within")) {
     return(compute_mundlak_full_file_integrated_loo(
       fit_record = fit_record,
@@ -1432,6 +1504,7 @@ compute_protein_strategy_full_file_integrated_loo <- function(
         "strategy_modified_within_contrast_basis_slopes"
     ))
   }
+
   fit_path <- fit_record$fit_path
   if (
     length(fit_path) != 1L || is.na(fit_path) || !file.exists(fit_path)
@@ -1439,6 +1512,7 @@ compute_protein_strategy_full_file_integrated_loo <- function(
     stop("The protein-strategy LOO fit file is unavailable.",
          call. = FALSE)
   }
+
   candidate <- read_sensitivity_fit_file(fit_path)
   if (
     !identical(unname(as.character(candidate$family)), family) ||
@@ -1453,6 +1527,7 @@ compute_protein_strategy_full_file_integrated_loo <- function(
     stop("The strategy fit file does not match its manifest record.",
          call. = FALSE)
   }
+
   old_mc_cores <- getOption("mc.cores")
   on.exit(options(mc.cores = old_mc_cores), add = TRUE)
   options(mc.cores = 1L)
@@ -1468,6 +1543,7 @@ compute_protein_strategy_full_file_integrated_loo <- function(
     reloo = FALSE,
     cores = as.integer(cores)
   )
+
   result <- compute_sensitivity_exposure_integrated_psis_loo(
     job = list(
       fitted_candidate = candidate,
@@ -1478,6 +1554,7 @@ compute_protein_strategy_full_file_integrated_loo <- function(
     k_threshold = k_threshold,
     cores = cores
   )
+
   result$family <- family
   result$fit_record <- fit_record
   result$loo_draws <- length(draw_ids)
@@ -1493,6 +1570,7 @@ compute_protein_strategy_full_exact_loo_file <- function(
     stop("Exact strategy corrections require passing refit diagnostics.",
          call. = FALSE)
   }
+
   if (!family %in% c("strategy", "strategy_within")) {
     stop("Unknown protein-strategy exact-LOO family.", call. = FALSE)
   }
@@ -1518,6 +1596,7 @@ combine_protein_strategy_full_remedy_diagnostic_audit <- function(
     dplyr::filter(!diagnostic_pass) |>
     dplyr::transmute(key = paste(outcome, model_index)) |>
     dplyr::pull(key)
+
   if (
     !family %in% c("strategy", "strategy_within") ||
       !identical(initial_audit$family, family) ||
@@ -1527,6 +1606,7 @@ combine_protein_strategy_full_remedy_diagnostic_audit <- function(
     stop("The full protein-strategy remedy diagnostics are incomplete.",
          call. = FALSE)
   }
+
   summary <- initial_audit$diagnostic_summary |>
     dplyr::filter(!paste(outcome, model_index) %in% remedy_keys) |>
     dplyr::bind_rows(remedy_summary) |>
@@ -1545,6 +1625,7 @@ combine_protein_strategy_full_remedy_diagnostic_audit <- function(
         TRUE ~ "PASS"
       )
     )
+
   remedy_parameter_failures <- purrr::map_dfr(
     remedy_diagnostics,
     function(result) {
@@ -1556,6 +1637,7 @@ combine_protein_strategy_full_remedy_diagnostic_audit <- function(
         )
     }
   )
+
   parameter_failures <- initial_audit$parameter_failures |>
     dplyr::filter(!paste(outcome, model_index) %in% remedy_keys) |>
     dplyr::bind_rows(remedy_parameter_failures)
@@ -1566,6 +1648,7 @@ combine_protein_strategy_full_remedy_diagnostic_audit <- function(
     stop("The remedied protein-strategy audit is incomplete.",
          call. = FALSE)
   }
+
   list(
     family = family,
     diagnostic_summary = summary,
@@ -1593,6 +1676,7 @@ combine_protein_strategy_full_accepted_fit_manifest <- function(
     stop("Protein-strategy fits cannot be accepted before diagnostics pass.",
          call. = FALSE)
   }
+
   remedy_keys <- paste(remedy_manifest$outcome, remedy_manifest$model_index)
   accepted <- initial_manifest |>
     dplyr::filter(!paste(outcome, model_index) %in% remedy_keys) |>
@@ -1604,6 +1688,7 @@ combine_protein_strategy_full_accepted_fit_manifest <- function(
       ),
       model_index
     )
+
   if (
     nrow(accepted) != 104L ||
       anyDuplicated(paste(accepted$outcome, accepted$model_index)) ||
@@ -1613,6 +1698,7 @@ combine_protein_strategy_full_accepted_fit_manifest <- function(
     stop("The accepted protein-strategy fit manifest is incomplete.",
          call. = FALSE)
   }
+
   accepted
 }
 
@@ -1637,6 +1723,7 @@ make_protein_strategy_prediction_grid <- function(
     )
     result
   }))
+
   keys <- dplyr::bind_rows(lapply(strategies, function(strategy) {
     dplyr::mutate(
       base$keys,
@@ -1645,6 +1732,7 @@ make_protein_strategy_prediction_grid <- function(
       .before = protein_intake
     )
   }))
+
   list(
     newdata = newdata,
     keys = keys,
@@ -1671,6 +1759,7 @@ make_protein_strategy_within_prediction_grid <- function(
     grid_step = grid_step,
     reference_raw = reference_raw
   )
+
   strategies <- c("Substitution", "Addition")
   newdata <- dplyr::bind_rows(lapply(strategies, function(strategy) {
     result <- base$newdata
@@ -1681,6 +1770,7 @@ make_protein_strategy_within_prediction_grid <- function(
     )
     result
   }))
+
   keys <- dplyr::bind_rows(lapply(strategies, function(strategy) {
     dplyr::mutate(
       base$keys,
@@ -1689,6 +1779,7 @@ make_protein_strategy_within_prediction_grid <- function(
       .before = protein_intake
     )
   }))
+
   list(
     newdata = newdata,
     keys = keys,
@@ -1698,6 +1789,10 @@ make_protein_strategy_within_prediction_grid <- function(
   )
 }
 
+# Report strategy-specific dose contrasts ----
+
+# Use the weighted predictions to compare dose response across manipulation
+# strategies with their observed support.
 build_protein_strategy_pilot_reporting <- function(
     model_average,
     data,
@@ -1717,6 +1812,7 @@ build_protein_strategy_pilot_reporting <- function(
       common_central_90_maximum = min(central_90_maximum),
       .groups = "drop"
     )
+
   curve <- curve |>
     dplyr::left_join(
       dplyr::select(
@@ -1738,6 +1834,7 @@ build_protein_strategy_pilot_reporting <- function(
         protein_intake >= common_central_90_minimum &
         protein_intake <= common_central_90_maximum
     )
+
   grid <- model_average$grid
   alpha <- (1 - conf_level) / 2
   comparison_keys <- grid |>
@@ -1782,6 +1879,7 @@ build_protein_strategy_pilot_reporting <- function(
         protein_intake >= common_central_90_minimum &
         protein_intake <= common_central_90_maximum
     )
+
   list(
     dose_response = curve,
     addition_minus_substitution = differences,
@@ -1809,6 +1907,7 @@ build_protein_strategy_within_pilot_reporting <- function(
       common_central_90_maximum = min(treatment_central_90_maximum),
       .groups = "drop"
     )
+
   curve <- curve |>
     dplyr::left_join(
       dplyr::select(
@@ -1830,6 +1929,7 @@ build_protein_strategy_within_pilot_reporting <- function(
         protein_intake >= common_central_90_minimum &
         protein_intake <= common_central_90_maximum
     )
+
   grid <- model_average$grid
   alpha <- (1 - conf_level) / 2
   comparison_keys <- grid |>
@@ -1876,6 +1976,7 @@ build_protein_strategy_within_pilot_reporting <- function(
         protein_intake >= common_central_90_minimum &
         protein_intake <= common_central_90_maximum
     )
+
   list(
     dose_response_contrasts = curve,
     addition_minus_substitution = differences,
@@ -1905,6 +2006,7 @@ make_protein_strategy_full_prediction_records <- function(
     stop("The full protein-strategy prediction inputs are invalid.",
          call. = FALSE)
   }
+
   records <- make_mundlak_full_prediction_records(
     accepted_fit_manifest = accepted_fit_manifest,
     stacking_weights = stacking_weights,
@@ -1913,6 +2015,7 @@ make_protein_strategy_full_prediction_records <- function(
     grid_step = grid_step,
     seed = seed
   )
+
   purrr::map(records, function(record) {
     record$family <- "strategy"
     record$prediction_type <- "strategy"
@@ -1935,6 +2038,7 @@ read_protein_strategy_completed_checkpoint <- function(path) {
     "exact_loo_correction_summary", "final_loo_model_summary",
     "stacking_weights", "audit"
   )
+
   if (
     !is.list(checkpoint) || !all(required %in% names(checkpoint)) ||
       !identical(checkpoint$checkpoint_version, 1L) ||
@@ -1948,6 +2052,7 @@ read_protein_strategy_completed_checkpoint <- function(path) {
     stop("The completed protein-strategy checkpoint is invalid.",
          call. = FALSE)
   }
+
   checkpoint
 }
 
@@ -1966,6 +2071,7 @@ write_protein_strategy_full_prediction_draw_file <- function(
     stop("A full protein-strategy prediction record is invalid.",
          call. = FALSE)
   }
+
   candidate <- read_sensitivity_fit_file(record$fit_path)
   if (
     !identical(unname(as.character(candidate$family)), "strategy") ||
@@ -1985,6 +2091,7 @@ write_protein_strategy_full_prediction_draw_file <- function(
     stop("A protein-strategy prediction fit does not match its record.",
          call. = FALSE)
   }
+
   if (is.null(data_by_outcome)) {
     checkpoint <- read_protein_strategy_completed_checkpoint(checkpoint_path)
     data_by_outcome <- checkpoint$analysis_data_by_outcome
@@ -1994,6 +2101,7 @@ write_protein_strategy_full_prediction_draw_file <- function(
     stop("The protein-strategy prediction data are unavailable.",
          call. = FALSE)
   }
+
   grid <- make_protein_strategy_prediction_grid(
     fitted_candidate = candidate,
     data = prediction_data,
@@ -2010,6 +2118,7 @@ write_protein_strategy_full_prediction_draw_file <- function(
     re_formula = NA,
     ndraws = as.integer(record$draw_count)
   ))
+
   if (
     ncol(draws) != nrow(grid$keys) && nrow(draws) == nrow(grid$keys)
   ) {
@@ -2022,6 +2131,7 @@ write_protein_strategy_full_prediction_draw_file <- function(
     stop("Protein-strategy prediction draws do not match their allocation.",
          call. = FALSE)
   }
+
   reduction <- list(
     family = "strategy",
     outcome = record$outcome,
@@ -2040,6 +2150,7 @@ write_protein_strategy_full_prediction_draw_file <- function(
       prediction_type = "strategy"
     )
   )
+
   path <- if (is.null(result_path)) {
     sensitivity_reduction_file_path(
       family = "strategy",
@@ -2051,6 +2162,7 @@ write_protein_strategy_full_prediction_draw_file <- function(
     dir.create(dirname(result_path), recursive = TRUE, showWarnings = FALSE)
     result_path
   }
+
   write_atomic_qs(reduction, path)
 }
 
@@ -2066,6 +2178,7 @@ subset_protein_strategy_model_average <- function(
     stop("The protein-strategy model average cannot be subset.",
          call. = FALSE)
   }
+
   columns <- which(model_average$grid$protein_strategy == protein_strategy)
   if (!length(columns)) {
     stop("The requested protein strategy is absent from the grid.",
@@ -2092,6 +2205,7 @@ write_protein_strategy_full_reporting_file <- function(
   )
   outcome <- model_average$outcome
   data <- data_by_outcome[[outcome]]
+
   if (
     is.null(data) || !is.data.frame(data) ||
       !all(c("protein_strategy", "protein_intake_raw") %in% names(data))
@@ -2099,6 +2213,7 @@ write_protein_strategy_full_reporting_file <- function(
     stop("The full protein-strategy reporting data are unavailable.",
          call. = FALSE)
   }
+
   strategy_summary <- build_protein_strategy_pilot_reporting(
     model_average = model_average,
     data = data,
@@ -2147,6 +2262,7 @@ write_protein_strategy_full_reporting_file <- function(
       )
     }
   )
+
   bind_component <- function(name) {
     dplyr::bind_rows(purrr::map(strategy_reports, name))
   }
@@ -2171,6 +2287,7 @@ write_protein_strategy_full_reporting_file <- function(
       list(reference_intake = reference_intake, sesoi = sesoi)
     )
   )
+
   path <- if (is.null(result_path)) {
     sensitivity_reduction_file_path(
       family = family,
@@ -2182,6 +2299,7 @@ write_protein_strategy_full_reporting_file <- function(
     dir.create(dirname(result_path), recursive = TRUE, showWarnings = FALSE)
     result_path
   }
+
   write_atomic_qs(report, path)
 }
 
@@ -2211,6 +2329,7 @@ audit_protein_strategy_full_reporting_files <- function(
     stop("The protein-strategy reporting-file set is incomplete.",
          call. = FALSE)
   }
+
   summary <- purrr::map_dfr(paths, function(path) {
     report <- read_protein_strategy_full_reporting_file(path, family)
     probability_columns <- c(
@@ -2290,6 +2409,7 @@ audit_protein_strategy_full_reporting_files <- function(
       outcome,
       levels = c("whole_body", "hypertrophy", "strength", "function")
     ))
+
   if (
     nrow(summary) != 4L || anyDuplicated(summary$outcome) ||
       any(summary$dose_response_rows < 4L) ||
@@ -2304,6 +2424,7 @@ audit_protein_strategy_full_reporting_files <- function(
     stop("The full protein-strategy reporting audit failed.",
          call. = FALSE)
   }
+
   list(
     family = family,
     summary = summary,
@@ -2328,6 +2449,7 @@ write_protein_strategy_full_verification_bundle <- function(
     stop("The protein-strategy family is not ready for verification.",
          call. = FALSE)
   }
+
   reports <- purrr::map(
     reporting_audit$summary$reporting_path,
     read_protein_strategy_full_reporting_file
@@ -2420,6 +2542,7 @@ make_protein_strategy_within_full_prediction_records <- function(
     stop("The full within-strategy prediction inputs are invalid.",
          call. = FALSE)
   }
+
   records <- make_mundlak_full_prediction_records(
     accepted_fit_manifest = accepted_fit_manifest,
     stacking_weights = stacking_weights,
@@ -2428,6 +2551,7 @@ make_protein_strategy_within_full_prediction_records <- function(
     grid_step = grid_step,
     seed = seed
   )
+
   purrr::map(records, function(record) {
     record$family <- "strategy_within"
     record$prediction_type <- "strategy_within"
@@ -2450,6 +2574,7 @@ write_protein_strategy_within_full_prediction_draw_file <- function(
     stop("A full within-strategy prediction record is invalid.",
          call. = FALSE)
   }
+
   candidate <- read_sensitivity_fit_file(record$fit_path)
   if (
     !identical(unname(as.character(candidate$family)), "strategy_within") ||
@@ -2469,6 +2594,7 @@ write_protein_strategy_within_full_prediction_draw_file <- function(
     stop("A within-strategy prediction fit does not match its record.",
          call. = FALSE)
   }
+
   checkpoint <- read_sensitivity_completed_checkpoint(
     checkpoint_path, family = "strategy_within"
   )
@@ -2477,6 +2603,7 @@ write_protein_strategy_within_full_prediction_draw_file <- function(
     stop("The within-strategy prediction data are unavailable.",
          call. = FALSE)
   }
+
   grid <- make_protein_strategy_within_prediction_grid(
     fitted_candidate = candidate,
     data = prediction_data,
@@ -2493,6 +2620,7 @@ write_protein_strategy_within_full_prediction_draw_file <- function(
     re_formula = NA,
     ndraws = as.integer(record$draw_count)
   ))
+
   if (
     ncol(draws) != nrow(grid$keys) && nrow(draws) == nrow(grid$keys)
   ) {
@@ -2505,6 +2633,7 @@ write_protein_strategy_within_full_prediction_draw_file <- function(
     stop("Within-strategy prediction draws do not match their allocation.",
          call. = FALSE)
   }
+
   reduction <- list(
     family = "strategy_within",
     outcome = record$outcome,
@@ -2524,6 +2653,7 @@ write_protein_strategy_within_full_prediction_draw_file <- function(
       reference_intake = 0.8
     )
   )
+
   path <- sensitivity_reduction_file_path(
     family = "strategy_within",
     outcome = record$outcome,
@@ -2544,6 +2674,7 @@ write_protein_strategy_within_full_reporting_file <- function(
   )
   outcome <- model_average$outcome
   data <- data_by_outcome[[outcome]]
+
   if (
     is.null(data) || !is.data.frame(data) ||
       !all(c(
@@ -2553,6 +2684,7 @@ write_protein_strategy_within_full_reporting_file <- function(
     stop("The full within-strategy reporting data are unavailable.",
          call. = FALSE)
   }
+
   strategy_summary <- build_protein_strategy_within_pilot_reporting(
     model_average = model_average,
     data = data,
@@ -2604,6 +2736,7 @@ write_protein_strategy_within_full_reporting_file <- function(
       )
     }
   )
+
   bind_component <- function(name) {
     dplyr::bind_rows(purrr::map(strategy_reports, name))
   }
@@ -2628,6 +2761,7 @@ write_protein_strategy_within_full_reporting_file <- function(
       list(reference_intake = reference_intake, sesoi = sesoi)
     )
   )
+
   path <- sensitivity_reduction_file_path(
     family = "strategy_within",
     outcome = outcome,
@@ -2665,6 +2799,7 @@ audit_protein_strategy_within_full_reporting_files <- function(
     stop("The within-strategy reporting-file set is incomplete.",
          call. = FALSE)
   }
+
   summary <- purrr::map_dfr(paths, function(path) {
     report <- read_protein_strategy_within_full_reporting_file(path, family)
     probability_columns <- c(
@@ -2746,6 +2881,7 @@ audit_protein_strategy_within_full_reporting_files <- function(
       outcome,
       levels = c("whole_body", "hypertrophy", "strength", "function")
     ))
+
   if (
     nrow(summary) != 4L || anyDuplicated(summary$outcome) ||
       any(summary$dose_response_rows < 4L) ||
@@ -2760,6 +2896,7 @@ audit_protein_strategy_within_full_reporting_files <- function(
     stop("The full within-strategy reporting audit failed.",
          call. = FALSE)
   }
+
   list(
     family = family,
     summary = summary,
@@ -2784,6 +2921,7 @@ write_protein_strategy_within_full_verification_bundle <- function(
     stop("The within-strategy family is not ready for verification.",
          call. = FALSE)
   }
+
   reports <- purrr::map(
     reporting_audit$summary$reporting_path,
     read_protein_strategy_within_full_reporting_file

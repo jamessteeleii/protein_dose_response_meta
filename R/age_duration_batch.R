@@ -1,3 +1,8 @@
+# Pilot checks before a family expansion ----
+
+# Verify the saved pilot belongs to the requested family and frozen inputs
+# before allowing the larger candidate batch.
+
 # One scheduler for unattended initial fits, with independent dose-family gates.
 iad_check_family_pilot <- function(pilot, family, checkpoints,
     specifications = iad_specifications(checkpoints)) {
@@ -5,6 +10,7 @@ iad_check_family_pilot <- function(pilot, family, checkpoints,
   expected <- expected[expected$family == family, ]
   required <- c("family", "outcome", "model_index", "parent_index", "diagnostic_pass", "data_sha256")
   if (!all(required %in% names(pilot))) stop("Pilot diagnostics are incomplete: ", family)
+
   observed <- pilot[pilot$family == family, ]
   key <- function(x) paste(x$outcome, x$model_index)
   index <- match(key(expected), key(observed))
@@ -13,6 +19,7 @@ iad_check_family_pilot <- function(pilot, family, checkpoints,
       !all(observed$diagnostic_pass) || any(observed$parent_index[index] != expected$parent_index)) {
     stop("Pilot gate failed for ", family, "; other dose families may continue independently.")
   }
+
   for (i in seq_len(nrow(observed))) {
     if (observed$data_sha256[[i]] != iad_fingerprint(checkpoints[[family]]$data[[observed$outcome[[i]]]])) {
       stop("Pilot data fingerprint differs: ", family)
@@ -26,6 +33,10 @@ iad_family_pilot_gate <- function(pilot, family, checkpoints) {
   iad_csv(pilot[pilot$family == family, ], iad_path(family, "diagnostics", "pilot", "passed_gate.csv"))
 }
 
+# Estimate storage and checkpoint each family ----
+
+# Compare the projected fit storage with available capacity before expansion,
+# and keep manifests for accepted fits and reporting outputs.
 iad_disk_free_gib <- function(path = getwd()) {
   path <- normalizePath(path, winslash = "/", mustWork = TRUE)
   if (.Platform$OS.type == "windows") {
@@ -58,6 +69,7 @@ iad_batch_storage_plan <- function(specifications, checkpoints, families, availa
     path <- iad_path(s$family, s$outcome, s$stage, sprintf("model_%02d.qs", s$model_index), archive = TRUE)
     tibble::tibble(family = s$family, already_saved = file.exists(path), parent_bytes = parent$expected_bytes)
   })
+
   expected <- c(relative = 144L, total = 96L, supplement = 96L)[families]
   if (nrow(rows) != sum(expected) || !setequal(rows$family, families)) stop("Incomplete batch model registry.")
   summary <- rows |> dplyr::group_by(family) |> dplyr::summarise(candidates = dplyr::n(),
