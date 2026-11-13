@@ -7,6 +7,11 @@ diagnostic remedies and ten exact deletions, and 7.93 recorded model-job hours.
 See the root [reproducibility and fitting-time audit](../REPRODUCIBILITY.md)
 before rerunning the staged commands below.
 
+These two post-registration sensitivity runs assess the muscle outcome in the
+preregistered relative-intake primary analysis. One applies the registered
+measurement eligibility wording as written. The other restricts eligibility
+to direct measures of muscle size or mass.
+
 ## Completed state
 
 - `prepare`: complete for both variants. The audited datasets contain 413

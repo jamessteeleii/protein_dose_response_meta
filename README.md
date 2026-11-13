@@ -7,10 +7,33 @@ adults: an updated systematic review and Bayesian model averaged dose-response
 meta-analysis*.
 
 The project was preregistered on the
-[Open Science Framework](https://osf.io/w2qpx/overview). The originally
-preregistered models remain the primary analyses. Measurement-error Stan
-models were completed as supplementary analyses and remain clearly separated
-in the code and manuscript.
+[Open Science Framework](https://osf.io/w2qpx/overview). The primary analysis
+follows the preregistered model-averaging approach for achieved total protein
+intake relative to body mass (g/kg/day), with documented implementation and
+diagnostic changes.
+
+The completed post-registration analyses include:
+
+- [Relative-intake sensitivities](https://jamessteeleii.github.io/protein_dose_response_meta/supplement/sensitivity-analyses.html)
+  covering Mundlak decomposition, strict within-study contrasts, achieved
+  versus assignment-derived intake on the same sample, errors-in-variables
+  models for intake measurement error, residual correlation, and protein
+  addition versus substitution at arm level and within studies.
+- Exploratory analyses of [absolute total intake](https://jamessteeleii.github.io/protein_dose_response_meta/supplement/absolute-intake-sensitivity-analyses.html)
+  and [prescribed supplemental protein](https://jamessteeleii.github.io/protein_dose_response_meta/supplement/absolute-supplementation-sensitivity-analyses.html),
+  both in g/day, with the applicable sensitivity models on each scale.
+- [Muscle-measurement sensitivities](https://jamessteeleii.github.io/protein_dose_response_meta/supplement/muscle-measurement-sensitivity-analyses.html)
+  applying the preregistered eligibility wording as written and testing a
+  narrower direct-measurement definition.
+- Exploratory [age and intervention-duration interactions](https://jamessteeleii.github.io/protein_dose_response_meta/supplement/age-duration-interactions.html)
+  and [trained-versus-untrained comparisons within resistance-training studies](https://jamessteeleii.github.io/protein_dose_response_meta/supplement/training-status.html),
+  each evaluated on all three exposure scales.
+
+The [preregistration deviations supplement](https://jamessteeleii.github.io/protein_dose_response_meta/supplement/preregistration-deviations.html)
+documents the analysis hierarchy and the changes to the primary analysis.
+The final report also includes [risk-of-bias assessments](https://jamessteeleii.github.io/protein_dose_response_meta/supplement/risk-of-bias.html),
+[publication-bias analyses](https://jamessteeleii.github.io/protein_dose_response_meta/supplement/publication-bias.html),
+and [GRADE certainty assessments](https://jamessteeleii.github.io/protein_dose_response_meta/supplement/grade-appraisal.html).
 
 ## Citation
 
@@ -50,7 +73,7 @@ walks through preparing the data and rerunning the models from a fresh clone.
 - `data/graphical_data/` contains digitised numerical extracts.
 - `data/external/` contains small pinned external inputs and their provenance.
 - `stan/` contains supplementary Stan models and supporting scripts.
-- `sensitivity/` documents the opt-in sensitivity pilot targets and runner.
+- `sensitivity/` documents the completed sensitivity and exploratory workflows.
 - `results/freeze/` records the earlier analysis freeze. Full verification
   bundles are part of the research archive.
 - `manuscript/` contains the Quarto manuscript and portable reporting files.

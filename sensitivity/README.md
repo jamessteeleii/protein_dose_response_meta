@@ -1,4 +1,13 @@
-# Sensitivity-analysis pilots
+# Sensitivity and exploratory analyses
+
+The preregistered model-averaged analysis of achieved total protein intake
+in g/kg/day is the primary analysis. The completed post-registration
+programme includes the relative-intake sensitivity families, exploratory
+absolute total-intake and prescribed supplementation analyses, both
+muscle-measurement restrictions, age and duration interactions, and
+training-status comparisons. See the [analysis overview](../README.md) for
+the published supplements and the [stage index](analysis-stages.md) for
+rerun commands.
 
 The separate post-registration [age/duration interaction workflow](age-duration-interactions.md)
 and [RT training-status workflow](training-status.md) have their own target
@@ -15,10 +24,9 @@ skinfold estimates for the registered-method rerun, then restrict to
 MRI/CT/ultrasound/biopsy for the direct-method sensitivity. Both remain
 isolated from the other extended model families and are now complete.
 
-This directory documents the opt-in pilot targets added for the supplementary
-analyses. The pilot code is intentionally isolated from the primary model
-fits. With the default environment (`PROTEIN_SENSITIVITY_PILOTS=none`), no
-sensitivity target compiles Stan or samples a model.
+The historical runbook below covers the pilot targets and their full
+expansions. The `PROTEIN_SENSITIVITY_PILOTS` switch defaults to `none` and
+controls the pilot families.
 
 All documented final analysis families are now complete. The full suite used
 2,662 distinct candidate models but 4,266 completed fitting jobs after

@@ -6,6 +6,12 @@ for anyone considering a complete rerun. The stage-specific scientific and
 diagnostic decisions remain in the linked runbooks; this document does not
 replace them.
 
+The [analysis overview](README.md) identifies the preregistered relative-intake
+primary analysis and the completed post-registration sensitivity and
+exploratory analyses. In the stage tables, `primary` within an absolute
+exposure group names that group's base model family. The absolute exposure
+groups are exploratory.
+
 ## Do not start a full rerun casually
 
 The completed suite is much larger than a single `targets::tar_make()` call.

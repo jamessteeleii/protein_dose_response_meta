@@ -66,8 +66,8 @@ without reviewer sign-off.
 - Apply no dose-response upgrade. The evidence already starts high, the
   updated guidance focuses the upgrade on non-randomised evidence, and GRADE
   discourages upgrading after downgrading.
-- Treat all four outcomes as critical. Final author review remains required
-  before publication.
+- Treat all four outcomes as critical. The completed judgments are reported
+  in the [GRADE supplement](https://jamessteeleii.github.io/protein_dose_response_meta/supplement/grade-appraisal.html).
 
 ## Run after the current model pipeline has finished
 

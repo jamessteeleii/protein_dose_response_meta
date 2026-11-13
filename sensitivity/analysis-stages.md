@@ -1,10 +1,12 @@
 # Rebuild the reported analyses
 
 Start with the [clean-clone instructions](../REPRODUCIBILITY.md#start-from-a-clean-clone).
-The main `_targets.R` graph has three exposure groups. The tables below give
-the environment switch and target for each gated phase used by each reported
-family. Work through one family and one row at a time. Run the three primary
-families before their sensitivity families. Keep all accepted fits, final LOO
+The main `_targets.R` graph has three exposure groups. The preregistered primary
+analysis is the relative-intake model average. In the absolute groups,
+“Primary” labels the base model family for that exploratory exposure.
+The tables give the switch and target for each phase. Work through one family
+and one row at a time. Run each base family before its sensitivity families.
+Keep all accepted fits, final LOO
 reductions, and target stores through measurement, GRADE, age/duration, and
 training-status reporting.
 

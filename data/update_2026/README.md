@@ -92,9 +92,10 @@ with the canonical workbook in memory and applies the recorded review decisions.
 
 The update branch is prefixed `update_2026_` in `_targets.R`. It appends the
 canonical and updated-search workbooks in memory, then performs one preparation
-pass across all studies. Neither source workbook is modified. This common
-prepared object supplies the updated primary analysis and will subsequently
-supply each sensitivity family.
+pass across all studies. The combined data feed the preregistered relative
+total-intake primary analysis and the completed post-registration analyses,
+with analysis-specific eligibility and exposure rules. The
+[analysis overview](../../README.md) lists the published supplements.
 
 Study-level quantitative decisions are recorded in `review_decisions.csv`.
 Ceglia et al. remains review-only and Seyhan et al. remains excluded from
