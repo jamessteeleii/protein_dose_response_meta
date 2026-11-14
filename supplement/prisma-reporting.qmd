@@ -194,7 +194,7 @@ The table lists one row for each of the 119 study records. Baseline sample sizes
 
 # PRISMA 2020 checklist register
 
-The checklists use the printed page numbers in the 42-page manuscript dated 12 November 2026. Where the manuscript page directs readers to a supplement or dataset, the reporting location links to the detailed material.
+The checklists use the printed page numbers in the [manuscript PDF](../manuscript/manuscript.pdf). Where the manuscript page directs readers to a supplement or dataset, the reporting location links to the detailed material.
 
 ## Final analytical cross-references
 
