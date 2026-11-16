@@ -11,11 +11,6 @@ author:
   - Stuart Phillips
 bibliography: ../manuscript/references.bib
 csl: ../manuscript/apa.csl
-format:
-  html:
-    theme: [cosmo, no-web-font.scss]
-    toc: true
-    embed-resources: true
 execute:
   echo: false
   message: false

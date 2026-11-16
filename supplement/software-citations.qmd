@@ -3,11 +3,6 @@ title: "Analysis software and citations"
 output-file: grateful-report.html
 bibliography: grateful-refs.bib
 nocite: '@*'
-format:
-  html:
-    theme: [cosmo, no-web-font.scss]
-    toc: true
-    embed-resources: true
 execute:
   echo: false
 ---

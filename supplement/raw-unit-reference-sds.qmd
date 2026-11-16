@@ -1,11 +1,6 @@
 ---
 title: "Raw-unit reference standard deviations"
 subtitle: "Interpreting the primary relative protein-intake contrasts"
-format:
-  html:
-    theme: [cosmo, no-web-font.scss]
-    toc: true
-    embed-resources: true
 bibliography: ../manuscript/references.bib
 execute:
   echo: false

@@ -9,11 +9,6 @@ author:
   - Lauren Roxburgh
   - Andrea Viloria Medina
   - Stuart Phillips
-format:
-  html:
-    theme: [cosmo, no-web-font.scss]
-    toc: true
-    embed-resources: true
 ---
 
 {{< include includes/preprint-citation.md >}}

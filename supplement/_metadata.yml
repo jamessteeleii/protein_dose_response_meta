@@ -1,0 +1,6 @@
+format:
+  html:
+    theme: [cosmo, no-web-font.scss]
+    toc: true
+    toc-location: right
+    embed-resources: true

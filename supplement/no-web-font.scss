@@ -1,2 +1,24 @@
 /*-- scss:defaults --*/
 $web-font-path: false;
+
+/*-- scss:rules --*/
+main {
+  overflow-wrap: break-word;
+}
+
+main :not(pre) > code {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+main p:has(> math[display="block"]) {
+  overflow-x: auto;
+}
+
+@media (max-width: 991.98px) {
+  main section > table {
+    display: block;
+    max-width: 100%;
+    overflow-x: auto;
+  }
+}

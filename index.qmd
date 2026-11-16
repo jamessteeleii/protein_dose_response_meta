@@ -1,0 +1,54 @@
+---
+title: "Protein dose–response meta-analysis"
+subtitle: "Manuscript and supplementary materials"
+format:
+  html:
+    theme: [cosmo, supplement/no-web-font.scss]
+    toc: true
+    toc-location: right
+    embed-resources: true
+---
+
+## Manuscript
+
+[Manuscript PDF](manuscript/manuscript.pdf)
+
+{{< include supplement/includes/preprint-citation.md >}}
+
+The [GitHub repository](https://github.com/jamessteeleii/protein_dose_response_meta) contains the analysis code, data, manuscript sources, and frozen reporting files. See the [reproducibility guide](https://github.com/jamessteeleii/protein_dose_response_meta/blob/master/REPRODUCIBILITY.md) for instructions to rebuild the documents or rerun the analyses.
+
+## Extraction data
+
+Use both workbooks for the updated review.
+
+- [Download canonical extraction workbook (.xlsx)](data/protein_meta_data_all.xlsx){download=""}
+- [Download 2026 search-update workbook (.xlsx)](data/update_2026/protein_meta_data_update_2026.xlsx){download=""}
+
+## Review methods and reporting
+
+- [PRISMA reporting and study characteristics](supplement/prisma-reporting.html)
+- [Systematic review data audit](supplement/systematic-review-data-audit.html)
+- [Preregistration deviations](supplement/preregistration-deviations.html)
+- [Protein calculations](supplement/protein_calculations.html)
+- [Analysis software and citations](supplement/grateful-report.html)
+
+## Primary results and interpretation
+
+- [Primary dose–response figures](supplement/primary-dose-response.html)
+- [Raw-unit reference standard deviations](supplement/raw-unit-reference-sds.html)
+
+## Sensitivity and exploratory analyses
+
+- [Relative-intake sensitivities](supplement/sensitivity-analyses.html)
+- [Prior sensitivity of primary dose contrasts](supplement/prior-sensitivity.html)
+- [Absolute total intake](supplement/absolute-intake-sensitivity-analyses.html)
+- [Prescribed supplementation](supplement/absolute-supplementation-sensitivity-analyses.html)
+- [Muscle measurement](supplement/muscle-measurement-sensitivity-analyses.html)
+- [Age and intervention duration](supplement/age-duration-interactions.html)
+- [Training status](supplement/training-status.html)
+
+## Bias and certainty
+
+- [Risk of bias](supplement/risk-of-bias.html)
+- [GRADE certainty](supplement/grade-appraisal.html)
+- [Publication bias](supplement/publication-bias.html)

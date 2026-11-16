@@ -4,7 +4,6 @@ import argparse
 from datetime import datetime, timezone
 import gzip
 import hashlib
-import html
 import json
 import os
 from html.parser import HTMLParser
@@ -20,32 +19,31 @@ from pypdf.generic import NameObject, TextStringObject
 
 
 PAGES_URL = "https://jamessteeleii.github.io/protein_dose_response_meta/"
-REPOSITORY_URL = "https://github.com/jamessteeleii/protein_dose_response_meta"
 REVIEW_PORT = 8766
 REVIEW_URL = f"http://127.0.0.1:{REVIEW_PORT}/"
 MANUSCRIPT = Path("manuscript/manuscript.pdf")
 WORKBOOKS = (
-    ("data/protein_meta_data_all.xlsx", "Download canonical extraction workbook (.xlsx)"),
-    ("data/update_2026/protein_meta_data_update_2026.xlsx", "Download 2026 search-update workbook (.xlsx)"),
+    "data/protein_meta_data_all.xlsx",
+    "data/update_2026/protein_meta_data_update_2026.xlsx",
 )
 SUPPLEMENTS = (
-    ("prisma-reporting", "prisma-reporting", "PRISMA reporting and study characteristics"),
-    ("systematic-review-data-audit", "systematic-review-data-audit", "Systematic review data audit"),
-    ("raw-unit-reference-sds", "raw-unit-reference-sds", "Raw-unit reference standard deviations"),
-    ("prior-sensitivity", "prior-sensitivity", "Prior sensitivity of primary dose contrasts"),
-    ("primary-dose-response", "primary-dose-response", "Primary dose–response figures"),
-    ("relative-intake-sensitivity-analyses", "sensitivity-analyses", "Relative-intake sensitivities"),
-    ("absolute-intake-sensitivity-analyses", "absolute-intake-sensitivity-analyses", "Absolute total intake"),
-    ("absolute-supplementation-sensitivity-analyses", "absolute-supplementation-sensitivity-analyses", "Prescribed supplementation"),
-    ("muscle-measurement-sensitivity-analyses", "muscle-measurement-sensitivity-analyses", "Muscle measurement"),
-    ("age-duration-interactions", "age-duration-interactions", "Age and intervention duration"),
-    ("training-status", "training-status", "Training status"),
-    ("risk-of-bias", "risk-of-bias", "Risk of bias"),
-    ("grade-appraisal", "grade-appraisal", "GRADE certainty"),
-    ("publication-bias", "publication-bias", "Publication bias"),
-    ("preregistration-deviations", "preregistration-deviations", "Preregistration deviations"),
-    ("protein_calculations", "protein_calculations", "Protein calculations"),
-    ("software-citations", "grateful-report", "Analysis software and citations"),
+    ("prisma-reporting", "prisma-reporting"),
+    ("systematic-review-data-audit", "systematic-review-data-audit"),
+    ("raw-unit-reference-sds", "raw-unit-reference-sds"),
+    ("prior-sensitivity", "prior-sensitivity"),
+    ("primary-dose-response", "primary-dose-response"),
+    ("relative-intake-sensitivity-analyses", "sensitivity-analyses"),
+    ("absolute-intake-sensitivity-analyses", "absolute-intake-sensitivity-analyses"),
+    ("absolute-supplementation-sensitivity-analyses", "absolute-supplementation-sensitivity-analyses"),
+    ("muscle-measurement-sensitivity-analyses", "muscle-measurement-sensitivity-analyses"),
+    ("age-duration-interactions", "age-duration-interactions"),
+    ("training-status", "training-status"),
+    ("risk-of-bias", "risk-of-bias"),
+    ("grade-appraisal", "grade-appraisal"),
+    ("publication-bias", "publication-bias"),
+    ("preregistration-deviations", "preregistration-deviations"),
+    ("protein_calculations", "protein_calculations"),
+    ("software-citations", "grateful-report"),
 )
 
 
@@ -67,7 +65,7 @@ class DocumentLinks(HTMLParser):
             self.links.add(attrs[key])
 
 
-def target_of(root, origin, link, index):
+def target_of(root, origin, link):
     if link.startswith((PAGES_URL, REVIEW_URL)):
         prefix = PAGES_URL if link.startswith(PAGES_URL) else REVIEW_URL
         origin = root / "index.html"
@@ -79,7 +77,7 @@ def target_of(root, origin, link, index):
         return None
     path = unquote(url.path)
     target = (origin.parent / PurePosixPath(path)).resolve() if path else origin
-    if not target.is_relative_to(root) or (target != index and not target.is_file()):
+    if not target.is_relative_to(root) or not target.is_file():
         raise ValueError(f"Missing or invalid link in {origin.name}: {link}")
     return target, unquote(url.fragment)
 
@@ -93,17 +91,24 @@ def pdf_links(document):
                 yield action
 
 
-def collect_files(root, index_html):
+def collect_files(root):
     manuscript = root / MANUSCRIPT
     index = root / "index.html"
-    supplements = {root / "supplement" / f"{output}.html" for _, output, _ in SUPPLEMENTS}
-    documents = {path: DocumentLinks(path.read_text(encoding="utf-8")) for path in supplements}
-    documents[index] = DocumentLinks(index_html)
-    files = {manuscript, *supplements}
-    workbooks = {root / path for path, _ in WORKBOOKS}
+    if not index.is_file():
+        raise FileNotFoundError("Render the landing page first with quarto render index.qmd.")
+    supplements = {root / "supplement" / f"{output}.html" for _, output in SUPPLEMENTS}
+    documents = {path: DocumentLinks(path.read_text(encoding="utf-8"))
+                 for path in {index, *supplements}}
+    workbooks = {root / path for path in WORKBOOKS}
+    expected_links = {path.relative_to(root).as_posix()
+                      for path in {manuscript, *supplements, *workbooks}}
+    missing_links = expected_links - documents[index].links
+    if missing_links:
+        raise ValueError(f"Missing landing-page links: {', '.join(sorted(missing_links))}")
+    files = {index, manuscript, *supplements}
 
     def check(origin, link):
-        match = target_of(root, origin, link, index)
+        match = target_of(root, origin, link)
         if match is None:
             return
         target, anchor = match
@@ -119,8 +124,7 @@ def collect_files(root, index_html):
             or target in workbooks
         ):
             raise ValueError(f"Link outside publication inputs in {origin.name}: {link}")
-        if target != index:
-            files.add(target)
+        files.add(target)
 
     for origin, document in documents.items():
         for link in sorted(document.links):
@@ -134,7 +138,7 @@ def collect_files(root, index_html):
         if link.startswith((PAGES_URL, "file:", REVIEW_URL)):
             check(manuscript, link)
     print(f"Validated {len(pdf.pages)} PDF pages, {len(supplement_links)} distinct "
-          f"manuscript supplement URLs, and {len(files) - len(supplements) - 1} linked assets.")
+          f"manuscript supplement URLs, and {len(files) - len(documents) - 1} linked assets.")
     return files
 
 
@@ -158,55 +162,13 @@ def check_public_assets(files):
 
 def render(root):
     for source in ["manuscript/manuscript.qmd", *(
-        f"supplement/{source}.qmd" for source, _, _ in SUPPLEMENTS
-    )]:
+        f"supplement/{source}.qmd" for source, _ in SUPPLEMENTS
+    ), "index.qmd"]:
         command = ["quarto", "render", source]
-        if source.startswith("supplement/"):
+        if source != "manuscript/manuscript.qmd":
             command += ["--to", "html"]
         print("Rendering", source, flush=True)
         subprocess.run(command, cwd=root, check=True)
-
-
-def landing_page(root):
-    citation_file = root / "supplement" / "includes" / "preprint-citation.md"
-    citation = re.search(
-        r"^> (.+) <(https://doi\.org/[^<>\s]+)>$",
-        citation_file.read_text(encoding="utf-8"),
-        re.MULTILINE,
-    )
-    if citation is None:
-        raise ValueError(f"Missing preprint citation and DOI in {citation_file}")
-    reference, doi = map(html.escape, citation.groups())
-
-    downloads = "\n".join(
-        f'<li><a href="{path}" download>{title}</a></li>'
-        for path, title in WORKBOOKS
-    )
-    rows = "\n".join(
-        f'<li><a href="supplement/{output}.html">{html.escape(title)}</a></li>'
-        for _, output, title in SUPPLEMENTS
-    )
-    return (
-        '<!doctype html>\n<html lang="en"><meta charset="utf-8">\n'
-        '<meta name="viewport" content="width=device-width, initial-scale=1">\n'
-        '<title>Protein dose–response meta-analysis</title>\n'
-        '<style>body{max-width:44rem;margin:3rem auto;padding:0 1rem;'
-        'font:1.05rem/1.6 system-ui,sans-serif;color:#18232b}'
-        'a{color:#075b85}</style>\n'
-        '<h1>Protein dose–response meta-analysis</h1>\n'
-        '<p><a href="manuscript/manuscript.pdf">Manuscript PDF</a></p>\n'
-        '<p><strong>Please cite as:</strong></p>\n'
-        f'<blockquote>{reference} <a href="{doi}">{doi}</a></blockquote>\n'
-        f'<p>The <a href="{REPOSITORY_URL}">GitHub repository</a> contains the analysis code, '
-        'data, manuscript sources, and frozen reporting files. See the '
-        f'<a href="{REPOSITORY_URL}/blob/master/REPRODUCIBILITY.md">reproducibility guide</a> '
-        'for instructions to rebuild the documents or rerun the analyses.</p>\n'
-        '<h2>Extraction data</h2>\n'
-        '<p>Open either workbook in a spreadsheet app. Use both for the updated review.</p>\n'
-        f'<ul>\n{downloads}\n</ul>\n'
-        f'<h2>Supplementary materials</h2>\n<ol>\n{rows}\n</ol>\n</html>\n'
-    )
-
 
 def rewrite_review_pdf(path):
     document = PdfWriter(clone_from=path)
@@ -254,15 +216,13 @@ def write_manifest(destination, commit, tag, source_root):
 
 
 def package(root, destination, review, commit, tag):
-    index_html = landing_page(root)
-    files = collect_files(root, index_html)
+    files = collect_files(root)
     check_public_assets(files)
     destination.mkdir(parents=True, exist_ok=False)
     for path in sorted(files):
         target = destination / path.relative_to(root)
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(path, target)
-    (destination / "index.html").write_text(index_html, encoding="utf-8")
     if review:
         count = rewrite_review_pdf(destination / MANUSCRIPT)
         for path in destination.glob("supplement/*.html"):

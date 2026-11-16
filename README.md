@@ -328,8 +328,9 @@ python -m pip install -r scripts/requirements-release.txt
 python scripts/release_bundle.py outputs/preprint --render
 ```
 
-The builder writes an index, PDF, HTML supplements, linked data, and a manifest
-in `outputs/preprint/`, with a ZIP beside it. It checks the PDF link annotations
+The builder renders `index.qmd`, the manuscript, and the supplements, then
+packages them with the linked data and a manifest in `outputs/preprint/`, with
+a ZIP beside it. It checks the PDF link annotations, landing-page coverage,
 and the supplement filenames, fragments, and download paths. For an offline
 review copy, run the builder against the rendered files with `--review` and a
 new destination. Open the review bundle using `Open review.cmd` on Windows or

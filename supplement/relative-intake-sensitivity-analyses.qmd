@@ -14,13 +14,7 @@ date: last-modified
 date-format: long
 format:
   html:
-    theme: [cosmo, no-web-font.scss]
-    toc: true
-    toc-depth: 3
-    toc-location: body
-    toc-title: Contents
     smooth-scroll: true
-    embed-resources: true
     html-math-method: mathml
     link-external-newwindow: true
     code-fold: true

@@ -76,6 +76,7 @@ vignettes/*.pdf
 docs/
 
 # Quarto working directories and locally rendered supplement
+/index.html
 manuscript/.quarto/
 manuscript/_freeze/
 manuscript/manuscript.tex
