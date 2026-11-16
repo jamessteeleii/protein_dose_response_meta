@@ -119,6 +119,8 @@ All families passed their final reporting gates. Corrected observation-level LOO
 
 # Dose-response results
 
+The expected-change curves in these sensitivity overlays use the original common prediction profile of 25 years and 12 weeks so the curves are compared at the same age and follow-up.
+
 ```{r}
 #| label: fig-total-curves
 #| fig-cap: "Model-averaged absolute-total-intake dose-response curves for non-strategy arm-level analyses. Ribbons are shown for the primary analysis; other final family curves are overlaid for comparison."

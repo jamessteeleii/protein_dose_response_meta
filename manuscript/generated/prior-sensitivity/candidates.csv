@@ -1,0 +1,105 @@
+outcome,model_index,model_name,stage,stacking_weight,source_commit
+whole_body,1,Intercept only model,initial,1.5063181104265e-4,5fc54677a2bd1fea63dff91b806fc57e39f18443
+whole_body,2,Linear model,initial,0.0117538136957117,5fc54677a2bd1fea63dff91b806fc57e39f18443
+whole_body,3,Linear spline (1.6g/kg/day) model,initial,3.148861933274e-4,5fc54677a2bd1fea63dff91b806fc57e39f18443
+whole_body,4,Thin plate spline model,initial,0.245190092636334,5fc54677a2bd1fea63dff91b806fc57e39f18443
+whole_body,5,Intercept only model (+ moderators),initial,0.082134955514322,5fc54677a2bd1fea63dff91b806fc57e39f18443
+whole_body,6,Linear model (+ moderators),initial,0.131543546343,5fc54677a2bd1fea63dff91b806fc57e39f18443
+whole_body,7,Linear spline (1.6g/kg/day) model (+ moderators),initial,2.72724215280792e-5,5fc54677a2bd1fea63dff91b806fc57e39f18443
+whole_body,8,Thin plate spline model (+ moderators),initial,0.0659473788656085,5fc54677a2bd1fea63dff91b806fc57e39f18443
+whole_body,9,Linear model (+ random slopes),initial,0.166880615414545,5fc54677a2bd1fea63dff91b806fc57e39f18443
+whole_body,10,Linear spline (1.6g/kg/day) model (+ random slopes),initial,0.00758688477889376,5fc54677a2bd1fea63dff91b806fc57e39f18443
+whole_body,11,Thin plate spline model (+ random smooths),initial,0.0803681501950466,5fc54677a2bd1fea63dff91b806fc57e39f18443
+whole_body,12,Linear model (+ moderators & random slopes),initial,2.42663618321225e-6,5fc54677a2bd1fea63dff91b806fc57e39f18443
+whole_body,13,Linear spline (1.6g/kg/day) model (+ moderators & random slopes),initial,0.00144041301802062,5fc54677a2bd1fea63dff91b806fc57e39f18443
+whole_body,14,Thin plate spline model (+ moderators & random smooths),initial,0.0313708657340372,5fc54677a2bd1fea63dff91b806fc57e39f18443
+whole_body,15,Linear model (+ RT interaction),initial,8.19812682691981e-7,5fc54677a2bd1fea63dff91b806fc57e39f18443
+whole_body,16,Linear spline (1.6g/kg/day) model (+ RT interaction),initial,1.92554979255216e-7,5fc54677a2bd1fea63dff91b806fc57e39f18443
+whole_body,17,Thin plate spline model (+ RT interaction smooth),initial,1.44734750100487e-5,5fc54677a2bd1fea63dff91b806fc57e39f18443
+whole_body,18,Linear model (+ moderators & RT interaction),initial,1.76779303201758e-5,5fc54677a2bd1fea63dff91b806fc57e39f18443
+whole_body,19,Linear spline (1.6g/kg/day) model (+ moderators & RT interaction),initial,1.83192295844647e-5,5fc54677a2bd1fea63dff91b806fc57e39f18443
+whole_body,20,Thin plate spline model (+ moderators & RT interaction),initial,4.58770399093539e-5,5fc54677a2bd1fea63dff91b806fc57e39f18443
+whole_body,21,Linear model (+ random slopes & RT interaction),initial,5.05590826181055e-5,5fc54677a2bd1fea63dff91b806fc57e39f18443
+whole_body,22,Linear spline (1.6g/kg/day) model (+ random slopes & RT interaction),initial,0.175135023234957,5fc54677a2bd1fea63dff91b806fc57e39f18443
+whole_body,23,Thin plate spline model (+ random smooths & RT interaction smooth),initial,1.94052374499622e-6,5fc54677a2bd1fea63dff91b806fc57e39f18443
+whole_body,24,Linear model (+ moderators & random slopes & RT interaction),initial,7.46369295521602e-7,5fc54677a2bd1fea63dff91b806fc57e39f18443
+whole_body,25,Linear spline (1.6g/kg/day) model (+ moderators & random slopes & RT interaction),initial,1.82754512362632e-6,5fc54677a2bd1fea63dff91b806fc57e39f18443
+whole_body,26,Thin plate spline model (+ moderators & random smooths & RT interaction smooth),initial,6.09944175278265e-7,5fc54677a2bd1fea63dff91b806fc57e39f18443
+hypertrophy,1,Intercept only model,initial,1.36390783454111e-9,5fc54677a2bd1fea63dff91b806fc57e39f18443
+hypertrophy,2,Linear model,initial,8.604900487072e-4,5fc54677a2bd1fea63dff91b806fc57e39f18443
+hypertrophy,3,Linear spline (1.6g/kg/day) model,initial,1.50167348806919e-7,5fc54677a2bd1fea63dff91b806fc57e39f18443
+hypertrophy,4,Thin plate spline model,initial,3.99241444801476e-5,5fc54677a2bd1fea63dff91b806fc57e39f18443
+hypertrophy,5,Intercept only model (+ moderators),initial,0.00741290262223459,5fc54677a2bd1fea63dff91b806fc57e39f18443
+hypertrophy,6,Linear model (+ moderators),initial,0.0917885107897013,5fc54677a2bd1fea63dff91b806fc57e39f18443
+hypertrophy,7,Linear spline (1.6g/kg/day) model (+ moderators),initial,9.32048945504614e-8,5fc54677a2bd1fea63dff91b806fc57e39f18443
+hypertrophy,8,Thin plate spline model (+ moderators),initial,0.252604252179104,5fc54677a2bd1fea63dff91b806fc57e39f18443
+hypertrophy,9,Linear model (+ random slopes),initial,4.38617271881445e-6,5fc54677a2bd1fea63dff91b806fc57e39f18443
+hypertrophy,10,Linear spline (1.6g/kg/day) model (+ random slopes),initial,6.20743040843333e-7,5fc54677a2bd1fea63dff91b806fc57e39f18443
+hypertrophy,11,Thin plate spline model (+ random smooths),initial,0.103458175687251,5fc54677a2bd1fea63dff91b806fc57e39f18443
+hypertrophy,12,Linear model (+ moderators & random slopes),initial,1.70453567247753e-6,5fc54677a2bd1fea63dff91b806fc57e39f18443
+hypertrophy,13,Linear spline (1.6g/kg/day) model (+ moderators & random slopes),initial,9.31897209613264e-7,5fc54677a2bd1fea63dff91b806fc57e39f18443
+hypertrophy,14,Thin plate spline model (+ moderators & random smooths),initial,7.00587706228727e-6,5fc54677a2bd1fea63dff91b806fc57e39f18443
+hypertrophy,15,Linear model (+ RT interaction),initial,0.296487613196927,5fc54677a2bd1fea63dff91b806fc57e39f18443
+hypertrophy,16,Linear spline (1.6g/kg/day) model (+ RT interaction),initial,2.68267877963238e-8,5fc54677a2bd1fea63dff91b806fc57e39f18443
+hypertrophy,17,Thin plate spline model (+ RT interaction smooth),initial,3.84676782678995e-6,5fc54677a2bd1fea63dff91b806fc57e39f18443
+hypertrophy,18,Linear model (+ moderators & RT interaction),initial,0.206488311614167,5fc54677a2bd1fea63dff91b806fc57e39f18443
+hypertrophy,19,Linear spline (1.6g/kg/day) model (+ moderators & RT interaction),initial,1.13659078092239e-6,5fc54677a2bd1fea63dff91b806fc57e39f18443
+hypertrophy,20,Thin plate spline model (+ moderators & RT interaction),initial,1.24348667755289e-6,5fc54677a2bd1fea63dff91b806fc57e39f18443
+hypertrophy,21,Linear model (+ random slopes & RT interaction),initial,0.0358696770505933,5fc54677a2bd1fea63dff91b806fc57e39f18443
+hypertrophy,22,Linear spline (1.6g/kg/day) model (+ random slopes & RT interaction),initial,4.63577521767285e-7,5fc54677a2bd1fea63dff91b806fc57e39f18443
+hypertrophy,23,Thin plate spline model (+ random smooths & RT interaction smooth),initial,4.29865297349845e-6,5fc54677a2bd1fea63dff91b806fc57e39f18443
+hypertrophy,24,Linear model (+ moderators & random slopes & RT interaction),initial,4.72007674227768e-7,5fc54677a2bd1fea63dff91b806fc57e39f18443
+hypertrophy,25,Linear spline (1.6g/kg/day) model (+ moderators & random slopes & RT interaction),initial,3.55686508524813e-7,5fc54677a2bd1fea63dff91b806fc57e39f18443
+hypertrophy,26,Thin plate spline model (+ moderators & random smooths & RT interaction smooth),initial,0.00496340510822801,5fc54677a2bd1fea63dff91b806fc57e39f18443
+strength,1,Intercept only model,initial,6.89635213861951e-7,5fc54677a2bd1fea63dff91b806fc57e39f18443
+strength,2,Linear model,initial,0.0647514640323326,5fc54677a2bd1fea63dff91b806fc57e39f18443
+strength,3,Linear spline (1.6g/kg/day) model,initial,0.0897832334945732,5fc54677a2bd1fea63dff91b806fc57e39f18443
+strength,4,Thin plate spline model,initial,3.30600271699472e-6,5fc54677a2bd1fea63dff91b806fc57e39f18443
+strength,5,Intercept only model (+ moderators),initial,0.029406589449589,5fc54677a2bd1fea63dff91b806fc57e39f18443
+strength,6,Linear model (+ moderators),initial,0.117313697668914,5fc54677a2bd1fea63dff91b806fc57e39f18443
+strength,7,Linear spline (1.6g/kg/day) model (+ moderators),initial,0.282253295021788,5fc54677a2bd1fea63dff91b806fc57e39f18443
+strength,8,Thin plate spline model (+ moderators),initial,1.30628340004587e-5,5fc54677a2bd1fea63dff91b806fc57e39f18443
+strength,9,Linear model (+ random slopes),initial,3.0955050461561e-8,5fc54677a2bd1fea63dff91b806fc57e39f18443
+strength,10,Linear spline (1.6g/kg/day) model (+ random slopes),initial,5.34307409836382e-6,5fc54677a2bd1fea63dff91b806fc57e39f18443
+strength,11,Thin plate spline model (+ random smooths),initial,0.160882740791193,5fc54677a2bd1fea63dff91b806fc57e39f18443
+strength,12,Linear model (+ moderators & random slopes),initial,2.60157898065364e-5,5fc54677a2bd1fea63dff91b806fc57e39f18443
+strength,13,Linear spline (1.6g/kg/day) model (+ moderators & random slopes),initial,0.0833083432391624,5fc54677a2bd1fea63dff91b806fc57e39f18443
+strength,14,Thin plate spline model (+ moderators & random smooths),initial,0.0125500088904017,5fc54677a2bd1fea63dff91b806fc57e39f18443
+strength,15,Linear model (+ RT interaction),initial,0.015703605930995,5fc54677a2bd1fea63dff91b806fc57e39f18443
+strength,16,Linear spline (1.6g/kg/day) model (+ RT interaction),initial,3.35059344662542e-6,5fc54677a2bd1fea63dff91b806fc57e39f18443
+strength,17,Thin plate spline model (+ RT interaction smooth),initial,5.57262003221269e-7,5fc54677a2bd1fea63dff91b806fc57e39f18443
+strength,18,Linear model (+ moderators & RT interaction),initial,0.143988212989056,5fc54677a2bd1fea63dff91b806fc57e39f18443
+strength,19,Linear spline (1.6g/kg/day) model (+ moderators & RT interaction),initial,1.41161838716543e-6,5fc54677a2bd1fea63dff91b806fc57e39f18443
+strength,20,Thin plate spline model (+ moderators & RT interaction),initial,1.71420836923672e-7,5fc54677a2bd1fea63dff91b806fc57e39f18443
+strength,21,Linear model (+ random slopes & RT interaction),initial,2.1680502236554604e-9,5fc54677a2bd1fea63dff91b806fc57e39f18443
+strength,22,Linear spline (1.6g/kg/day) model (+ random slopes & RT interaction),initial,7.82170037757968e-8,5fc54677a2bd1fea63dff91b806fc57e39f18443
+strength,23,Thin plate spline model (+ random smooths & RT interaction smooth),initial,4.8213969193246e-7,5fc54677a2bd1fea63dff91b806fc57e39f18443
+strength,24,Linear model (+ moderators & random slopes & RT interaction),initial,1.33189430879866e-6,5fc54677a2bd1fea63dff91b806fc57e39f18443
+strength,25,Linear spline (1.6g/kg/day) model (+ moderators & random slopes & RT interaction),initial,1.93443207260979e-6,5fc54677a2bd1fea63dff91b806fc57e39f18443
+strength,26,Thin plate spline model (+ moderators & random smooths & RT interaction smooth),initial,1.0404553074661e-6,5fc54677a2bd1fea63dff91b806fc57e39f18443
+function,1,Intercept only model,initial,5.88737342286095e-5,5fc54677a2bd1fea63dff91b806fc57e39f18443
+function,2,Linear model,initial,1.32499777595282e-7,5fc54677a2bd1fea63dff91b806fc57e39f18443
+function,3,Linear spline (1.6g/kg/day) model,initial,0.203679802133018,5fc54677a2bd1fea63dff91b806fc57e39f18443
+function,4,Thin plate spline model,initial,1.89822442979844e-5,5fc54677a2bd1fea63dff91b806fc57e39f18443
+function,5,Intercept only model (+ moderators),initial,0.0193969305144502,5fc54677a2bd1fea63dff91b806fc57e39f18443
+function,6,Linear model (+ moderators),initial,7.71778508229479e-7,5fc54677a2bd1fea63dff91b806fc57e39f18443
+function,7,Linear spline (1.6g/kg/day) model (+ moderators),initial,0.149336728672108,5fc54677a2bd1fea63dff91b806fc57e39f18443
+function,8,Thin plate spline model (+ moderators),initial,0.102562948365282,5fc54677a2bd1fea63dff91b806fc57e39f18443
+function,9,Linear model (+ random slopes),initial,1.13211160334922e-6,5fc54677a2bd1fea63dff91b806fc57e39f18443
+function,10,Linear spline (1.6g/kg/day) model (+ random slopes),remedy_1,0.0217985191970626,5fc54677a2bd1fea63dff91b806fc57e39f18443
+function,11,Thin plate spline model (+ random smooths),initial,0.0671264305478075,5fc54677a2bd1fea63dff91b806fc57e39f18443
+function,12,Linear model (+ moderators & random slopes),initial,6.28231901967455e-6,5fc54677a2bd1fea63dff91b806fc57e39f18443
+function,13,Linear spline (1.6g/kg/day) model (+ moderators & random slopes),initial,0.222293937400842,5fc54677a2bd1fea63dff91b806fc57e39f18443
+function,14,Thin plate spline model (+ moderators & random smooths),initial,5.36016307414411e-8,5fc54677a2bd1fea63dff91b806fc57e39f18443
+function,15,Linear model (+ RT interaction),initial,4.96072524791304e-6,5fc54677a2bd1fea63dff91b806fc57e39f18443
+function,16,Linear spline (1.6g/kg/day) model (+ RT interaction),initial,5.12866008224112e-7,5fc54677a2bd1fea63dff91b806fc57e39f18443
+function,17,Thin plate spline model (+ RT interaction smooth),initial,2.81475838729671e-7,5fc54677a2bd1fea63dff91b806fc57e39f18443
+function,18,Linear model (+ moderators & RT interaction),initial,0.108923919616128,5fc54677a2bd1fea63dff91b806fc57e39f18443
+function,19,Linear spline (1.6g/kg/day) model (+ moderators & RT interaction),initial,9.23569582614479e-6,5fc54677a2bd1fea63dff91b806fc57e39f18443
+function,20,Thin plate spline model (+ moderators & RT interaction),initial,7.745648058634e-7,5fc54677a2bd1fea63dff91b806fc57e39f18443
+function,21,Linear model (+ random slopes & RT interaction),initial,7.03896105293256e-6,5fc54677a2bd1fea63dff91b806fc57e39f18443
+function,22,Linear spline (1.6g/kg/day) model (+ random slopes & RT interaction),initial,1.22443954850419e-5,5fc54677a2bd1fea63dff91b806fc57e39f18443
+function,23,Thin plate spline model (+ random smooths & RT interaction smooth),initial,3.85111546611011e-7,5fc54677a2bd1fea63dff91b806fc57e39f18443
+function,24,Linear model (+ moderators & random slopes & RT interaction),initial,0.104754854248521,5fc54677a2bd1fea63dff91b806fc57e39f18443
+function,25,Linear spline (1.6g/kg/day) model (+ moderators & random slopes & RT interaction),initial,4.2501706631798e-6,5fc54677a2bd1fea63dff91b806fc57e39f18443
+function,26,Thin plate spline model (+ moderators & random smooths & RT interaction smooth),initial,1.70492395756838e-8,5fc54677a2bd1fea63dff91b806fc57e39f18443

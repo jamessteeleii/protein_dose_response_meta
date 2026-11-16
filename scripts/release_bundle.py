@@ -31,6 +31,8 @@ WORKBOOKS = (
 SUPPLEMENTS = (
     ("prisma-reporting", "prisma-reporting", "PRISMA reporting and study characteristics"),
     ("systematic-review-data-audit", "systematic-review-data-audit", "Systematic review data audit"),
+    ("raw-unit-reference-sds", "raw-unit-reference-sds", "Raw-unit reference standard deviations"),
+    ("prior-sensitivity", "prior-sensitivity", "Prior sensitivity of primary dose contrasts"),
     ("primary-dose-response", "primary-dose-response", "Primary dose–response figures"),
     ("relative-intake-sensitivity-analyses", "sensitivity-analyses", "Relative-intake sensitivities"),
     ("absolute-intake-sensitivity-analyses", "absolute-intake-sensitivity-analyses", "Absolute total intake"),

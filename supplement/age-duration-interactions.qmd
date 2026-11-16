@@ -77,7 +77,7 @@ validated as a meaningful threshold for effect modification.
 
 All 12 exposure–outcome ensembles met the diagnostic and reporting criteria. Stacking weights reflect predictive performance within each exposure and outcome.
 
-Age quartiles give each distinct arm one observation. Duration quartiles give each distinct study and follow-up one observation. The reference profile fixes age at 25 years and duration at 12 weeks. The typical profile uses the median age and duration in the analysis sample. The age quartiles hold duration at its median, and the duration quartiles hold age at its median. Absolute-exposure models with body-mass adjustment hold body mass at its outcome-specific mean.
+Age quartiles give each distinct arm one observation. Duration quartiles give each distinct study and follow-up one observation. The original comparison profile fixes age at 25 years and duration at 12 weeks. The typical profile uses the outcome-specific median age and follow-up in the analysis sample, following the convention used for the manuscript’s primary predictions. The age quartiles hold duration at its median, and the duration quartiles hold age at its median. Absolute-exposure models with body-mass adjustment hold body mass at its outcome-specific mean.
 
 The local support screen requires at least three studies within 10 years and four weeks of the profile, with both doses inside that neighbourhood’s observed range. The profile tables report these counts and ranges.
 

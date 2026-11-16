@@ -1,0 +1,5 @@
+outcome,median_age_years,median_duration_weeks,max_reference_draw_error,max_dose_increment_error
+whole_body,30,10,0,2.220446049250313e-16
+hypertrophy,63.4,12,0,1.1102230246251565e-16
+strength,48.5,10,0,2.220446049250313e-16
+function,70.3,12,0,2.220446049250313e-16

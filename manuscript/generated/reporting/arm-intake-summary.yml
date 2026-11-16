@@ -1,0 +1,8 @@
+# Generated from frozen primary study arms. Do not edit.
+arm-intake-tail-examples: 2.0% of primary-analysis arms were below 0.8 g/kg/day and
+  8.3% were above 2.2 g/kg/day
+arm-intake-counts:
+  arms: 254
+  below_rda: 5
+  above_2_2: 21
+

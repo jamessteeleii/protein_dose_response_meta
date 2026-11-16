@@ -1,0 +1,234 @@
+---
+title: "Raw-unit reference standard deviations"
+subtitle: "Interpreting the primary relative protein-intake contrasts"
+format:
+  html:
+    theme: [cosmo, no-web-font.scss]
+    toc: true
+    embed-resources: true
+bibliography: ../manuscript/references.bib
+execute:
+  echo: false
+---
+
+{{< include includes/preprint-citation.md >}}
+
+```{r}
+#| label: setup
+reporting <- "../manuscript/generated/reporting"
+reference <- yaml::read_yaml(file.path(reporting, "reference-values.yml"))
+effects <- read.csv(file.path(reporting, "grade", "population_effects.csv"))
+contrast <- subset(effects, rt_condition == "RT" &
+  protein_intake_reference == 0.8 & protein_intake_proposed == 1.6)
+rownames(contrast) <- contrast$outcome
+count <- function(x) format(x, big.mark = ",", trim = TRUE, scientific = FALSE)
+
+benito <- read.csv("../data/external/benito_study_data_18f3fc7.csv", encoding = "latin1")
+benito <- subset(benito, !is.na(duration) & pre_sd > 0 & pre_n > 1)
+benito$study <- sub("_.*", "", benito$study_arm)
+benito_counts <- function(outcome_code) {
+  arms <- benito[benito$outcome == outcome_code, ]
+  sprintf("%s across %d arms, %d studies", count(sum(arms$pre_n)),
+          nrow(arms), length(unique(arms$study)))
+}
+
+buckner <- read.csv("../data/buckner_data.csv", encoding = "latin1")
+buckner <- subset(buckner, retracted == "NO" & pre.mean > 0 & pre.sd > 0 & n > 1)
+buckner_groups <- unique(buckner[c("study", "group", "n")])
+stopifnot(!anyDuplicated(buckner_groups[c("study", "group")]))
+buckner_n <- sum(buckner_groups$n)
+
+opl <- read.csv("../data/external/openpowerlifting_strength_reference_2026-08-29.csv")
+rope <- reference$rope_half_width
+fixed <- function(x, digits) {
+  x[abs(x) < 0.5 * 10^(-digits)] <- 0
+  formatC(x, digits = digits, format = "f")
+}
+
+reference_rows <- function(data) {
+  rows <- read.table(text = data, sep = "|", header = TRUE, quote = "",
+                     comment.char = "", strip.white = TRUE, na.strings = "",
+                     colClasses = c(rep("character", 5), rep("numeric", 4)))
+  approximate <- is.na(rows$sd)
+  stopifnot(all(rows$p90[approximate] > rows$p10[approximate]))
+  rows$sd[approximate] <- with(rows[approximate, ], (p90 - p10) / (2 * qnorm(0.90)))
+  rows$approximate <- approximate
+  rows
+}
+
+show_references <- function(rows, outcome = NULL) {
+  stopifnot(all(is.finite(rows$sd) & rows$sd > 0))
+  digits <- ifelse(rows$unit %in% c("cm", "m/s"), 3, 2)
+  raw <- function(x) vapply(seq_along(x), function(i) fixed(x[i], digits[i]), character(1))
+  result <- data.frame(
+    Measure = rows$measure, Source = rows$source, `Reference group` = rows$group,
+    `Reference n` = rows$n, Unit = rows$unit,
+    `Reference SD` = paste0(ifelse(rows$approximate, "≈", ""), raw(rows$sd)),
+    `0.10 SD` = raw(rows$sd * rope), check.names = FALSE
+  )
+  if (!is.null(outcome)) {
+    effect <- contrast[outcome, ]
+    scale <- rows$sd * ifelse(is.na(rows$direction), 1, rows$direction)
+    bound_a <- effect$lower_95 * scale
+    bound_b <- effect$upper_95 * scale
+    result[["Example contrast (95% CrI)"]] <- paste0(
+      raw(effect$estimate * scale), " (", raw(pmin(bound_a, bound_b)),
+      " to ", raw(pmax(bound_a, bound_b)), ")"
+    )
+  }
+  knitr::kable(result, format = "pipe")
+}
+```
+
+## How to read the tables
+
+The tables multiply each baseline or cross-sectional standard deviation (SD) by the prespecified threshold of `r fixed(rope, 2)` SD or by the model-averaged contrast for 0.8 to 1.6 g/kg/day of protein with resistance training (RT) at the outcome-specific median age and follow-up profiles defined in the manuscript. Trial data are sparse near the lower intake. The reference samples illustrate how the same standardised effect translates across populations and measurement protocols. The rescaled intervals carry forward posterior uncertainty in the pooled contrast and treat the reference SD as fixed. Each raw-unit contrast applies the pooled estimate to one example measurement scale. The 0.10 SD column shows the magnitude of the threshold in either direction. Negative differences in tests timed to completion indicate faster performance.
+
+Where a source reports percentiles and omits the SD, rows marked ≈ divide the difference between the 90th and 10th percentiles by 2.563 under a normal approximation. The tables use the analytic group sample size where available. Counts describe submissions, arms, or the parent cohort where labelled. Reference samples may overlap across measures.
+
+```{r}
+#| label: tbl-standardised-reference-contrasts
+#| tbl-cap: "Standardised estimates for the example protein contrast with RT."
+families <- c("Whole-body lean/fat-free mass", "Measures of muscle size or mass",
+              "Strength", "Physical function")
+outcomes <- c("whole_body", "hypertrophy", "strength", "function")
+stopifnot(nrow(contrast) == length(outcomes), setequal(contrast$outcome, outcomes))
+knitr::kable(data.frame(
+  Outcome = families, `Posterior mean (SD)` = fixed(contrast[outcomes, "estimate"], 3),
+  `95% credible interval (SD)` = paste(fixed(contrast[outcomes, "lower_95"], 3),
+                                      fixed(contrast[outcomes, "upper_95"], 3), sep = " to "),
+  check.names = FALSE
+), format = "pipe")
+```
+
+## Whole-body lean and fat-free mass
+
+The Benito et al. baseline SDs were pooled from RT trials in men [@benitoSystematicReviewMetaAnalysis2020]. Their counts sum usable baseline arm sizes within each outcome. The two outcomes may include the same participants. Whole-body DXA lean soft tissue and fat-free mass describe body compartments that include tissues other than skeletal muscle. The UK Biobank Showcase rows pool women and men at the initial imaging visit, and their distributions are bimodal. The sex-specific DXA rows provide benchmarks for more homogeneous reference groups. The UK Biobank pilot paper reports 4,386 participants overall, with sex counts that do not reconcile with that total. Its rows therefore show the reported overall sample size. Additional total and regional DXA distributions are available from the [Irish DXA reference cohort of 10,033 adults aged 18–92](https://e-space.mmu.ac.uk/638573/1/DXA%20norms%20paper%20.pdf).
+
+```{r}
+#| label: tbl-whole-body-reference-sds
+#| tbl-cap: "Whole-body body-composition reference SDs and raw-unit translations."
+whole_body <- reference_rows(sprintf("measure|source|group|n|unit|sd|p10|p90|direction
+Lean mass|Benito et al.|Men in RT trials|%s|kg|%.12f|||
+Fat-free mass|Benito et al.|Men in RT trials|%s|kg|%.12f|||
+DXA lean mass|[UK Biobank 23280](https://biobank.ndph.ox.ac.uk/ukb/field.cgi?id=23280)|Both sexes|70,530|kg|9.56795|||
+DXA fat-free mass|[UK Biobank 23279](https://biobank.ndph.ox.ac.uk/ukb/field.cgi?id=23279)|Both sexes|40,242|kg|10.1464|||
+DXA lean mass|[UK Biobank pilot, Table 1](https://www.frontiersin.org/journals/endocrinology/articles/10.3389/fendo.2021.692677/full#T1)|Women|4,386 overall|kg|4.760|||
+DXA lean mass|[UK Biobank pilot, Table 1](https://www.frontiersin.org/journals/endocrinology/articles/10.3389/fendo.2021.692677/full#T1)|Men|4,386 overall|kg|6.649|||
+DXA fat-free mass|[UK Biobank, Table 2](https://link.springer.com/article/10.1007/s44200-023-00039-z/tables/2)|Women|12,380|kg|4.8|||
+DXA fat-free mass|[UK Biobank, Table 2](https://link.springer.com/article/10.1007/s44200-023-00039-z/tables/2)|Men|10,878|kg|6.6|||
+DXA lean mass|Geelong, Table 2|Women 20–39|308|kg|4.72|||
+DXA lean mass|Geelong, Table 2|Men 20–39|374|kg|7.26|||
+DXA lean soft tissue|NHANES 1999–2004, Table 4|Women 20–39|2,043|kg||34.0|52.5|
+DXA lean soft tissue|NHANES 1999–2004, Table 4|Men 20–39|2,183|kg||47.8|72.6|
+DXA fat-free mass|NHANES 1999–2004, Table 5|Women 20–39|2,043|kg||35.8|55.1|
+DXA fat-free mass|NHANES 1999–2004, Table 5|Men 20–39|2,183|kg||50.2|75.7|",
+  benito_counts("lmm"), reference$lean_soft_tissue_mass_change_kg / rope,
+  benito_counts("ffm"), reference$fat_free_mass_change_kg / rope))
+show_references(whole_body, "whole_body")
+```
+
+Sources for Geelong and NHANES are Gould et al. [@gouldTotalAppendicularLean2014] and the CDC NHANES DXA reference report [@borrudBodyCompositionData2010]. Using the Benito lean-mass SD, the whole-body contrast translates to `r fixed(contrast["whole_body", "estimate"] * whole_body$sd[1], 2)` kg (95% CrI `r fixed(contrast["whole_body", "lower_95"] * whole_body$sd[1], 2)` to `r fixed(contrast["whole_body", "upper_95"] * whole_body$sd[1], 2)` kg).
+
+## Regional size and anthropometry
+
+The thigh ultrasound example uses the existing meta-analytic SD at a baseline thickness of `r fixed(reference$muscle_thickness_reference_mean_cm, 2)` cm [@bucknerDoseresponseRelationshipResistance2023a]. The extraction contains `r nrow(buckner)` eligible measurements from `r nrow(buckner_groups)` study groups in `r length(unique(buckner$study))` studies. Its count sums extracted baseline sample sizes once per study group and includes two groups coded as 7.5 each. The Health ABC cross-sectional areas come from CT at the midthigh in well-functioning community-dwelling older adults at baseline. DXA appendicular lean mass is a regional body-composition proxy. Skinfold-adjusted arm circumference and area are anthropometric estimates. Each scale depends on its own protocol and tissue definition.
+
+```{r}
+#| label: tbl-muscle-reference-sds
+#| tbl-cap: "Regional imaging and body-composition reference SDs."
+muscle <- reference_rows(sprintf("measure|source|group|n|unit|sd|p10|p90|direction
+Ultrasound thigh muscle thickness|Buckner et al.|RT study groups|%s summed across %d groups|cm|%.12f|||
+CT midthigh muscle area|[Health ABC, Table 2](https://pmc.ncbi.nlm.nih.gov/articles/PMC2777469/#t2)|Women 70–79 at baseline|865|cm²|17.5|||
+CT midthigh muscle area|[Health ABC, Table 2](https://pmc.ncbi.nlm.nih.gov/articles/PMC2777469/#t2)|Men 70–79 at baseline|813|cm²|21.3|||
+CT quadriceps area|[Health ABC, Table 2](https://pmc.ncbi.nlm.nih.gov/articles/PMC2777469/#t2)|Women 70–79 at baseline|865|cm²|8.2|||
+CT quadriceps area|[Health ABC, Table 2](https://pmc.ncbi.nlm.nih.gov/articles/PMC2777469/#t2)|Men 70–79 at baseline|813|cm²|10.2|||
+DXA appendicular lean mass|Geelong, Table 2|Women 20–39|308|kg|2.54|||
+DXA appendicular lean mass|Geelong, Table 2|Men 20–39|374|kg|3.79|||
+DXA appendicular lean soft tissue|Costa-Pereira et al., Table 1|Women 18+|8,994|kg|4.1|||
+DXA appendicular lean soft tissue|Costa-Pereira et al., Table 1|Men 18+|9,201|kg|5.2|||",
+  count(buckner_n), nrow(buckner_groups), reference$muscle_thickness_change_cm / rope))
+show_references(muscle, "hypertrophy")
+```
+
+The anthropometric rows show the scale of 0.10 SD for these proxies. They provide context for the between-person variation of limb girths and skinfold-derived measures. The NHANES study by Costa-Pereira et al. included 18,195 adults. It derived mid-arm muscle circumference from mid-upper arm circumference and triceps skinfold thickness and then estimated a bone-corrected upper-arm muscle area. The young-adult mid-upper arm circumference rows from that study use the reference group with BMI 18.5–24.9 kg/m². [Costa-Pereira et al., Tables 1 and 3](https://doi.org/10.1016/j.ajcnut.2025.09.034)
+
+```{r}
+#| label: tbl-anthropometry-reference-sds
+#| tbl-cap: "Anthropometric reference SDs and the corresponding raw-unit scale of 0.10 SD."
+anthropometry <- reference_rows("measure|source|group|n|unit|sd|p10|p90|direction
+Mid-upper arm circumference|Costa-Pereira et al., Table 3|Women 18–39, BMI 18.5–24.9|1,534|cm|2.0|||
+Mid-upper arm circumference|Costa-Pereira et al., Table 3|Men 18–39, BMI 18.5–24.9|1,651|cm|2.2|||
+Mid-upper arm circumference|[NHANES 2021–2023, Table 16](https://stacks.cdc.gov/view/cdc/174595/cdc_174595_DS1.pdf)|Women 20–29|333|cm||25.3|39.8|
+Mid-upper arm circumference|[NHANES 2021–2023, Table 16](https://stacks.cdc.gov/view/cdc/174595/cdc_174595_DS1.pdf)|Men 20–29|285|cm||27.9|40.1|
+Mid-arm muscle circumference|Costa-Pereira et al., Table 1|Women 18+|7,866|cm|3.2|||
+Mid-arm muscle circumference|Costa-Pereira et al., Table 1|Men 18+|8,829|cm|3.1|||
+Corrected arm muscle area|Costa-Pereira et al., Table 1|Women 18+|7,866|cm²|12.9|||
+Corrected arm muscle area|Costa-Pereira et al., Table 1|Men 18+|8,829|cm²|14.5|||
+Midthigh circumference|[NHANES 1999–2002, Table 38](https://www.cdc.gov/nchs/data/ad/ad361.pdf)|Women 20–29|640|cm||45.2|63.8|
+Midthigh circumference|[NHANES 1999–2002, Table 25](https://www.cdc.gov/nchs/data/ad/ad361.pdf)|Men 20–29|703|cm||46.7|62.8|
+Maximal calf circumference|[NHANES 1999–2006, Table 3](https://doi.org/10.1093/ajcn/nqab029)|Women 18+|8,655|cm|4.5|||
+Maximal calf circumference|[NHANES 1999–2006, Table 3](https://doi.org/10.1093/ajcn/nqab029)|Men 18+|9,134|cm|3.9|||")
+show_references(anthropometry)
+```
+
+## Strength
+
+Strength Level analysed 74,892 user submissions from people aged 12–79 with an entry for all three lifts on the same day. The SDs describe estimated one-repetition maxima (e1RMs) in absolute kilograms. Submissions are self-selected and can include repeat contributors. The Cooper Center measured 1RM with variable-resistance machines in 7,627 healthy adults attending preventive health examinations [@farrellAssociationBaselineStrength2024]. The grip-strength SDs are the modelled age-32 values from 12 British population studies (49,964 participants and 60,803 observations overall). OpenPowerlifting provides a competitive comparator from `r count(opl$selected_lifters)` lifters' first records after restriction to raw, drug-tested open-division competition. Its exercise-specific counts come from the `r reference$openpowerlifting_snapshot_date` snapshot (`r reference$openpowerlifting_source_file`, accessed `r reference$openpowerlifting_accessed_date`). [Strength Level, Table 1](https://doi.org/10.1186/s13102-026-02195-6), [Dodds et al.](https://doi.org/10.1371/journal.pone.0113637), [OpenPowerlifting bulk CSV downloads](https://openpowerlifting.gitlab.io/opl-csv/bulk-csv.html)
+
+```{r}
+#| label: tbl-strength-reference-sds
+#| tbl-cap: "Strength reference SDs and raw-unit translations."
+strength <- reference_rows(sprintf("measure|source|group|n|unit|sd|p10|p90|direction
+Squat e1RM|Strength Level, Table 1|Female 12–79|10,435 submissions|kg|29.88|||
+Squat e1RM|Strength Level, Table 1|Male 12–79|64,457 submissions|kg|45.33|||
+Bench press e1RM|Strength Level, Table 1|Female 12–79|10,435 submissions|kg|17.33|||
+Bench press e1RM|Strength Level, Table 1|Male 12–79|64,457 submissions|kg|30.52|||
+Deadlift e1RM|Strength Level, Table 1|Female 12–79|10,435 submissions|kg|32.62|||
+Deadlift e1RM|Strength Level, Table 1|Male 12–79|64,457 submissions|kg|48.64|||
+Machine bench press 1RM|Cooper Center, Table 3|Women 24–39|441|kg|7.5|||
+Machine bench press 1RM|Cooper Center, Table 3|Men 24–39|2,309|kg|17.7|||
+Machine leg press 1RM|Cooper Center, Table 3|Women 24–39|441|kg|15.5|||
+Machine leg press 1RM|Cooper Center, Table 3|Men 24–39|2,309|kg|26.0|||
+Handgrip dynamometry|Dodds et al.|Women at age 32|49,964 overall|kg|6.1|||
+Handgrip dynamometry|Dodds et al.|Men at age 32|49,964 overall|kg|9.9|||
+Squat 1RM|OpenPowerlifting|Both sexes|%s|kg|%.12f|||
+Bench press 1RM|OpenPowerlifting|Both sexes|%s|kg|%.12f|||
+Deadlift 1RM|OpenPowerlifting|Both sexes|%s|kg|%.12f|||",
+  count(opl$squat_n), reference$squat_change_kg / rope,
+  count(opl$bench_n), reference$bench_change_kg / rope,
+  count(opl$deadlift_n), reference$deadlift_change_kg / rope))
+show_references(strength, "strength")
+```
+
+## Physical function
+
+The Canadian Longitudinal Study on Aging (CLSA) Comprehensive Cohort had 30,097 participants at baseline. Its published table gives age- and sex-specific SDs without cell sample sizes. The Tromsø Study included 7,474 adults and reports age- and sex-specific sample sizes for the five-repetition chair stand. The Italian Lookup 7+ study provides young-adult examples from a sample of 11,164 adults who completed five chair rises. The Senior Fitness Test rows use the moderate-function reference subset of 2,140 community-residing older adults. Its 70–74-year stratum contains 538 adults across both sexes. The timed five-repetition chair stand and 30-second repetition count have different protocols and units. Further age-specific percentiles are available from the [CLSA mobility norms (25,470 adults)](https://doi.org/10.1093/ageing/afad054) and the [Irish Longitudinal Study on Ageing for Timed Up and Go (5,791 adults)](https://doi.org/10.1111/jgs.12195).
+
+```{r}
+#| label: tbl-function-reference-sds
+#| tbl-cap: "Physical function reference SDs and raw-unit translations."
+physical_function <- reference_rows("measure|source|group|n|unit|sd|p10|p90|direction
+Timed Up and Go (3 m)|CLSA, Ch. 8 Table 6|Women 75+|30,097 overall|s|3.60|||-1
+Timed Up and Go (3 m)|CLSA, Ch. 8 Table 6|Men 75+|30,097 overall|s|3.27|||-1
+Five-repetition chair stand|Lookup 7+, Table 5|Women 25–29|244|s|1.3|||-1
+Five-repetition chair stand|Lookup 7+, Table 4|Men 25–29|136|s|1.4|||-1
+Five-repetition chair stand|CLSA, Ch. 8 Table 6|Women 75+|30,097 overall|s|4.93|||-1
+Five-repetition chair stand|CLSA, Ch. 8 Table 6|Men 75+|30,097 overall|s|3.94|||-1
+Five-repetition chair stand|Tromsø, Table 4|Women 70–74|616|s|3.3|||-1
+Five-repetition chair stand|Tromsø, Table 4|Men 70–74|515|s|2.7|||-1
+30-second chair stand|Senior Fitness Test, Table 3|Women 70–74|538, both sexes|reps|3.1|||
+30-second chair stand|Senior Fitness Test, Table 3|Men 70–74|538, both sexes|reps|4.0|||
+Usual gait speed (4 m)|CLSA, Ch. 8 Table 6|Women 75+|30,097 overall|m/s|0.19|||
+Usual gait speed (4 m)|CLSA, Ch. 8 Table 6|Men 75+|30,097 overall|m/s|0.19|||
+Six-minute walk distance|Senior Fitness Test, Table 3|Women 70–74|538, both sexes|yd|87|||
+Six-minute walk distance|Senior Fitness Test, Table 3|Men 70–74|538, both sexes|yd|100|||
+One-leg balance|CLSA, Ch. 8 Table 6|Women 75+|30,097 overall|s|17.36|||
+One-leg balance|CLSA, Ch. 8 Table 6|Men 75+|30,097 overall|s|19.24|||
+Short Physical Performance Battery (0–12)|Tromsø, Results|Both sexes 40–85|7,474|points|1.3|||")
+show_references(physical_function, "function")
+```
+
+[CLSA baseline report, Chapter 8, Table 6](https://www.clsa-elcv.ca/wp-content/uploads/2023/06/clsa_report_en_final2_web.pdf), [Tromsø Study](https://doi.org/10.1186/s12877-019-1234-8), [Lookup 7+, Tables 4 and 5](https://doi.org/10.1002/jcsm.12610), [Senior Fitness Test, Table 3](https://doi.org/10.1093/geront/gns071)
+
+## References

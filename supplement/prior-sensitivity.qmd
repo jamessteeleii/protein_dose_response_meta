@@ -1,0 +1,225 @@
+---
+title: "Prior sensitivity of the primary protein dose–response candidates"
+subtitle: "Relative total protein intake (g/kg/day)"
+author:
+  - James Steele
+  - Everson Araujo Nunes
+  - Myles Moore
+  - Matthew Lees
+  - Lauren Roxburgh
+  - Andrea Viloria Medina
+  - Stuart Phillips
+bibliography: ../manuscript/references.bib
+csl: ../manuscript/apa.csl
+format:
+  html:
+    theme: [cosmo, no-web-font.scss]
+    toc: true
+    embed-resources: true
+execute:
+  echo: false
+  message: false
+---
+
+{{< include includes/preprint-citation.md >}}
+
+```{r}
+#| label: load-results
+#| include: false
+
+source("report-helpers.R")
+input_dir <- file.path(report_project_root(), "manuscript", "generated", "prior-sensitivity")
+files <- c("candidates.csv", "diagnostics.csv", "support.csv", "contrasts.csv", "headline-contrast.png")
+if (!all(file.exists(file.path(input_dir, files)))) {
+  stop("Generate the prior-sensitivity reporting files using sensitivity/run_prior_sensitivity.R.")
+}
+read_result <- function(name) {
+  readr::read_csv(file.path(input_dir, paste0(name, ".csv")), show_col_types = FALSE)
+}
+candidates <- read_result("candidates")
+diagnostics <- read_result("diagnostics")
+support <- read_result("support")
+contrasts <- read_result("contrasts")
+outcomes <- c(whole_body = "Whole-body lean/fat-free mass",
+              hypertrophy = "Muscle size or mass", strength = "Strength",
+              `function` = "Physical function")
+expected <- expand.grid(outcome = names(outcomes), model_index = 1:26)
+ids <- function(x) paste(x$outcome, x$model_index)
+if (nrow(candidates) != nrow(expected) ||
+    !setequal(ids(candidates), ids(expected)) ||
+    nrow(diagnostics) != 5L * nrow(expected) ||
+    !setequal(ids(diagnostics), ids(expected)) ||
+    anyDuplicated(diagnostics[c("outcome", "model_index", "prior", "power")])) {
+  stop("Run sensitivity/run_prior_sensitivity.R to generate the full 104-candidate results.")
+}
+outcome_order <- function(x) factor(outcomes[x], levels = unname(outcomes))
+prior_label <- function(x) {
+  unname(c(joint = "Saved prior terms", empirical = "Empirical intercept and RT priors")[x])
+}
+pct <- function(x) sprintf("%.1f%%", 100 * x)
+assessed <- diagnostics[diagnostics$prior != "baseline", ]
+valid <- is.finite(contrasts$mean_change)
+reliable_contrasts <- contrasts[valid, ]
+headline <- subset(reliable_contrasts, current == 0.8 & proposed == 1.6)
+changed <- subset(reliable_contrasts, conclusion_changed)
+equivalence_changes <- with(changed, sum(conclusion == "equivalence" |
+                                         conclusion_baseline == "equivalence"))
+gain_changes <- with(changed, sum(conclusion == "gain" | conclusion_baseline == "gain"))
+strength_example <- subset(reliable_contrasts,
+  outcome == "strength" & model_index == 4 & rt == "RT" &
+    current == 0.8 & proposed == 1.6 & prior == "joint" & power == 1.2)
+max_change <- function(x) {
+  if (all(is.na(x))) "—" else sprintf("%.1f", 100 * max(abs(x), na.rm = TRUE))
+}
+```
+
+## Methods
+
+This exploratory check used archived posterior draws from all 104 accepted
+candidates in the updated primary relative-intake analysis, with 26 candidates
+for each of four outcomes. It included candidates that constrain the dose
+contrast to zero and candidates with targeted prior remedies described in the
+[preregistration deviations](preregistration-deviations.html). Each candidate
+was evaluated separately. The original stacking weights are shown for context.
+
+We used the prior power-scaling method of @kallioinenDetectingDiagnosingPrior2024
+with powers 0.8 and 1.2. Within each fit, we multiplied the original draw
+weights by the selected prior density raised to the power minus one, then
+smoothed and normalised those weights using Pareto-smoothed importance sampling.
+The first set of comparisons scaled all prior terms accumulated in the saved
+Stan `lprior` variable, which includes the explicit coefficient and variance
+priors. Standard-normal latent effects specified separately in the Stan model
+block retained their original distributions. The second set scaled only the
+empirically derived Student-$t$ priors on the intercept and resistance-training
+(RT) coefficient. The original posterior corresponds to uniform reweighting.
+
+We compared doses within a common age and follow-up profile. The primary models use additive effects for these covariates, so the original 25-year/12-week and the reported median profiles produce the same within-draw dose differences. We assessed
+seven positive increments, including 0.8 to 1.6, 0.8 to 2.4, and 1.6 to
+2.4 g/kg/day. Both endpoints had to lie within the observed intake range for
+the outcome and RT condition. For each comparison, we computed the weighted
+mean, equal-tailed 95% credible interval, and probabilities of meaningful
+gain (above 0.10), practical equivalence (within ±0.10), and meaningful
+loss (below −0.10), in standardised units. We applied the manuscript's 95%
+probability criterion to classify each contrast. We report reweighted
+estimates when Pareto-$k$ is below $\min(0.7, 1 - 1/\log_{10}(S))$, where
+$S$ is the number of draws, and the estimated importance-sampling effective
+sample size is at least 400.
+
+## Prior sensitivity of the dose contrasts
+
+`r sum(assessed$reliable)` of `r nrow(assessed)` candidate and perturbation
+combinations met both importance-sampling criteria. There were
+`r sum(!support$supported)` candidate and RT-specific dose pairs outside the
+observed intake range. Among the `r sum(valid)` reliable reweighted contrast
+comparisons, `r sum(contrasts$conclusion_changed, na.rm = TRUE)` crossed a
+95% decision threshold relative to their original candidate fit.
+
+```{r}
+#| label: fig-prior-headline
+#| fig-cap: "Change in the posterior mean contrast for raising intake from 0.8 to 1.6 g/kg/day. Each point is a candidate with reliable reweighting and both doses in the observed range. Vertical jitter separates overlapping points within each row. The dashed line marks zero change from the original fit."
+#| fig-alt: "Shifts in candidate posterior means for the 0.8 to 1.6 gram per kilogram per day contrast, by outcome, resistance training condition, and prior perturbation."
+#| out-width: "100%"
+
+knitr::include_graphics(file.path(input_dir, "headline-contrast.png"))
+```
+
+```{r}
+#| label: tbl-prior-probability-changes
+#| tbl-cap: "Largest absolute change from each original fit in posterior means (standardised units) and probabilities (percentage points). Counts cover candidate, dose pair, and perturbation combinations. A dash indicates no reliable comparison."
+
+summary <- contrasts |>
+  dplyr::mutate(outcome = outcome_order(outcome)) |>
+  dplyr::group_by(outcome, rt, prior) |>
+  dplyr::summarise(
+    reliable = sum(!is.na(mean_change)),
+    total = dplyr::n(),
+    mean_shift = if (all(is.na(mean_change))) "—" else
+      sprintf("%.4f", max(abs(mean_change), na.rm = TRUE)),
+    gain = max_change(gain_change),
+    equivalence = max_change(equivalence_change),
+    loss = max_change(loss_change),
+    changed = sum(conclusion_changed, na.rm = TRUE),
+    .groups = "drop"
+  )
+knitr::kable(data.frame(
+  Outcome = summary$outcome,
+  RT = summary$rt,
+  `Prior terms` = prior_label(summary$prior),
+  `Reliable / eligible` = paste(summary$reliable, summary$total, sep = " / "),
+  `Mean shift` = summary$mean_shift,
+  Gain = summary$gain,
+  Equivalence = summary$equivalence,
+  Loss = summary$loss,
+  `Classification changes` = ifelse(summary$reliable > 0, summary$changed, "—"),
+  check.names = FALSE
+))
+```
+
+<details>
+<summary>All candidate models and original stacking weights</summary>
+
+```{r}
+knitr::kable(data.frame(
+  Outcome = unname(outcomes[candidates$outcome]),
+  Model = candidates$model_index,
+  Specification = candidates$model_name,
+  Weight = pct(candidates$stacking_weight)
+))
+```
+
+</details>
+
+<details>
+<summary>Importance-sampling diagnostics by model and perturbation</summary>
+
+```{r}
+knitr::kable(data.frame(
+  Outcome = unname(outcomes[assessed$outcome]),
+  Model = assessed$model_index,
+  `Prior terms` = prior_label(assessed$prior),
+  Power = assessed$power,
+  `Pareto k` = round(assessed$pareto_k, 3),
+  `k limit` = round(assessed$k_limit, 3),
+  `Effective draws` = round(assessed$effective_draws),
+  Reliable = ifelse(assessed$reliable, "Yes", "No"),
+  check.names = FALSE
+))
+```
+
+</details>
+
+## Overall interpretation
+
+The tested prior changes had little effect on the magnitude of the
+candidate-level dose contrasts. The largest absolute shift in a posterior
+mean was `r sprintf("%.3f", max(abs(reliable_contrasts$mean_change)))`
+standardised units across all comparisons and
+`r sprintf("%.3f", max(abs(headline$mean_change)))` for the 0.8 to 1.6 g/kg/day
+comparison, relative to a smallest effect size of interest of ±0.10.
+When only the empirical intercept and RT priors were perturbed, the largest
+mean shift was
+`r sprintf("%.3f", max(abs(reliable_contrasts$mean_change[reliable_contrasts$prior == "empirical"])))`
+standardised units.
+
+At the 95% probability threshold,
+`r nrow(changed)` of `r format(nrow(reliable_contrasts), big.mark = ",")`
+comparisons (`r pct(nrow(changed) / nrow(reliable_contrasts))`) changed
+classification. Of these, `r equivalence_changes` moved between practical
+equivalence and uncertainty, and `r gain_changes` moved between meaningful
+gain and uncertainty. Posterior probabilities could shift even when the
+classification held. For example, for strength model 4 with RT, jointly
+scaling the saved prior terms to 1.2 reduced the probability of a meaningful
+gain from 0.8 to 1.6 g/kg/day from `r pct(strength_example$gain_baseline)`
+to `r pct(strength_example$gain)`. The contrast remained uncertain.
+
+The results support local robustness of the candidate-level contrast
+estimates to the prior changes tested. Decisions close to the 95% threshold
+can still depend on prior strength. This analysis evaluated model candidates
+separately. Assessing the sensitivity of the model-averaged results would
+require updating the leave-one-out predictions and stacking weights under
+the perturbed priors.
+
+## References
+
+::: {#refs}
+:::

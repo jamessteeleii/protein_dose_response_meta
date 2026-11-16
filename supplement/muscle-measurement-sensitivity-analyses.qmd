@@ -43,6 +43,14 @@ library(readr)
 library(tidyr)
 source(if (file.exists("supplement/report-helpers.R")) "supplement/report-helpers.R" else "report-helpers.R")
 
+measurement_predictions <- read_csv(
+  file.path(report_input_root(), "median-profile-measurement-predictions.csv.gz"),
+  show_col_types = FALSE
+)
+primary_profile <- read_csv(file.path(report_input_root(), "median-profiles.csv"),
+                            show_col_types = FALSE) |>
+  filter(outcome == "hypertrophy")
+
 variants <- tibble::tribble(
   ~bundle, ~label,
   "measurement_prereg_methods_update_2026", "Registered measurement methods",
@@ -52,7 +60,9 @@ variants <- tibble::tribble(
     data = map(bundle, ~ read_bundle(.x, "sample_rows.csv.gz")),
     selection = map(bundle, ~ read_bundle(.x, "selection_summary.csv.gz")),
     audit = map(bundle, ~ read_bundle(.x, "selection_audit.csv.gz")),
-    predictions = map2(bundle, label, ~ normalise_predictions(read_bundle(.x, "dose_response_predictions.csv.gz"), .y, "g/kg/day")),
+    predictions = map2(bundle, label, function(key, analysis) {
+      normalise_predictions(filter(measurement_predictions, bundle == key), analysis, "g/kg/day")
+    }),
     diagnostics = map2(bundle, label, diagnostic_row),
     equivalence = map2(bundle, label, local_equivalence_summary)
   )
@@ -60,7 +70,8 @@ variants <- tibble::tribble(
 original_data <- read_bundle("primary_update_2026", "sample_rows.csv.gz") |>
   filter(analysis_outcome == "hypertrophy")
 original_predictions <- normalise_predictions(
-  read_bundle("primary_update_2026", "dose_response_predictions.csv.gz") |>
+  read_csv(file.path(report_input_root(), "median-profile-primary-predictions.csv.gz"),
+           show_col_types = FALSE) |>
     filter(outcome == "hypertrophy"),
   "Primary measurement eligibility", "g/kg/day"
 )
@@ -146,6 +157,8 @@ knitr::kable(diagnostics, align = c("l", "r", "r", "r", "r"))
 ```
 
 # Dose-response comparison
+
+All three curves use the primary muscle-outcome profile of `r primary_profile$median_age_years` years and `r primary_profile$median_duration_weeks` weeks, including for the two restricted samples.
 
 ```{r}
 #| label: fig-measurement-curves

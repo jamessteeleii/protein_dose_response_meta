@@ -395,7 +395,7 @@ reported.
 
 The unit of appraisal is an outcome, resistance-training condition, and dose
 contrast. Population effects come from the complete primary 26-model stacking
-ensemble. The inconsistency analysis uses the same primary evidence but
+ensemble, with both doses compared at the outcome-specific median age and follow-up defined in the manuscript. Additive age and duration terms cancel within each paired contrast. Empirical support for the GRADE contrasts describes the pooled trial evidence and direct dose comparisons within that evidence. The inconsistency analysis uses the same primary evidence but
 re-stacks the 12 candidate models per outcome that permit study-specific dose
 slopes or smooths.
 

@@ -61,6 +61,7 @@ tar_source("R/grade.R")
 tar_source("R/software_report.R")
 tar_source("R/verification_artifacts.R")
 tar_source("R/preprint_reporting.R")
+tar_source("R/preprint_prediction_profiles.R")
 
 tar_source("R/measurement_sensitivity.R")
 
@@ -13588,10 +13589,21 @@ c(list(
 
   tar_target(
     update_2026_primary_publication_figure_files,
-    write_update_2026_primary_publication_figures(
-      arm_only_files = update_2026_primary_arm_only_figure_files,
-      arm_observed_files = update_2026_primary_arm_figure_files
-    ),
+    {
+      inputs <- preprint_report_interface
+      profiles <- readr::read_csv(inputs[basename(inputs) == "median-profiles.csv"],
+                                  show_col_types = FALSE)
+      audit <- update_2026_primary_reporting_audit
+      audit$dose_response_predictions <- readr::read_csv(
+        inputs[basename(inputs) == "median-profile-primary-predictions.csv.gz"],
+        show_col_types = FALSE
+      )
+      write_preprint_median_primary_figures(
+        audit, update_2026_primary_arm_conditional_audit,
+        update_2026_combined_primary_data_by_outcome, profiles,
+        here::here("manuscript", "generated", "figures", "primary-dose-response")
+      )
+    },
     format = "file"
   ),
 

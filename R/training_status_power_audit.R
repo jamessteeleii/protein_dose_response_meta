@@ -228,11 +228,11 @@ write_training_status_power_audit <- function(
 # illustrative design requirements at the specified power.
 protein_contrast_trial_design <- function(population_effects, analysis_data,
                                           pre_post_r = 0.8, alpha = 0.05,
-                                          target_power = 0.8) {
+                                          target_power = 0.8,
+                                          dose_pairs = rbind(c(0.8, 1.6), c(0.8, 2.4), c(1.6, 2.4))) {
   outcomes <- c(whole_body = "whole-body lean/fat-free mass",
                 hypertrophy = "measures of muscle size or mass",
                 strength = "strength")
-  dose_pairs <- rbind(c(0.8, 1.6), c(0.8, 2.4), c(1.6, 2.4))
   rt_arms <- subset(analysis_data, resistance_exercise_code == 0)
   trained <- subset(rt_arms, trained_or_untrained == "trained")
   median_arm_n <- function(data) {

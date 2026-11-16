@@ -17,6 +17,78 @@ preprint_report_files <- function(root = ".", section = "") {
 
 # Write the portable reporting inputs from the verified analysis artifacts so
 # the documents can render from static files.
+read_preprint_arm_intake_summary <- function(path) {
+  arms <- readr::read_csv(path, col_select = c(study_no, arm_no, protein_intake_raw),
+                         show_col_types = FALSE) |>
+    dplyr::distinct()
+  intake <- arms$protein_intake_raw
+  stopifnot(length(intake) > 0L, all(is.finite(intake)),
+            !anyDuplicated(arms[c("study_no", "arm_no")]))
+  counts <- list(arms = nrow(arms), below_rda = sum(intake < 0.8), above_2_2 = sum(intake > 2.2))
+  list(
+    `arm-intake-tail-examples` = sprintf(
+      "%.1f%% of primary-analysis arms were below 0.8 g/kg/day and %.1f%% were above 2.2 g/kg/day",
+      100 * counts$below_rda / counts$arms, 100 * counts$above_2_2 / counts$arms
+    ),
+    `arm-intake-counts` = counts
+  )
+}
+
+read_preprint_rt_contrasts <- function(root = ".") {
+  bundle <- file.path(root, "results", "verification", "primary_update_2026")
+  sesoi <- qs::qread(file.path(bundle, "reference_values.qs"))$rope_half_width
+  support <- utils::read.csv(file.path(bundle, "observed_support.csv.gz"))
+  doses <- c(0.8, 1.1, 1.6, 2.2)
+  average_dir <- file.path(root, "model_archive", "update_2026", "primary",
+                           "reporting", "model_average")
+
+  # Saved draws retain the 0.8 g/kg/day physical-function prediction. Additive
+  # age and duration terms cancel within each dose contrast.
+  dplyr::bind_rows(lapply(c("whole_body", "hypertrophy", "strength", "function"), function(outcome) {
+    average <- qs::qread(file.path(average_dir, paste0(outcome, ".qs")))
+    observed <- support[support$outcome == outcome & support$resistance_exercise_code == 0, ]
+    stopifnot(identical(average$outcome, outcome), nrow(observed) == 1L)
+    columns <- vapply(doses, function(dose) {
+      index <- which(average$grid$resistance_exercise_code == 0 &
+                       abs(average$grid$protein_intake - dose) < 1e-10)
+      if (length(index) != 1L) stop("Missing unique RT prediction for ", outcome, " at ", dose)
+      index
+    }, integer(1))
+    lower_doses <- head(doses, -1L)
+    higher_doses <- tail(doses, -1L)
+    draw_differences <- average$draws[, tail(columns, -1L)] - average$draws[, head(columns, -1L)]
+    intervals <- apply(draw_differences, 2L, stats::quantile, probs = c(0.025, 0.975))
+    data.frame(
+      outcome = outcome, resistance_exercise_code = 0L,
+      protein_intake_reference = lower_doses, protein_intake_proposed = higher_doses,
+      estimate = colMeans(draw_differences), lower_95 = intervals[1L, ], upper_95 = intervals[2L, ],
+      probability_benefit = colMeans(draw_differences > sesoi),
+      probability_equivalence = colMeans(abs(draw_differences) <= sesoi),
+      probability_detriment = colMeans(draw_differences < -sesoi),
+      supported = lower_doses >= observed$observed_min & higher_doses <= observed$observed_max
+    )
+  })) |>
+    dplyr::arrange(protein_intake_reference, outcome)
+}
+
+read_preprint_trial_design <- function(representative_contrasts, root = ".", preprocessing_path = file.path(
+    root, "results", "update_2026", "primary_refit", "preprocessing.csv")) {
+  source(file.path(root, "R", "training_status_power_audit.R"), local = TRUE)
+  correlation <- utils::read.csv(preprocessing_path)$pre_post_r_imputation
+  if (length(correlation) != 1L || !is.finite(correlation) || abs(correlation) >= 1) {
+    stop("Expected the pooled pre-post correlation from the final primary preprocessing.",
+         call. = FALSE)
+  }
+  analysis_data <- utils::read.csv(file.path(
+    root, "results", "verification", "primary_update_2026", "analysis_data.csv.gz"
+  ))
+  dose_pairs <- unique(representative_contrasts[c("protein_intake_reference", "protein_intake_proposed")])
+  design <- protein_contrast_trial_design(representative_contrasts, analysis_data,
+                                         pre_post_r = correlation, dose_pairs = unname(as.matrix(dose_pairs)))
+  transform(design$contrasts, pre_post_r = design$pre_post_r, alpha = design$alpha,
+            target_power = design$target_power, trained_min = design$trained_min)
+}
+
 write_preprint_report_inputs <- function(root = ".") {
   destination <- preprint_report_root(root)
   verification <- file.path(root, "results", "verification")
@@ -153,6 +225,50 @@ write_preprint_report_inputs <- function(root = ".") {
   # The reviewed RoB 2 publication files are already bundled under rob2/.
   # GRADE consumes the study-number keyed judgments in data/GRADE/.
   grade <- file.path(update, "grade")
+  copy_files(grade, "grade", c(
+    "evidence_profile.csv", "population_effects.csv", "inconsistency_summary.csv",
+    "inconsistency_study_summary.csv.gz", "inconsistency_leave_one_out.csv.gz",
+    "empirical_support.csv", "rob2_summary.csv", "publication_bias_summary.csv"
+  ))
+  weights <- "inconsistency_restricted_stacking_weights.csv"
+  write_csv(file.path(grade, weights), file.path("grade", weights),
+            function(data) dplyr::select(data, -final_loo_path))
+  write_csv(file.path(grade, "preflight.csv"), "grade/preflight.csv",
+            function(data) dplyr::mutate(data, detail = ifelse(
+              grepl("^[A-Za-z]:[/\\\\]|^/", detail), basename(detail), detail
+            )))
+
+  bias <- file.path(update, "publication_bias")
+  copy_files(bias, "publication-bias", "high_low_outcome_summary.csv")
+  write_csv(file.path(bias, "robma", "fit_manifest.csv"),
+            "publication-bias/fit_manifest.csv",
+            function(data) dplyr::select(data, -fit_path))
+  analyses <- c("primary_whole_body", "primary_direct_muscle", "primary_strength",
+                "primary_function", "secondary_omnibus")
+  reports <- as.vector(outer(analyses, c("-robma_summary.txt", "-robma_models.txt",
+                                        "-robma_zplot.txt", "-brma_summary.txt"), paste0))
+  copy_files(file.path(bias, "robma", "reporting"), "publication-bias", reports)
+  copy_files(file.path(root, "plots", "update_2026", "publication_bias", "robma"),
+             "publication-bias", paste0(analyses, "-zplot.png"))
+
+  write_output(file.path(verification, primary, "analysis_data.csv.gz"),
+               "arm-intake-summary.yml", function(from, to) {
+    writeLines(c("# Generated from frozen primary study arms. Do not edit.",
+                 yaml::as.yaml(read_preprint_arm_intake_summary(from))), to, useBytes = TRUE)
+  })
+  copy_files(file.path(update, "sensitivity", "comparisons"), "relative-comparison",
+             "reference_increment_overlay_data.csv.gz")
+
+  representative_contrasts <- read_preprint_rt_contrasts(root)
+  trial_design <- read_preprint_trial_design(representative_contrasts, root)
+  write_output(file.path(verification, primary, "observed_support.csv.gz"),
+               "representative-rt-contrasts.csv", function(from, to) {
+    readr::write_csv(representative_contrasts, to)
+  })
+  write_output(file.path(update, "primary_refit", "preprocessing.csv"),
+               "trial-design.csv", function(from, to) {
+    readr::write_csv(trial_design, to)
+  })
   copy_files(grade, "grade", c(
     "evidence_profile.csv", "population_effects.csv", "inconsistency_summary.csv",
     "inconsistency_study_summary.csv.gz", "inconsistency_leave_one_out.csv.gz",
