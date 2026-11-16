@@ -370,6 +370,14 @@ records the checks and explains what to expect from the fixed seeds on a
 different machine. Follow the [staged run guide](sensitivity/analysis-stages.md)
 if you want to rerun the analyses.
 
+## Citation
+
+Cite Steele et al. (2026) using the full reference in the manuscript.
+The [preprint v1.0.0 archive](https://github.com/jamessteeleii/protein_dose_response_meta/releases/tag/preprint-v1.0.0)
+identifies the exact manuscript, supplementary materials, and source version.
+The review protocol is available through the
+[OSF preregistration](https://osf.io/w2qpx/overview).
+
 ## License
 
 This work is licensed under a

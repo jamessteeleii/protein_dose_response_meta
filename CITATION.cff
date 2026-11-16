@@ -20,3 +20,6 @@ authors:
     given-names: Stuart
 license: CC-BY-NC-SA-4.0
 repository-code: https://github.com/jamessteeleii/protein_dose_response_meta
+version: preprint-v1.0.0
+date-released: "2026-11-16"
+url: https://github.com/jamessteeleii/protein_dose_response_meta/releases/tag/preprint-v1.0.0

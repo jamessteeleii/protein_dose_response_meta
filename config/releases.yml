@@ -9,11 +9,16 @@ releases:
     publication_date: null
     doi: null
   - stage: preprint
-    status: candidate
+    status: published
     tag: preprint-v1.0.0
-    commit: null
-    publication_date: null
-    github_release_url: null
+    commit: 46f98f55fbced2d61f16ddfa22d0b0a3e4a5310c
+    publication_date: "2026-11-16"
+    github_release_url: https://github.com/jamessteeleii/protein_dose_response_meta/releases/tag/preprint-v1.0.0
     preprint_doi: null
     archive_doi: null
-    notes: "Confirm the identifier in the manuscript and the exact reviewed assets before publication."
+    notes: >-
+      GitHub archive of the verified submission PDF and supplements. The author
+      confirmed that `quarto render manuscript/manuscript.qmd` produced the
+      standalone PDF with the Table 2 source hidden. The manuscript lists
+      SportRxiv identifier 10.51224/SportRxiv.1166, which did not resolve when
+      the GitHub archive was published.
